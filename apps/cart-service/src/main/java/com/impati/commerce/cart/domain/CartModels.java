@@ -1,7 +1,5 @@
 package com.impati.commerce.cart.domain;
 
-import com.impati.commerce.common.ApiContracts.CartLineResponse;
-import com.impati.commerce.common.ApiContracts.CartResponse;
 import com.impati.commerce.common.DomainException;
 
 import java.util.ArrayList;
@@ -34,10 +32,6 @@ public final class CartModels {
             }
             this.quantity = quantity;
         }
-
-        public CartLineResponse toResponse() {
-            return new CartLineResponse(skuId, quantity);
-        }
     }
 
     public static final class Cart {
@@ -50,6 +44,10 @@ public final class CartModels {
 
         public String memberId() {
             return memberId;
+        }
+
+        public List<CartLine> lines() {
+            return List.copyOf(lines);
         }
 
         public void add(String skuId, int quantity) {
@@ -68,10 +66,5 @@ public final class CartModels {
         public void clear() {
             lines.clear();
         }
-
-        public CartResponse toResponse() {
-            return new CartResponse(memberId, lines.stream().map(CartLine::toResponse).toList());
-        }
     }
 }
-

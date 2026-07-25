@@ -20,19 +20,19 @@ public class CartService {
         var cart = loadOrNew(memberId);
         cart.add(skuId, quantity);
         carts.save(cart);
-        return cart.toResponse();
+        return CartMapper.toResponse(cart);
     }
 
     /** 조회는 저장소를 바꾸지 않는다. 장바구니가 없으면 빈 것을 만들어 응답만 하고 저장하지 않는다. */
     public CartResponse get(String memberId) {
-        return loadOrNew(memberId).toResponse();
+        return CartMapper.toResponse(loadOrNew(memberId));
     }
 
     public CartResponse clear(String memberId) {
         var cart = loadOrNew(memberId);
         cart.clear();
         carts.save(cart);
-        return cart.toResponse();
+        return CartMapper.toResponse(cart);
     }
 
     private Cart loadOrNew(String memberId) {
