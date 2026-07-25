@@ -83,6 +83,7 @@ curl -X POST http://localhost:8080/checkout \
 
 ## 문서
 
+- [로컬 실행 가이드](docs/local-run.md)
 - [시스템 아키텍처](docs/architecture.md)
 - [도메인 경계](docs/domain-map.md)
 
