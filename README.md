@@ -44,25 +44,38 @@ Storefront는 기본적으로 `http://localhost:5173`에서 열립니다.
 
 ## 주요 API
 
+인증이 필요 없는 경로:
+
 ```http
 GET  /display/home
 GET  /products
-GET  /members
-POST /members
-POST /members/{memberId}/addresses
-GET  /cart/{memberId}
-POST /cart/{memberId}/items
-POST /checkout
-GET  /orders/{orderId}
-POST /shipments/{shipmentId}/ship
-POST /shipments/{shipmentId}/deliver
 GET  /inventory
-GET  /notifications
+POST /members                    회원 가입
+POST /members/verifications      이메일 소유 확인
+POST /login
 ```
 
-데모 데이터:
+세션 토큰이 필요한 경로 (`Authorization: Bearer <token>`):
 
-- 회원: `mem_demo`
+```http
+GET  /me
+POST /me/addresses
+GET  /cart
+POST /cart/items
+POST /checkout
+GET  /orders/{orderId}
+GET  /notifications
+POST /logout
+POST /shipments/{shipmentId}/ship
+POST /shipments/{shipmentId}/deliver
+```
+
+**퍼블릭 경로는 `memberId`를 받지 않는다.** 게이트웨이가 세션을 검증해 하위 서비스에
+`X-Member-Id`로 신원을 넘긴다.
+
+데모 데이터 (`local` 프로파일에서만 생성됨):
+
+- 회원: `demo@impati.test` / 비밀번호 `demo-password`
 - SKU: `sku_tee_white_m`, `sku_tee_black_l`, `sku_drip_ivory`, `sku_drip_moss`, `sku_pouch_sage`
 - 결제 성공 토큰: `card_test_success`
 - 결제 실패 토큰: `card_test_decline`
@@ -70,13 +83,17 @@ GET  /notifications
 ## Checkout 예시
 
 ```bash
-curl -X POST http://localhost:8080/cart/mem_demo/items \
+TOKEN=$(curl -sS -X POST http://localhost:8080/login \
   -H 'Content-Type: application/json' \
+  -d '{"email":"demo@impati.test","password":"demo-password"}' | jq -r .token)
+
+curl -X POST http://localhost:8080/cart/items \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d '{"skuId":"sku_tee_white_m","quantity":2}'
 
 curl -X POST http://localhost:8080/checkout \
-  -H 'Content-Type: application/json' \
-  -d '{"memberId":"mem_demo","paymentToken":"card_test_success"}'
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"paymentToken":"card_test_success"}'
 ```
 
 결제 실패 토큰을 쓰면 주문은 `CANCELLED`가 되고, 재고 예약은 release됩니다. 장바구니는 유지되어 재시도할 수 있습니다.

@@ -14,10 +14,11 @@ import {
   WifiOff
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { api, fallback } from './api';
+import { UnauthorizedError, api, fallback } from './api';
+import { session } from './session';
 import { compactStatus, formatMoney } from './format';
-import { demoMemberId, productImages } from './mockData';
-import type { Cart, Checkout, DisplayHome, Notification, Product, Shipment, Stock } from './types';
+import { productImages } from './mockData';
+import type { Cart, Checkout, DisplayHome, Member, Notification, Product, Shipment, Stock } from './types';
 
 type ApiMode = 'live' | 'partial' | 'demo';
 type BusyAction = 'load' | 'cart' | 'checkout' | 'ship' | 'deliver' | null;
@@ -30,13 +31,13 @@ const categories = ['all', 'apparel', 'home', 'travel'];
  * Promise.all이었을 때는 알림 하나가 죽어도 상품까지 데모 데이터로 바뀌었다.
  * 살아있는 것은 실제 데이터를 쓰고, 죽은 것만 폴백으로 대체한다.
  */
-async function fetchStorefront() {
-  const [homeResult, productsResult, cartResult, stockResult, notificationsResult] = await Promise.allSettled([
+async function fetchStorefront(authenticated: boolean) {
+  const [homeResult, productsResult, stockResult, cartResult, notificationsResult] = await Promise.allSettled([
     api.home(),
     api.products(),
-    api.cart(demoMemberId),
     api.stock(),
-    api.notifications()
+    authenticated ? api.cart() : Promise.resolve(fallback.cart),
+    authenticated ? api.notifications() : Promise.resolve([])
   ]);
 
   const degraded: string[] = [];
@@ -51,13 +52,13 @@ async function fetchStorefront() {
   const data = {
     home: pick(homeResult, 'display', fallback.home),
     products: pick(productsResult, 'products', fallback.products),
-    cart: pick(cartResult, 'cart', fallback.cart),
     stock: pick(stockResult, 'inventory', fallback.stock),
+    cart: pick(cartResult, 'cart', fallback.cart),
     notifications: pick(notificationsResult, 'notifications', fallback.notifications)
   };
 
-  const total = 5;
-  const mode: ApiMode = degraded.length === 0 ? 'live' : degraded.length === total ? 'demo' : 'partial';
+  const total = authenticated ? 5 : 3;
+  const mode: ApiMode = degraded.length === 0 ? 'live' : degraded.length >= total ? 'demo' : 'partial';
   return { data, degraded, mode };
 }
 
@@ -85,6 +86,13 @@ export function App() {
   const [apiMode, setApiMode] = useState<ApiMode>('live');
   const [busy, setBusy] = useState<BusyAction>('load');
   const [notice, setNotice] = useState('Ready');
+  const [member, setMember] = useState<Member | null>(null);
+  const [authView, setAuthView] = useState<'login' | 'register'>('login');
+  const [authEmail, setAuthEmail] = useState('demo@impati.test');
+  const [authName, setAuthName] = useState('');
+  const [authPassword, setAuthPassword] = useState('demo-password');
+  const [authNotice, setAuthNotice] = useState('');
+  const [authBusy, setAuthBusy] = useState(false);
 
   function applyStorefront(result: Awaited<ReturnType<typeof fetchStorefront>>) {
     setHome(result.data.home);
@@ -99,15 +107,39 @@ export function App() {
   useEffect(() => {
     let ignore = false;
 
-    async function load() {
+    async function bootstrap() {
       setBusy('load');
-      const result = await fetchStorefront();
+
+      // 인증 링크로 들어온 경우 먼저 처리한다. 토큰은 한 번만 쓸 수 있으므로 URL에서 지운다.
+      const verificationToken = new URLSearchParams(window.location.search).get('token');
+      if (verificationToken) {
+        try {
+          await api.verifyEmail(verificationToken);
+          setAuthNotice('이메일이 확인됐습니다. 로그인해주세요.');
+        } catch (error) {
+          setAuthNotice(error instanceof Error ? error.message : '인증에 실패했습니다.');
+        }
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+
+      let current: Member | null = null;
+      if (session.read()) {
+        try {
+          current = await api.me();
+        } catch {
+          session.clear();
+        }
+      }
+      if (ignore) return;
+      setMember(current);
+
+      const result = await fetchStorefront(current !== null);
       if (ignore) return;
       applyStorefront(result);
       setBusy(null);
     }
 
-    load();
+    bootstrap();
     return () => {
       ignore = true;
     };
@@ -144,24 +176,71 @@ export function App() {
   async function refresh() {
     setBusy('load');
     try {
-      applyStorefront(await fetchStorefront());
+      applyStorefront(await fetchStorefront(member !== null));
     } finally {
       setBusy(null);
     }
   }
 
+  async function submitAuth() {
+    setAuthBusy(true);
+    setAuthNotice('');
+    try {
+      if (authView === 'register') {
+        await api.register(authEmail, authName || authEmail, authPassword);
+        setAuthNotice('가입됐습니다. 발송된 인증 링크로 이메일을 확인해주세요.');
+        setAuthView('login');
+        return;
+      }
+      const issued = await api.login(authEmail, authPassword);
+      session.write(issued.token);
+      const current = await api.me();
+      setMember(current);
+      applyStorefront(await fetchStorefront(true));
+      setAuthNotice('');
+    } catch (error) {
+      setAuthNotice(error instanceof Error ? error.message : '요청이 실패했습니다.');
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  async function signOut() {
+    try {
+      await api.logout();
+    } catch {
+      // 서버가 이미 폐기했거나 닿지 않아도 로컬 세션은 지운다
+    }
+    session.clear();
+    setMember(null);
+    setCheckout(null);
+    setShipment(null);
+    applyStorefront(await fetchStorefront(false));
+  }
+
+  /** 세션이 끊겼다. 로그인 화면으로 돌려보낸다. */
+  function handleExpiredSession() {
+    session.clear();
+    setMember(null);
+    setAuthNotice('세션이 만료됐습니다. 다시 로그인해주세요.');
+  }
+
   async function addToCart(product: Product) {
     const skuId = selectedSku[product.id] ?? product.skus[0]?.id;
     if (!skuId) return;
+    if (!member) {
+      setAuthNotice('장바구니를 쓰려면 로그인해주세요.');
+      return;
+    }
     setBusy('cart');
     try {
-      if (apiMode !== 'demo') {
-        setCart(await api.addCartItem(demoMemberId, skuId, 1));
-      } else {
-        setCart((current) => addLine(current, skuId));
-      }
+      setCart(await api.addCartItem(skuId, 1));
       setNotice('Cart updated');
-    } catch {
+    } catch (error) {
+      if (error instanceof UnauthorizedError) {
+        handleExpiredSession();
+        return;
+      }
       setApiMode('demo');
       setCart((current) => addLine(current, skuId));
       setNotice('Cart updated');
@@ -175,30 +254,38 @@ export function App() {
       setNotice('Cart is empty');
       return;
     }
+    if (!member) {
+      setAuthNotice('주문하려면 로그인해주세요.');
+      return;
+    }
     setBusy('checkout');
     try {
-      const result = apiMode !== 'demo' ? await api.checkout(demoMemberId) : fallback.checkout(cart);
+      const result = await api.checkout();
       setCheckout(result);
       setShipment(result.shipment);
-      setCart({ memberId: demoMemberId, lines: [] });
+      setCart({ memberId: member.id, lines: [] });
       setStock((current) => reduceStock(current, cart.lines));
       setNotifications((current) => [
         ...current,
         {
           id: `ntf_ui_${Date.now()}`,
           eventType: 'OrderPaid',
-          memberId: demoMemberId,
+          memberId: member.id,
           subject: 'Order paid',
           body: `Order ${result.order.id} has been paid.`
         }
       ]);
       setNotice('Checkout completed');
-    } catch {
+    } catch (error) {
+      if (error instanceof UnauthorizedError) {
+        handleExpiredSession();
+        return;
+      }
       setApiMode('demo');
       const result = fallback.checkout(cart);
       setCheckout(result);
       setShipment(result.shipment);
-      setCart({ memberId: demoMemberId, lines: [] });
+      setCart({ memberId: member.id, lines: [] });
       setStock((current) => reduceStock(current, cart.lines));
       setNotice('Checkout completed');
     } finally {
@@ -244,7 +331,7 @@ export function App() {
         {
           id: `ntf_ui_${Date.now()}`,
           eventType: 'OrderDelivered',
-          memberId: demoMemberId,
+          memberId: member?.id ?? 'unknown',
           subject: 'Order delivered',
           body: `Order ${delivered.order.id} has been delivered.`
         }
@@ -378,11 +465,65 @@ export function App() {
         </section>
 
         <aside className="side-rail">
+          {!member ? (
+            <section className="panel">
+              <div className="panel-head">
+                <div>
+                  <p className="eyebrow">{authView === 'login' ? 'Sign in' : 'Sign up'}</p>
+                  <h2>{authView === 'login' ? '로그인' : '가입'}</h2>
+                </div>
+              </div>
+
+              <div className="auth-form">
+                <label>
+                  <span>Email</span>
+                  <input
+                    value={authEmail}
+                    onChange={(event) => setAuthEmail(event.target.value)}
+                    autoComplete="username"
+                  />
+                </label>
+                {authView === 'register' ? (
+                  <label>
+                    <span>Name</span>
+                    <input value={authName} onChange={(event) => setAuthName(event.target.value)} />
+                  </label>
+                ) : null}
+                <label>
+                  <span>Password</span>
+                  <input
+                    type="password"
+                    value={authPassword}
+                    onChange={(event) => setAuthPassword(event.target.value)}
+                    autoComplete="current-password"
+                  />
+                </label>
+
+                {authNotice ? <p className="auth-notice">{authNotice}</p> : null}
+
+                <button className="primary" type="button" onClick={submitAuth} disabled={authBusy}>
+                  {authBusy ? <Loader2 className="spin" size={18} /> : null}
+                  {authView === 'login' ? '로그인' : '가입하기'}
+                </button>
+                <button
+                  className="link-button"
+                  type="button"
+                  onClick={() => {
+                    setAuthView(authView === 'login' ? 'register' : 'login');
+                    setAuthNotice('');
+                  }}
+                >
+                  {authView === 'login' ? '계정이 없으신가요? 가입' : '이미 계정이 있으신가요? 로그인'}
+                </button>
+              </div>
+            </section>
+          ) : (
           <section className="panel">
             <div className="panel-head">
               <div>
                 <p className="eyebrow">Member</p>
-                <h2>{demoMemberId}</h2>
+                <h2>{member.name}</h2>
+                <p className="auth-notice">{member.email}</p>
               </div>
               <span className="count-badge">{cart.lines.reduce((sum, line) => sum + line.quantity, 0)}</span>
             </div>
@@ -424,7 +565,12 @@ export function App() {
               {busy === 'checkout' ? <Loader2 className="spin" size={18} /> : <CreditCard size={18} />}
               Checkout
             </button>
+
+            <button className="link-button" type="button" onClick={signOut}>
+              로그아웃
+            </button>
           </section>
+          )}
 
           <section className="panel">
             <div className="panel-head">

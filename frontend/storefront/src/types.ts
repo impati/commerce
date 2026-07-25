@@ -127,3 +127,25 @@ export type Notification = {
   body: string;
 };
 
+
+export type Member = {
+  id: string;
+  email: string;
+  name: string;
+  status: string;
+  addresses: {
+    id: string;
+    alias: string;
+    recipient: string;
+    phone: string;
+    line1: string;
+    city: string;
+    postalCode: string;
+    defaultAddress: boolean;
+  }[];
+};
+
+export type Session = {
+  token: string;
+  expiresAt: string;
+};
