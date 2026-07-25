@@ -1,6 +1,7 @@
 package com.impati.commerce.notification.application;
 
 import com.impati.commerce.common.ApiContracts.NotificationResponse;
+import com.impati.commerce.common.ApiContracts.OutboxEntryResponse;
 import com.impati.commerce.notification.domain.NotificationModels.Notification;
 
 /**
@@ -17,6 +18,18 @@ final class NotificationMapper {
                 notification.memberId(),
                 notification.subject(),
                 notification.body()
+        );
+    }
+
+    static OutboxEntryResponse toOutboxEntry(Notification notification) {
+        return new OutboxEntryResponse(
+                notification.id(),
+                notification.channel().name(),
+                notification.recipient(),
+                notification.subject(),
+                notification.body(),
+                notification.deliveryStatus().name(),
+                notification.attempts()
         );
     }
 }

@@ -173,6 +173,21 @@ public final class ApiContracts {
     public record NotificationEventRequest(String eventType, String memberId, String subject, String body) {
     }
 
+    public record EmailVerificationMailRequest(String memberId, String email, String token) {
+    }
+
+    /** 로컬 데모에서 발송함을 들여다보기 위한 응답. 운영 프로파일에는 조회 경로가 없다. */
+    public record OutboxEntryResponse(
+            String id,
+            String channel,
+            String recipient,
+            String subject,
+            String body,
+            String deliveryStatus,
+            int attempts
+    ) {
+    }
+
     public record NotificationResponse(
             String id,
             String eventType,
