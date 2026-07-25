@@ -5,11 +5,21 @@ import com.impati.commerce.common.ApiContracts.ReservationResponse;
 import com.impati.commerce.common.ApiContracts.StockResponse;
 import com.impati.commerce.common.DomainException;
 import com.impati.commerce.inventory.domain.InventoryModels.Reservation;
+import com.impati.commerce.inventory.domain.InventoryModels.ReservedLine;
 import com.impati.commerce.inventory.domain.InventoryModels.StockItem;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
+/**
+ * 재고 변경은 모두 트랜잭션 안에서 대상 행을 잠근 뒤 수행한다.
+ *
+ * <p>이전에는 메서드에 {@code synchronized}를 걸었다. 단일 프로세스와 맵을 가정한 동기화이므로
+ * DB로 옮기면서 걷어냈다. 인스턴스가 여러 개면 JVM 락은 아무것도 보호하지 못한다.
+ */
 @Service
 public class InventoryService {
     private final InventoryRepository inventory;
@@ -18,61 +28,92 @@ public class InventoryService {
         this.inventory = inventory;
     }
 
-    public synchronized StockResponse addStock(String skuId, int quantity) {
-        var stock = inventory.findStock(skuId).orElseGet(() -> new StockItem(skuId));
+    @Transactional
+    public StockResponse addStock(String skuId, int quantity) {
+        var stock = inventory.lockStock(List.of(skuId)).stream()
+                .findFirst()
+                .orElseGet(() -> new StockItem(skuId));
         stock.add(quantity);
         inventory.saveStock(stock);
-        return stock.toResponse();
+        return InventoryMapper.toResponse(stock);
     }
 
-    public synchronized ReservationResponse reserve(String orderId, List<ReservationLine> lines) {
-        for (var line : lines) {
-            var stock = getStock(line.skuId());
+    @Transactional
+    public ReservationResponse reserve(String orderId, List<ReservationLine> lines) {
+        var reservedLines = lines.stream()
+                .map(line -> new ReservedLine(line.skuId(), line.quantity()))
+                .toList();
+        var locked = lockFor(reservedLines);
+
+        for (var line : reservedLines) {
+            var stock = requireStock(locked, line.skuId());
             if (stock.available() < line.quantity()) {
                 throw DomainException.conflict("insufficient stock for " + line.skuId());
             }
         }
-        for (var line : lines) {
-            var stock = getStock(line.skuId());
+        for (var line : reservedLines) {
+            var stock = requireStock(locked, line.skuId());
             stock.reserve(line.quantity());
             inventory.saveStock(stock);
         }
-        var reservation = new Reservation(orderId, lines);
+
+        var reservation = new Reservation(orderId, reservedLines);
         inventory.saveReservation(reservation);
-        return reservation.toResponse();
+        return InventoryMapper.toResponse(reservation);
     }
 
-    public synchronized ReservationResponse commit(String reservationId) {
+    @Transactional
+    public ReservationResponse commit(String reservationId) {
         var reservation = getReservation(reservationId);
+        var locked = lockFor(reservation.lines());
         for (var line : reservation.lines()) {
-            var stock = getStock(line.skuId());
+            var stock = requireStock(locked, line.skuId());
             stock.commit(line.quantity());
             inventory.saveStock(stock);
         }
         reservation.commit();
         inventory.saveReservation(reservation);
-        return reservation.toResponse();
+        return InventoryMapper.toResponse(reservation);
     }
 
-    public synchronized ReservationResponse release(String reservationId) {
+    @Transactional
+    public ReservationResponse release(String reservationId) {
         var reservation = getReservation(reservationId);
+        var locked = lockFor(reservation.lines());
         for (var line : reservation.lines()) {
-            var stock = getStock(line.skuId());
+            var stock = requireStock(locked, line.skuId());
             stock.release(line.quantity());
             inventory.saveStock(stock);
         }
         reservation.release();
         inventory.saveReservation(reservation);
-        return reservation.toResponse();
+        return InventoryMapper.toResponse(reservation);
     }
 
+    @Transactional(readOnly = true)
     public List<StockResponse> stock() {
-        return inventory.stock().stream().map(item -> item.toResponse()).toList();
+        return inventory.stock().stream().map(InventoryMapper::toResponse).toList();
     }
 
-    private StockItem getStock(String skuId) {
-        return inventory.findStock(skuId)
-                .orElseThrow(() -> DomainException.notFound("stock not found for " + skuId));
+    /** 시드가 이미 들어가 있는지 확인한다. 파일 DB에서는 재시작마다 시드를 넣으면 재고가 늘어난다. */
+    @Transactional(readOnly = true)
+    public boolean isEmpty() {
+        return inventory.stock().isEmpty();
+    }
+
+    private Map<String, StockItem> lockFor(List<ReservedLine> lines) {
+        var skuIds = lines.stream().map(ReservedLine::skuId).distinct().toList();
+        Map<String, StockItem> locked = new LinkedHashMap<>();
+        inventory.lockStock(skuIds).forEach(stock -> locked.put(stock.skuId(), stock));
+        return locked;
+    }
+
+    private StockItem requireStock(Map<String, StockItem> locked, String skuId) {
+        var stock = locked.get(skuId);
+        if (stock == null) {
+            throw DomainException.notFound("stock not found for " + skuId);
+        }
+        return stock;
     }
 
     private Reservation getReservation(String reservationId) {

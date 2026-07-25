@@ -15,6 +15,10 @@ public class InventoryServiceApplication {
     @Bean
     ApplicationRunner seedStock(InventoryService inventory) {
         return args -> {
+            // 파일 DB는 데이터가 남는다. 재시작마다 시드를 넣으면 재고가 계속 늘어난다.
+            if (!inventory.isEmpty()) {
+                return;
+            }
             inventory.addStock("sku_tee_white_m", 20);
             inventory.addStock("sku_tee_black_l", 20);
             inventory.addStock("sku_drip_ivory", 20);

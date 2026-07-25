@@ -84,16 +84,18 @@ curl -sS -X POST http://localhost:8080/checkout -H 'Content-Type: application/js
 
 ## 데이터가 남는 범위
 
-order-service만 H2 파일 DB를 쓴다. 프로세스를 재시작해도 주문은 남는다.
+저장소가 있는 8개 서비스가 모두 H2 파일 DB를 쓴다. 프로세스를 전부 재시작해도 상품, 재고, 회원, 장바구니, 주문, 결제, 배송, 알림이 그대로 남는다. api-gateway와 display-service는 저장소가 없다.
 
 ```bash
-ls .data/            # order-service.mv.db
+ls .data/            # 서비스마다 .mv.db 파일 하나
 rm -rf .data         # 초기화 (make stop 후에)
 ```
 
-`.data/`는 상대경로이므로 저장소 루트에서 실행해야 그 자리에 생긴다. 스키마는 [V1__create_orders.sql](../apps/order-service/src/main/resources/db/migration/V1__create_orders.sql)이며 Flyway가 기동 시 적용한다.
+`.data/`는 상대경로이므로 저장소 루트에서 실행해야 그 자리에 생긴다. 스키마는 각 서비스의 `src/main/resources/db/migration`에 있고 Flyway가 기동 시 적용한다.
 
-나머지 9개 서비스는 인메모리이므로 재시작하면 장바구니, 재고, 회원, 배송이 시드 상태로 돌아간다. 주문만 남아 있는 상태가 되므로, 재시작 후 예전 주문을 조회하면 배송 정보는 이미 사라져 있다.
+시드 데이터는 저장소가 비어 있을 때만 들어간다. 재시작해도 상품이 6개로 늘거나 재고가 두 배가 되지 않는다.
+
+데이터를 비우고 처음부터 보려면 `make stop` 후 `rm -rf .data`를 실행하고 다시 띄운다.
 
 ## 로그와 종료
 
@@ -113,8 +115,8 @@ make stop
 | `Partial — demo: ...`가 뜬다 | 나열된 리소스의 서비스만 죽었다. `.run/<service>.log`를 본다 |
 | `did not become healthy` | 포트 충돌이 대부분이다. `lsof -i :8080` 등으로 확인 |
 | 상품이 비어 있다 | catalog-service가 죽었거나 태그가 어긋났다 |
-| 재시작하니 장바구니·재고가 초기화됐다 | order-service를 뺀 9개는 아직 인메모리다. 주문만 `.data/`에 남는다 |
-| 주문 데이터를 비우고 싶다 | `make stop` 후 `rm -rf .data` |
+| 재시작했는데 예전 데이터가 남아 있다 | 정상이다. `.data/`의 파일 DB에 남는다. 초기화는 `make stop` 후 `rm -rf .data` |
+| 재고가 이상하다 | 체크아웃한 만큼 차감된 실제 값이다. 시드 합계는 100이다 |
 | `jq: command not found` | `make demo`가 jq를 쓴다. `brew install jq` |
 
 ## docker compose 대안

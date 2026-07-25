@@ -49,9 +49,9 @@ Impati Commerce 작업 규칙. Java 21 + Spring Boot 3.2 멀티모듈, 10개 서
 
 ## 상태와 데이터
 
-- **H2 파일 DB를 쓰는 서비스: order, payment, notification, shipping, cart, member, catalog. inventory만 남았다.** 나머지는 아직 `InMemory*Repository` (`ConcurrentHashMap`) 싱글턴이다. 저장소를 옮길 때마다 이 목록을 고친다.
+- **10개 서비스 전부 H2 파일 DB를 쓴다** (저장소가 있는 8개. api-gateway와 display-service는 저장소가 없다). 인메모리 저장소는 남아 있지 않다.
 - DB를 쓰는 서비스는 [build.gradle](build.gradle)의 `configure([...])` 목록에도 넣어야 jdbc/flyway/h2 의존성이 붙는다.
-- 인메모리 서비스는 `@SpringBootTest` 컨텍스트가 캐시되므로 **테스트 간에 상태가 남는다.** 빈 저장소를 가정하는 테스트를 쓰지 말고, 테스트가 자기 데이터를 직접 만들게 한다.
+- `@SpringBootTest` 컨텍스트와 in-memory DB는 테스트 간에 공유된다. **빈 저장소를 가정하는 테스트를 쓰지 말고** 테스트가 자기 데이터를 직접 만들게 한다. 고정 id를 여러 테스트에서 쓰면 PK 충돌이 난다.
 - DB를 쓰는 서비스의 테스트는 `@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:...")`로 URL만 덮어쓴다. `src/test/resources/application.properties`를 만들면 **main 쪽 파일을 가려서** `clients.*.url`이 사라지고 컨텍스트가 뜨지 않는다.
 - 로컬 DB 파일은 `.data/`에 생기고 git에 올리지 않는다. 초기화는 `rm -rf .data`다. 경로가 상대경로이므로 저장소 루트에서 실행해야 한다.
 - **JDBC는 이름 바인딩만 쓴다.** `NamedParameterJdbcTemplate` + `MapSqlParameterSource`를 쓰고, 위치 기반 `?`와 `select *`는 쓰지 않는다. 위치 바인딩은 타입이 같은 인접 컬럼의 값이 뒤바뀌어도 컴파일러도 DB도 잡지 못한다.
@@ -93,6 +93,7 @@ git 저장소이지만 이력이 `first commit` 하나뿐이다. 되돌릴 지�
 
 ## 변경 이력
 
+- 2026-07-25 — 저장소 현황을 "10개 서비스 전부 H2 파일 DB"로 갱신. 재고 동시성은 `select for update` + check 제약으로 처리한다. 계기: 마지막 서비스(inventory) 영속화 완료.
 - 2026-07-25 — 시드 멱등성 규칙 추가. 계기: catalog 시드가 재시작마다 상품 3개를 다시 만들어 파일 DB에서 계속 늘어나는 상태였다.
 - 2026-07-25 — JDBC 이름 바인딩 규칙과 컬럼 단위 검증 규칙 추가. 계기: 위치 기반 `?`에서 city와 postalCode를 대칭으로 뒤바꿨는데 테스트 7개가 전부 통과했다.
 - 2026-07-25 — 저장소 현황을 "모두 인메모리"에서 "order-service만 H2 파일"로 수정하고, DB 테스트의 프로퍼티 주입 방식과 Flyway 규칙 추가. 계기: order-service 영속화.

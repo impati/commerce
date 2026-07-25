@@ -4,6 +4,7 @@ import com.impati.commerce.inventory.domain.InventoryModels.Reservation;
 import com.impati.commerce.inventory.domain.InventoryModels.StockItem;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -14,6 +15,16 @@ import java.util.Optional;
  */
 public interface InventoryRepository {
     Optional<StockItem> findStock(String skuId);
+
+    /**
+     * 재고를 잠근 채로 읽는다. 재고를 변경할 의도가 있을 때만 쓴다.
+     *
+     * <p>여러 프로세스가 같은 SKU를 동시에 예약하면 read-modify-write 사이에 끼어들어 초과
+     * 판매가 생긴다. 잠금 없이 읽고 쓰는 경로에는 이 메서드를 쓴다.
+     *
+     * @param skuIds 잠글 SKU. 데드락을 피하려고 구현이 정렬한 순서로 잠근다.
+     */
+    List<StockItem> lockStock(Collection<String> skuIds);
 
     void saveStock(StockItem stock);
 
