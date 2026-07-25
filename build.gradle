@@ -48,7 +48,8 @@ configure(subprojects.findAll { it.path.startsWith(':apps:') }) {
 configure([
         project(':apps:order-service'),
         project(':apps:payment-service'),
-        project(':apps:notification-service')
+        project(':apps:notification-service'),
+        project(':apps:shipping-service')
 ]) {
     dependencies {
         implementation 'org.springframework.boot:spring-boot-starter-jdbc'
