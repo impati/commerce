@@ -57,6 +57,8 @@ Impati Commerce 작업 규칙. Java 21 + Spring Boot 3.2 멀티모듈, 10개 서
 - 에러는 `DomainException` 팩토리(`validation`/`notFound`/`conflict`/`paymentDeclined`)로 던지고, HTTP 상태 매핑은 각 서비스 `support/ApiExceptionHandler`가 담당한다. 컨트롤러에서 상태 코드를 직접 만들지 않는다.
 - 패키지 구조는 `adapter/in/web`, `adapter/out/client`, `adapter/out/persistence`, `application`, `domain`, `support`를 따른다. 새 서비스도 같은 모양으로 만든다.
 - **조회는 저장소에 쓰지 않는다.** 없는 것을 만들어 넣는 `getOrCreate` 류를 저장소 포트에 두지 말고, 기본값 생성은 애플리케이션이 한다. GET에 INSERT가 따라붙으면 읽기 복제본·캐시·헬스체크가 전부 망가진다.
+- **다른 서비스 호출도 포트로만 쓴다.** 협력자별 인터페이스(`XxxClient`)를 `application`에 두고 HTTP 구현(`HttpXxxClient`)은 `adapter/out/client`에 둔다. 프로토콜 오류를 도메인 언어로 옮기는 것도 어댑터의 일이다 (예: 402 → `paymentDeclined`). 예외는 api-gateway로, 응용·도메인 계층이 없는 순수 어댑터라 뒤집을 대상이 없다.
+- `RestClient.Builder`는 서비스당 한 번만 주입받아 복제한다. 어댑터마다 주입받으면 빌더가 어댑터 수만큼 생겨서 빌더 단위로 동작하는 테스트 스텁과 공통 커스터마이저가 갈라진다. 선례: [CommerceRestClients](apps/order-service/src/main/java/com/impati/commerce/order/adapter/out/client/CommerceRestClients.java)
 - **저장소는 포트로만 쓴다.** 인터페이스(`XxxRepository`)는 `application`에 두고 구현은 `adapter/out/persistence`에 둔다. 애플리케이션 서비스가 `InMemoryXxxRepository` 같은 구현 타입을 직접 참조하면 안 된다 — 저장소를 갈아끼울 수 없게 된다.
 - 서비스 간 HTTP 호출의 공통 정책(타임아웃 등)은 [libs/common-http](libs/common-http)의 auto-configuration에 둔다. 서비스마다 반복하면 반드시 어긋난다. `clients.http.connect-timeout`, `clients.http.read-timeout`으로 조정한다.
 - 새 모듈을 추가하면 [settings.gradle](settings.gradle)에 `include`를 넣는다.

@@ -1,6 +1,5 @@
 package com.impati.commerce.cart.application;
 
-import com.impati.commerce.cart.adapter.out.client.CatalogClient;
 import com.impati.commerce.common.ApiContracts.Money;
 import com.impati.commerce.common.ApiContracts.SkuResponse;
 import org.junit.jupiter.api.BeforeEach;

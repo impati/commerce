@@ -4,7 +4,6 @@ import com.impati.commerce.common.ApiContracts.DisplayHomeResponse;
 import com.impati.commerce.common.ApiContracts.DisplaySection;
 import com.impati.commerce.common.ApiContracts.ProductCard;
 import com.impati.commerce.common.ApiContracts.ProductResponse;
-import com.impati.commerce.display.adapter.out.client.CatalogClient;
 import org.springframework.stereotype.Service;
 
 import java.util.List;

@@ -10,35 +10,60 @@ import com.impati.commerce.common.ApiContracts.ReservationLine;
 import com.impati.commerce.common.ApiContracts.ReservationResponse;
 import com.impati.commerce.common.ApiContracts.ReserveInventoryRequest;
 import com.impati.commerce.common.DomainException;
-import com.impati.commerce.order.adapter.out.client.CommerceClients;
-import com.impati.commerce.order.domain.OrderModels.Address;
 import com.impati.commerce.order.domain.OrderModels.Order;
 import com.impati.commerce.order.domain.OrderModels.OrderLine;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 
+/**
+ * checkout saga를 조율한다.
+ *
+ * <p>협력자가 일곱인 것은 이 서비스가 saga 조율자이기 때문이다. 각 협력자를 별도 포트로 두어
+ * 어떤 서비스에 의존하는지가 생성자에 그대로 드러나게 한다.
+ */
 @Service
 public class OrderService {
     private final OrderRepository orders;
-    private final CommerceClients clients;
+    private final MemberClient members;
+    private final CartClient carts;
+    private final CatalogClient catalog;
+    private final InventoryClient inventory;
+    private final PaymentClient payments;
+    private final ShippingClient shipping;
+    private final NotificationClient notifications;
 
-    public OrderService(OrderRepository orders, CommerceClients clients) {
+    public OrderService(
+            OrderRepository orders,
+            MemberClient members,
+            CartClient carts,
+            CatalogClient catalog,
+            InventoryClient inventory,
+            PaymentClient payments,
+            ShippingClient shipping,
+            NotificationClient notifications
+    ) {
         this.orders = orders;
-        this.clients = clients;
+        this.members = members;
+        this.carts = carts;
+        this.catalog = catalog;
+        this.inventory = inventory;
+        this.payments = payments;
+        this.shipping = shipping;
+        this.notifications = notifications;
     }
 
     public CheckoutResponse checkout(String memberId, String paymentToken, String addressId) {
-        var member = clients.member(memberId);
+        var member = members.member(memberId);
         var address = OrderMapper.toAddress(selectAddress(member.addresses(), addressId));
-        var cart = clients.cart(memberId);
+        var cart = carts.cart(memberId);
         if (cart.lines().isEmpty()) {
             throw DomainException.validation("cart is empty");
         }
 
         var orderLines = cart.lines().stream().map(line -> {
-            var sku = clients.sku(line.skuId());
-            var product = clients.product(sku.productId());
+            var sku = catalog.sku(line.skuId());
+            var product = catalog.product(sku.productId());
             return new OrderLine(
                     sku.id(),
                     product.id(),
@@ -54,7 +79,7 @@ public class OrderService {
         ReservationResponse reservation = null;
         boolean reservationCommitted = false;
         try {
-            reservation = clients.reserve(new ReserveInventoryRequest(
+            reservation = inventory.reserve(new ReserveInventoryRequest(
                     order.id(),
                     cart.lines().stream()
                             .map(line -> new ReservationLine(line.skuId(), line.quantity()))
@@ -63,33 +88,33 @@ public class OrderService {
             order.attachReservation(reservation.id());
             orders.save(order);
 
-            var payment = clients.capturePayment(new CapturePaymentRequest(
+            var payment = payments.capturePayment(new CapturePaymentRequest(
                     order.id(),
                     memberId,
                     order.total(),
                     paymentToken
             ));
-            clients.commitReservation(reservation.id());
+            inventory.commitReservation(reservation.id());
             reservationCommitted = true;
             order.markPaid(payment.id());
             orders.save(order);
 
-            var shipment = clients.createShipment(new CreateShipmentRequest(
+            var shipment = shipping.createShipment(new CreateShipmentRequest(
                     order.id(),
                     memberId,
                     OrderMapper.toResponse(address)
             ));
             order.attachShipment(shipment.id());
             orders.save(order);
-            clients.clearCart(memberId);
+            carts.clearCart(memberId);
 
-            clients.notify(new NotificationEventRequest(
+            notifications.notify(new NotificationEventRequest(
                     "OrderPaid",
                     memberId,
                     "Order paid",
                     "Order " + order.id() + " has been paid."
             ));
-            clients.notify(new NotificationEventRequest(
+            notifications.notify(new NotificationEventRequest(
                     "ShipmentCreated",
                     memberId,
                     "Shipment ready",
@@ -98,11 +123,11 @@ public class OrderService {
             return new CheckoutResponse(OrderMapper.toResponse(order), payment, shipment);
         } catch (RuntimeException exception) {
             if (reservation != null && reservation.status().equals("RESERVED") && !reservationCommitted) {
-                clients.releaseReservation(reservation.id());
+                inventory.releaseReservation(reservation.id());
             }
             order.cancel();
             orders.save(order);
-            clients.notify(new NotificationEventRequest(
+            notifications.notify(new NotificationEventRequest(
                     "OrderCancelled",
                     memberId,
                     "Order cancelled",
@@ -120,7 +145,7 @@ public class OrderService {
         var order = getOrder(orderId);
         order.markDelivered();
         orders.save(order);
-        clients.notify(new NotificationEventRequest(
+        notifications.notify(new NotificationEventRequest(
                 "OrderDelivered",
                 order.memberId(),
                 "Order delivered",

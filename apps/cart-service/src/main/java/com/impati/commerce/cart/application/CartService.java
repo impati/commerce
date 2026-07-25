@@ -1,6 +1,5 @@
 package com.impati.commerce.cart.application;
 
-import com.impati.commerce.cart.adapter.out.client.CatalogClient;
 import com.impati.commerce.cart.domain.CartModels.Cart;
 import com.impati.commerce.common.ApiContracts.CartResponse;
 import org.springframework.stereotype.Service;

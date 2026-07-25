@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import com.impati.commerce.order.application.MemberClient;
 import org.springframework.web.client.ResourceAccessException;
 
 import java.io.IOException;
@@ -33,7 +34,7 @@ class RestClientTimeoutTest {
     private static ExecutorService acceptor;
 
     @Autowired
-    private CommerceClients clients;
+    private MemberClient members;
 
     @BeforeAll
     static void startSilentServer() throws IOException {
@@ -66,7 +67,7 @@ class RestClientTimeoutTest {
     void failsFastWhenPeerNeverResponds() {
         var startedAt = System.nanoTime();
 
-        assertThatThrownBy(() -> clients.member("mem_demo"))
+        assertThatThrownBy(() -> members.member("mem_demo"))
                 .isInstanceOf(ResourceAccessException.class);
 
         var elapsedMillis = (System.nanoTime() - startedAt) / 1_000_000;
