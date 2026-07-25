@@ -6,6 +6,7 @@ import com.impati.commerce.inventory.domain.InventoryModels.StockItem;
 import org.springframework.stereotype.Repository;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -16,18 +17,18 @@ public class InMemoryInventoryRepository implements InventoryRepository {
     private final Map<String, Reservation> reservations = new ConcurrentHashMap<>();
 
     @Override
-    public StockItem getOrCreateStock(String skuId) {
-        return stock.computeIfAbsent(skuId, StockItem::new);
-    }
-
-    @Override
     public Optional<StockItem> findStock(String skuId) {
         return Optional.ofNullable(stock.get(skuId));
     }
 
     @Override
+    public void saveStock(StockItem item) {
+        stock.put(item.skuId(), item);
+    }
+
+    @Override
     public Collection<StockItem> stock() {
-        return stock.values();
+        return List.copyOf(stock.values());
     }
 
     @Override
