@@ -1,0 +1,185 @@
+package com.impati.commerce.common;
+
+import java.util.List;
+import java.util.Map;
+
+public final class ApiContracts {
+    private ApiContracts() {
+    }
+
+    public record Money(long amount, String currency) {
+        public static Money krw(long amount) {
+            return new Money(amount, "KRW");
+        }
+    }
+
+    public record ErrorResponse(String code, String message) {
+    }
+
+    public record AddressResponse(
+            String id,
+            String alias,
+            String recipient,
+            String phone,
+            String line1,
+            String city,
+            String postalCode,
+            boolean defaultAddress
+    ) {
+    }
+
+    public record RegisterMemberRequest(String email, String name) {
+    }
+
+    public record AddAddressRequest(
+            String alias,
+            String recipient,
+            String phone,
+            String line1,
+            String city,
+            String postalCode,
+            boolean defaultAddress
+    ) {
+    }
+
+    public record MemberResponse(
+            String id,
+            String email,
+            String name,
+            String status,
+            List<AddressResponse> addresses
+    ) {
+    }
+
+    public record SkuResponse(
+            String id,
+            String productId,
+            String name,
+            Money price,
+            Map<String, String> attributes,
+            String status
+    ) {
+    }
+
+    public record ProductResponse(
+            String id,
+            String name,
+            String brand,
+            String category,
+            String description,
+            String status,
+            List<String> tags,
+            List<SkuResponse> skus
+    ) {
+    }
+
+    public record ProductCard(
+            String id,
+            String name,
+            String brand,
+            String category,
+            Money price,
+            List<String> tags
+    ) {
+    }
+
+    public record DisplaySection(String key, String title, List<ProductCard> products) {
+    }
+
+    public record DisplayHomeResponse(String title, String subtitle, List<DisplaySection> sections) {
+    }
+
+    public record StockIncreaseRequest(String skuId, int quantity) {
+    }
+
+    public record StockResponse(String skuId, int onHand, int reserved, int available) {
+    }
+
+    public record ReservationLine(String skuId, int quantity) {
+    }
+
+    public record ReserveInventoryRequest(String orderId, List<ReservationLine> lines) {
+    }
+
+    public record ReservationResponse(String id, String orderId, String status, List<ReservationLine> lines) {
+    }
+
+    public record CartItemRequest(String skuId, int quantity) {
+    }
+
+    public record CartLineResponse(String skuId, int quantity) {
+    }
+
+    public record CartResponse(String memberId, List<CartLineResponse> lines) {
+    }
+
+    public record CapturePaymentRequest(String orderId, String memberId, Money amount, String paymentToken) {
+    }
+
+    public record PaymentResponse(
+            String id,
+            String orderId,
+            String memberId,
+            Money amount,
+            String method,
+            String status,
+            String transactionId
+    ) {
+    }
+
+    public record CreateShipmentRequest(String orderId, String memberId, AddressResponse address) {
+    }
+
+    public record ShipmentResponse(
+            String id,
+            String orderId,
+            String memberId,
+            AddressResponse address,
+            String status,
+            String trackingNumber
+    ) {
+    }
+
+    public record OrderLineResponse(
+            String skuId,
+            String productId,
+            String productName,
+            String skuName,
+            int quantity,
+            Money unitPrice,
+            Money lineTotal
+    ) {
+    }
+
+    public record OrderResponse(
+            String id,
+            String memberId,
+            String status,
+            List<OrderLineResponse> lines,
+            Money total,
+            AddressResponse shippingAddress,
+            String paymentId,
+            String shipmentId,
+            String inventoryReservationId
+    ) {
+    }
+
+    public record CheckoutRequest(String memberId, String paymentToken, String addressId) {
+    }
+
+    public record CheckoutResponse(OrderResponse order, PaymentResponse payment, ShipmentResponse shipment) {
+    }
+
+    public record NotificationEventRequest(String eventType, String memberId, String subject, String body) {
+    }
+
+    public record NotificationResponse(
+            String id,
+            String eventType,
+            String memberId,
+            String subject,
+            String body
+    ) {
+    }
+}
+

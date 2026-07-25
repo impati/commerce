@@ -1,0 +1,55 @@
+plugins {
+    id 'org.springframework.boot' version '3.2.3' apply false
+    id 'io.spring.dependency-management' version '1.1.4' apply false
+}
+
+repositories {
+    mavenCentral()
+    maven { url "https://nexus.baemin.in/repository/maven" } // nexus 3
+    maven { url "https://nexus.baemin.in/repository/maven-release" }
+    maven { url "https://nexus.baemin.in/repository/maven-snapshot" }
+}
+
+
+allprojects {
+    group = 'com.impati.commerce'
+    version = '0.1.0'
+}
+
+subprojects {
+    apply plugin: 'java'
+
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(21)
+        }
+    }
+
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = 'UTF-8'
+        options.compilerArgs += ['-parameters']
+    }
+
+    tasks.withType(Test).configureEach {
+        useJUnitPlatform()
+    }
+}
+
+project(':libs:common-contracts') {
+    apply plugin: 'java-library'
+}
+
+configure(subprojects.findAll { it.path.startsWith(':apps:') }) {
+    apply plugin: 'org.springframework.boot'
+    apply plugin: 'io.spring.dependency-management'
+
+    dependencies {
+        implementation project(':libs:common-contracts')
+        implementation 'org.springframework.boot:spring-boot-starter-actuator'
+        implementation 'org.springframework.boot:spring-boot-starter-validation'
+        implementation 'org.springframework.boot:spring-boot-starter-web'
+        testImplementation 'org.springframework.boot:spring-boot-starter-test'
+        api("com.woowa.aggregator:woowa-orch-aggregator-client:1.0.0-SNAPSHOT")
+
+    }
+}

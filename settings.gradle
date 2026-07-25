@@ -1,0 +1,28 @@
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        mavenCentral()
+    }
+}
+
+rootProject.name = 'impati-commerce'
+
+include 'libs:common-contracts'
+include 'apps:api-gateway'
+include 'apps:member-service'
+include 'apps:display-service'
+include 'apps:catalog-service'
+include 'apps:inventory-service'
+include 'apps:cart-service'
+include 'apps:order-service'
+include 'apps:payment-service'
+include 'apps:shipping-service'
+include 'apps:notification-service'
+

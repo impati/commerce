@@ -1,0 +1,9 @@
+.gradle/
+.run/
+build/
+**/build/
+node_modules/
+dist/
+frontend/storefront/node_modules/
+frontend/storefront/dist/
+*.log

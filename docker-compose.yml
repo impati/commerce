@@ -1,0 +1,133 @@
+services:
+  member-service:
+    build:
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE: member-service
+    ports:
+      - "8101:8101"
+
+  catalog-service:
+    build:
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE: catalog-service
+    ports:
+      - "8102:8102"
+
+  display-service:
+    build:
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE: display-service
+    ports:
+      - "8103:8103"
+    environment:
+      CLIENTS_CATALOG_URL: http://catalog-service:8102
+    depends_on:
+      - catalog-service
+
+  inventory-service:
+    build:
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE: inventory-service
+    ports:
+      - "8104:8104"
+
+  cart-service:
+    build:
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE: cart-service
+    ports:
+      - "8105:8105"
+    environment:
+      CLIENTS_CATALOG_URL: http://catalog-service:8102
+    depends_on:
+      - catalog-service
+
+  payment-service:
+    build:
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE: payment-service
+    ports:
+      - "8106:8106"
+
+  shipping-service:
+    build:
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE: shipping-service
+    ports:
+      - "8107:8107"
+
+  order-service:
+    build:
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE: order-service
+    ports:
+      - "8108:8108"
+    environment:
+      CLIENTS_MEMBER_URL: http://member-service:8101
+      CLIENTS_CATALOG_URL: http://catalog-service:8102
+      CLIENTS_INVENTORY_URL: http://inventory-service:8104
+      CLIENTS_CART_URL: http://cart-service:8105
+      CLIENTS_PAYMENT_URL: http://payment-service:8106
+      CLIENTS_SHIPPING_URL: http://shipping-service:8107
+      CLIENTS_NOTIFICATION_URL: http://notification-service:8109
+    depends_on:
+      - member-service
+      - catalog-service
+      - inventory-service
+      - cart-service
+      - payment-service
+      - shipping-service
+      - notification-service
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE: notification-service
+    ports:
+      - "8109:8109"
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE: api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      CLIENTS_MEMBER_URL: http://member-service:8101
+      CLIENTS_DISPLAY_URL: http://display-service:8103
+      CLIENTS_CATALOG_URL: http://catalog-service:8102
+      CLIENTS_INVENTORY_URL: http://inventory-service:8104
+      CLIENTS_CART_URL: http://cart-service:8105
+      CLIENTS_ORDER_URL: http://order-service:8108
+      CLIENTS_SHIPPING_URL: http://shipping-service:8107
+      CLIENTS_NOTIFICATION_URL: http://notification-service:8109
+    depends_on:
+      - member-service
+      - display-service
+      - catalog-service
+      - inventory-service
+      - cart-service
+      - order-service
+      - shipping-service
+      - notification-service
+
