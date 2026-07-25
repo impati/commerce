@@ -19,6 +19,10 @@ public class CatalogServiceApplication {
     @Bean
     ApplicationRunner seedCatalog(CatalogService catalog) {
         return args -> {
+            // 파일 DB는 데이터가 남는다. 재시작마다 시드를 넣으면 상품이 계속 늘어난다.
+            if (!catalog.isEmpty()) {
+                return;
+            }
             catalog.createAndPublish(
                     "Everyday Cotton Tee",
                     "Namu",

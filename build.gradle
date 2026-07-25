@@ -50,7 +50,9 @@ configure([
         project(':apps:payment-service'),
         project(':apps:notification-service'),
         project(':apps:shipping-service'),
-        project(':apps:cart-service')
+        project(':apps:cart-service'),
+        project(':apps:member-service'),
+        project(':apps:catalog-service')
 ]) {
     dependencies {
         implementation 'org.springframework.boot:spring-boot-starter-jdbc'

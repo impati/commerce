@@ -23,17 +23,17 @@ public class MemberService {
         });
         var member = new Member(email, name);
         members.save(member);
-        return member.toResponse();
+        return MemberMapper.toResponse(member);
     }
 
     public MemberResponse seed(String memberId, String email, String name) {
         var existing = members.findByEmail(email);
         if (existing.isPresent()) {
-            return existing.get().toResponse();
+            return MemberMapper.toResponse(existing.get());
         }
         var member = new Member(memberId, email, name);
         members.save(member);
-        return member.toResponse();
+        return MemberMapper.toResponse(member);
     }
 
     public AddressResponse addAddress(
@@ -50,15 +50,15 @@ public class MemberService {
         var address = new Address(alias, recipient, phone, line1, city, postalCode, defaultAddress);
         member.addAddress(address);
         members.save(member);
-        return address.toResponse();
+        return MemberMapper.toResponse(address);
     }
 
     public MemberResponse get(String memberId) {
-        return getMember(memberId).toResponse();
+        return MemberMapper.toResponse(getMember(memberId));
     }
 
     public List<MemberResponse> list() {
-        return members.findAll().stream().map(Member::toResponse).toList();
+        return members.findAll().stream().map(MemberMapper::toResponse).toList();
     }
 
     private Member getMember(String memberId) {

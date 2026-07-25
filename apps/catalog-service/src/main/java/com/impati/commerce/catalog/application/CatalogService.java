@@ -39,26 +39,31 @@ public class CatalogService {
         skuSpecs.forEach(product::addSku);
         product.publish();
         products.save(product);
-        return product.toResponse();
+        return CatalogMapper.toResponse(product);
+    }
+
+    /** 시드가 이미 들어가 있는지 확인한다. 파일 DB에서는 재시작마다 시드를 넣으면 상품이 늘어난다. */
+    public boolean isEmpty() {
+        return products.findAll().isEmpty();
     }
 
     public List<ProductResponse> list(String category, String query) {
         return products.findAll().stream()
                 .filter(product -> product.matches(category, query))
-                .map(Product::toResponse)
+                .map(CatalogMapper::toResponse)
                 .toList();
     }
 
     public ProductResponse getProduct(String productId) {
         return products.findById(productId)
                 .filter(product -> product.status().equals("PUBLISHED"))
-                .map(Product::toResponse)
+                .map(CatalogMapper::toResponse)
                 .orElseThrow(() -> DomainException.notFound("product not found"));
     }
 
     public SkuResponse getSku(String skuId) {
         return products.findSku(skuId)
-                .map(sku -> sku.toResponse())
+                .map(CatalogMapper::toResponse)
                 .orElseThrow(() -> DomainException.notFound("sku not found"));
     }
 }
