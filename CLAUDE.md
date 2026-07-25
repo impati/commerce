@@ -41,6 +41,7 @@ Impati Commerce 작업 규칙. Java 21 + Spring Boot 3.2 멀티모듈, 10개 서
 
 - 저장소 선언은 [settings.gradle](settings.gradle)의 `dependencyResolutionManagement`에만 둔다. `repositoriesMode`가 `FAIL_ON_PROJECT_REPOS`이므로 `build.gradle`에 `repositories { }`를 쓰면 **설정 평가 단계에서 빌드 전체가 죽는다.**
 - 의존성은 mavenCentral로 해결되는 것만 쓴다. 사내 nexus 의존성을 추가하면 VPN 없는 환경에서 하네스가 못 돈다.
+- 프론트 `package.json`이 버전을 `latest`로 잡고 있다. 재현성은 `package-lock.json`에만 걸려 있으므로 **lockfile을 반드시 커밋한다.** `npm install`로 메이저 버전이 올라가 빌드가 깨지면 tsconfig부터 확인한다.
 
 ## 상태와 데이터
 
@@ -80,6 +81,7 @@ git 저장소이지만 이력이 `first commit` 하나뿐이다. 되돌릴 지�
 
 ## 변경 이력
 
+- 2026-07-25 — 프론트 `latest` 의존성과 lockfile 주의 추가. 계기: `npm install`이 TypeScript 7을 끌어와 `make frontend-build`가 깨졌고, `@types/react`는 애초에 의존성에 없어 한 번도 통과한 적이 없었다.
 - 2026-07-25 — "문서와 룰의 배치" 추가. pre-commit 훅을 자동 게이트로 도입하고 `.idea/` 추적 해제. 계기: 하네스 룰을 `.claude/` 아래 문서로 관리할지 논의하면서, 자동 로드되는 것은 CLAUDE.md뿐이라는 점을 명시할 필요가 생겼다.
 - 2026-07-25 — "git 저장소가 아니다"를 "되돌리기"로 교체. 확인하지 않고 쓴 오류였고, 실제로는 커밋 1개짜리 git 저장소다.
 - 2026-07-25 — 최초 작성. 검증 명령, 테스트 채우기 규칙, 경계 규칙, 빌드 설정 주의, 메타룰. 계기: `./gradlew test`가 `FAIL_ON_PROJECT_REPOS` 위반으로 두 달간 실행조차 되지 않던 상태를 발견하고 하네스를 세우기 시작.
