@@ -1,5 +1,6 @@
 .gradle/
 .run/
+.idea/
 build/
 **/build/
 node_modules/

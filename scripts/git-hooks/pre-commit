@@ -1,0 +1,12 @@
+#!/bin/sh
+# 커밋 전에 하네스를 돌린다. CI가 없으므로 이게 유일한 자동 게이트다.
+#
+# 이 훅은 `git config core.hooksPath scripts/git-hooks`가 설정돼 있어야 동작한다.
+# 새로 clone했으면 `make setup-hooks`를 한 번 실행할 것.
+#
+# 급할 때는 `git commit --no-verify`로 건너뛸 수 있지만,
+# 그렇게 만든 커밋은 검증되지 않은 커밋이다.
+set -e
+
+echo "pre-commit: ./gradlew test"
+exec ./gradlew test

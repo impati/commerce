@@ -1,4 +1,8 @@
-.PHONY: build test boot-all demo stop frontend-install frontend-dev frontend-build
+.PHONY: setup-hooks build test boot-all demo stop frontend-install frontend-dev frontend-build
+
+setup-hooks:
+	git config core.hooksPath scripts/git-hooks
+	@echo "pre-commit 훅 활성화: 커밋 전에 ./gradlew test가 실행됩니다"
 
 build:
 	./gradlew clean build
