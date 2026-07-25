@@ -80,7 +80,7 @@ Impati Commerce 작업 규칙. Java 21 + Spring Boot 3.2 멀티모듈, 10개 서
 - **컬럼 매핑은 왕복 테스트로 검증되지 않는다.** 저장 후 조회해서 비교하면 쓰기와 읽기가 같은 방향으로 틀렸을 때 그대로 통과한다. 컬럼 값을 직접 읽는 테스트를 함께 둔다. 배경은 [problem/002](problem/002-positional-jdbc-binding.md)에 있다.
 - 스키마 변경은 Flyway 마이그레이션으로 한다. 파일 DB는 데이터가 남으므로 `schema.sql`을 다시 돌리는 방식은 깨진다.
 - **시드는 멱등해야 한다.** 파일 DB는 데이터가 남으므로 `ApplicationRunner` 시드가 재시작마다 다시 실행되면 데이터가 늘어난다. 넣기 전에 이미 있는지 확인한다.
-- **데모 시드는 `local` 프로파일에서만 동작한다.** `("local")`로 막았고 [scripts/run-all.sh](scripts/run-all.sh)가 프로파일을 넘긴다. 알려진 비밀번호를 가진 계정이 운영에 존재할 수 없게 하려는 것이다.
+- **데모 시드는 `local` 프로파일에서만 동작한다.** `@Profile("local")`로 막았고 [scripts/run-all.sh](scripts/run-all.sh)가 프로파일을 넘긴다. 알려진 비밀번호를 가진 계정이 운영에 존재할 수 없게 하려는 것이다.
 - 데모 시드 데이터(`mem_demo`, `sku_*`, `card_test_success`, `card_test_decline`)는 README에 정리돼 있다. 시드를 바꾸면 README와 프론트 `src/mockData.ts`도 같이 고친다.
 
 ## 되돌리기
