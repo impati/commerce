@@ -15,6 +15,7 @@ dependencyResolutionManagement {
 rootProject.name = 'impati-commerce'
 
 include 'libs:common-contracts'
+include 'libs:common-http'
 include 'apps:api-gateway'
 include 'apps:member-service'
 include 'apps:display-service'

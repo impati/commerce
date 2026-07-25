@@ -44,6 +44,18 @@ configure(subprojects.findAll { it.path.startsWith(':apps:') }) {
     }
 }
 
+// 서비스 간 HTTP 호출이 있는 서비스. 타임아웃이 자동 적용된다.
+configure([
+        project(':apps:order-service'),
+        project(':apps:api-gateway'),
+        project(':apps:display-service'),
+        project(':apps:cart-service')
+]) {
+    dependencies {
+        implementation project(':libs:common-http')
+    }
+}
+
 // 영속화가 적용된 서비스. 저장소를 옮길 때마다 여기에 추가한다.
 configure([
         project(':apps:order-service'),

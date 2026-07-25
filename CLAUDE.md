@@ -58,6 +58,7 @@ Impati Commerce 작업 규칙. Java 21 + Spring Boot 3.2 멀티모듈, 10개 서
 - 패키지 구조는 `adapter/in/web`, `adapter/out/client`, `adapter/out/persistence`, `application`, `domain`, `support`를 따른다. 새 서비스도 같은 모양으로 만든다.
 - **조회는 저장소에 쓰지 않는다.** 없는 것을 만들어 넣는 `getOrCreate` 류를 저장소 포트에 두지 말고, 기본값 생성은 애플리케이션이 한다. GET에 INSERT가 따라붙으면 읽기 복제본·캐시·헬스체크가 전부 망가진다.
 - **저장소는 포트로만 쓴다.** 인터페이스(`XxxRepository`)는 `application`에 두고 구현은 `adapter/out/persistence`에 둔다. 애플리케이션 서비스가 `InMemoryXxxRepository` 같은 구현 타입을 직접 참조하면 안 된다 — 저장소를 갈아끼울 수 없게 된다.
+- 서비스 간 HTTP 호출의 공통 정책(타임아웃 등)은 [libs/common-http](libs/common-http)의 auto-configuration에 둔다. 서비스마다 반복하면 반드시 어긋난다. `clients.http.connect-timeout`, `clients.http.read-timeout`으로 조정한다.
 - 새 모듈을 추가하면 [settings.gradle](settings.gradle)에 `include`를 넣는다.
 
 ## 빌드 설정 주의
