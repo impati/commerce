@@ -8,6 +8,7 @@ import com.impati.commerce.order.domain.OrderModels.OrderLine;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.List;
 
@@ -22,6 +23,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 class JdbcOrderRepositoryTest {
     @Autowired
     private OrderRepository orders;
+
+    @Autowired
+    private JdbcTemplate jdbc;
 
     @Test
     void roundTripsOrderWithLinesAndAddress() {
@@ -74,6 +78,59 @@ class JdbcOrderRepositoryTest {
     @Test
     void returnsEmptyForUnknownOrder() {
         assertThat(orders.findById("ord_never_saved")).isEmpty();
+    }
+
+    /**
+     * 각 값이 자기 컬럼에 들어갔는지 직접 확인한다.
+     *
+     * <p>왕복 테스트는 쓰기와 읽기가 같은 방향으로 틀리면 통과한다. 예를 들어 city와 postalCode를
+     * 서로 바꿔 쓰고 읽으면 복원된 객체는 멀쩡하지만 DB의 ship_city에는 우편번호가 들어 있다.
+     * varchar가 연속된 구간에서는 이런 실수가 컴파일도 DB도 통과하므로 컬럼을 직접 읽어 막는다.
+     */
+    @Test
+    void writesEachAddressFieldToItsOwnColumn() {
+        var order = newOrder();
+        order.markPaid("pay_column");
+        orders.save(order);
+
+        assertThat(column(order.id(), "ship_address_id")).isEqualTo("addr_demo");
+        assertThat(column(order.id(), "ship_alias")).isEqualTo("home");
+        assertThat(column(order.id(), "ship_recipient")).isEqualTo("Demo Customer");
+        assertThat(column(order.id(), "ship_phone")).isEqualTo("010-0000-0000");
+        assertThat(column(order.id(), "ship_line1")).isEqualTo("123 Commerce Road");
+        assertThat(column(order.id(), "ship_city")).isEqualTo("Seoul");
+        assertThat(column(order.id(), "ship_postal_code")).isEqualTo("04524");
+        assertThat(column(order.id(), "member_id")).isEqualTo("mem_demo");
+        assertThat(column(order.id(), "status")).isEqualTo("PAID");
+        assertThat(column(order.id(), "payment_id")).isEqualTo("pay_column");
+    }
+
+    @Test
+    void writesEachLineFieldToItsOwnColumn() {
+        var order = newOrder();
+        orders.save(order);
+
+        var first = jdbc.queryForMap(
+                "select sku_id, product_id, product_name, sku_name, quantity, unit_amount, unit_currency"
+                        + " from order_lines where order_id = ? and line_no = 0",
+                order.id()
+        );
+
+        assertThat(first.get("SKU_ID")).isEqualTo("sku_tee_white_m");
+        assertThat(first.get("PRODUCT_ID")).isEqualTo("prd_tee");
+        assertThat(first.get("PRODUCT_NAME")).isEqualTo("Everyday Cotton Tee");
+        assertThat(first.get("SKU_NAME")).isEqualTo("White / M");
+        assertThat(first.get("QUANTITY")).isEqualTo(2);
+        assertThat(first.get("UNIT_AMOUNT")).isEqualTo(29_000L);
+        assertThat(first.get("UNIT_CURRENCY")).isEqualTo("KRW");
+    }
+
+    private String column(String orderId, String columnName) {
+        return jdbc.queryForObject(
+                "select " + columnName + " from orders where id = ?",
+                String.class,
+                orderId
+        );
     }
 
     private Order newOrder() {

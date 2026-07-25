@@ -5,22 +5,50 @@ import com.impati.commerce.order.application.OrderRepository;
 import com.impati.commerce.order.domain.OrderModels.Address;
 import com.impati.commerce.order.domain.OrderModels.Order;
 import com.impati.commerce.order.domain.OrderModels.OrderLine;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * 이름 바인딩만 쓴다. 위치 기반 {@code ?}는 타입이 같은 인접 컬럼의 값이 뒤바뀌어도 컴파일러도
+ * DB도 잡지 못하고, 쓰기와 읽기가 같은 방향으로 틀리면 왕복 테스트조차 통과한다. 컬럼을 추가할 때
+ * 값이 밀리는 사고가 구조적으로 생기지 않게 한다.
+ *
+ * <p>{@code select *}도 쓰지 않는다. 컬럼이 추가되면 결과셋 모양이 말없이 바뀐다.
+ */
 @Repository
 public class JdbcOrderRepository implements OrderRepository {
+    private static final String ORDER_COLUMNS = """
+            id, member_id, status, payment_id, shipment_id, inventory_reservation_id,
+            ship_address_id, ship_alias, ship_recipient, ship_phone,
+            ship_line1, ship_city, ship_postal_code, ship_default_address
+            """;
+
+    private static final String LINE_COLUMNS = """
+            sku_id, product_id, product_name, sku_name, quantity, unit_amount, unit_currency
+            """;
+
     private static final String UPDATE_ORDER = """
             update orders
-               set member_id = ?, status = ?, payment_id = ?, shipment_id = ?, inventory_reservation_id = ?,
-                   ship_address_id = ?, ship_alias = ?, ship_recipient = ?, ship_phone = ?,
-                   ship_line1 = ?, ship_city = ?, ship_postal_code = ?, ship_default_address = ?
-             where id = ?
+               set member_id = :member_id,
+                   status = :status,
+                   payment_id = :payment_id,
+                   shipment_id = :shipment_id,
+                   inventory_reservation_id = :inventory_reservation_id,
+                   ship_address_id = :ship_address_id,
+                   ship_alias = :ship_alias,
+                   ship_recipient = :ship_recipient,
+                   ship_phone = :ship_phone,
+                   ship_line1 = :ship_line1,
+                   ship_city = :ship_city,
+                   ship_postal_code = :ship_postal_code,
+                   ship_default_address = :ship_default_address
+             where id = :id
             """;
 
     private static final String INSERT_ORDER = """
@@ -28,22 +56,31 @@ public class JdbcOrderRepository implements OrderRepository {
                 id, member_id, status, payment_id, shipment_id, inventory_reservation_id,
                 ship_address_id, ship_alias, ship_recipient, ship_phone,
                 ship_line1, ship_city, ship_postal_code, ship_default_address
-            ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) values (
+                :id, :member_id, :status, :payment_id, :shipment_id, :inventory_reservation_id,
+                :ship_address_id, :ship_alias, :ship_recipient, :ship_phone,
+                :ship_line1, :ship_city, :ship_postal_code, :ship_default_address
+            )
             """;
 
     private static final String INSERT_LINE = """
             insert into order_lines (
                 order_id, line_no, sku_id, product_id, product_name, sku_name,
                 quantity, unit_amount, unit_currency
-            ) values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) values (
+                :order_id, :line_no, :sku_id, :product_id, :product_name, :sku_name,
+                :quantity, :unit_amount, :unit_currency
+            )
             """;
 
-    private static final String SELECT_ORDER = "select * from orders where id = ?";
-    private static final String SELECT_LINES = "select * from order_lines where order_id = ? order by line_no";
+    private static final String SELECT_ORDER = "select " + ORDER_COLUMNS + " from orders where id = :id";
+    private static final String DELETE_LINES = "delete from order_lines where order_id = :order_id";
+    private static final String SELECT_LINES =
+            "select " + LINE_COLUMNS + " from order_lines where order_id = :order_id order by line_no";
 
-    private final JdbcTemplate jdbc;
+    private final NamedParameterJdbcTemplate jdbc;
 
-    public JdbcOrderRepository(JdbcTemplate jdbc) {
+    public JdbcOrderRepository(NamedParameterJdbcTemplate jdbc) {
         this.jdbc = jdbc;
     }
 
@@ -56,68 +93,55 @@ public class JdbcOrderRepository implements OrderRepository {
     @Override
     @Transactional
     public void save(Order order) {
-        var address = order.shippingAddress();
-        var updated = jdbc.update(
-                UPDATE_ORDER,
-                order.memberId(),
-                order.status(),
-                order.paymentId(),
-                order.shipmentId(),
-                order.inventoryReservationId(),
-                address.id(),
-                address.alias(),
-                address.recipient(),
-                address.phone(),
-                address.line1(),
-                address.city(),
-                address.postalCode(),
-                address.defaultAddress(),
-                order.id()
-        );
-        if (updated == 0) {
-            jdbc.update(
-                    INSERT_ORDER,
-                    order.id(),
-                    order.memberId(),
-                    order.status(),
-                    order.paymentId(),
-                    order.shipmentId(),
-                    order.inventoryReservationId(),
-                    address.id(),
-                    address.alias(),
-                    address.recipient(),
-                    address.phone(),
-                    address.line1(),
-                    address.city(),
-                    address.postalCode(),
-                    address.defaultAddress()
-            );
+        var params = orderParams(order);
+        if (jdbc.update(UPDATE_ORDER, params) == 0) {
+            jdbc.update(INSERT_ORDER, params);
         }
 
-        jdbc.update("delete from order_lines where order_id = ?", order.id());
+        jdbc.update(DELETE_LINES, new MapSqlParameterSource("order_id", order.id()));
         var lines = order.lines();
         for (var index = 0; index < lines.size(); index++) {
-            var line = lines.get(index);
-            jdbc.update(
-                    INSERT_LINE,
-                    order.id(),
-                    index,
-                    line.skuId(),
-                    line.productId(),
-                    line.productName(),
-                    line.skuName(),
-                    line.quantity(),
-                    line.unitPrice().amount(),
-                    line.unitPrice().currency()
-            );
+            jdbc.update(INSERT_LINE, lineParams(order.id(), index, lines.get(index)));
         }
     }
 
     @Override
     @Transactional(readOnly = true)
     public Optional<Order> findById(String orderId) {
-        var rows = jdbc.query(SELECT_ORDER, orderRowMapper(orderId), orderId);
+        var rows = jdbc.query(SELECT_ORDER, new MapSqlParameterSource("id", orderId), orderRowMapper(orderId));
         return rows.stream().findFirst();
+    }
+
+    private MapSqlParameterSource orderParams(Order order) {
+        var address = order.shippingAddress();
+        return new MapSqlParameterSource()
+                .addValue("id", order.id())
+                .addValue("member_id", order.memberId())
+                .addValue("status", order.status())
+                .addValue("payment_id", order.paymentId())
+                .addValue("shipment_id", order.shipmentId())
+                .addValue("inventory_reservation_id", order.inventoryReservationId())
+                .addValue("ship_address_id", address.id())
+                .addValue("ship_alias", address.alias())
+                .addValue("ship_recipient", address.recipient())
+                .addValue("ship_phone", address.phone())
+                .addValue("ship_line1", address.line1())
+                .addValue("ship_city", address.city())
+                .addValue("ship_postal_code", address.postalCode())
+                .addValue("ship_default_address", address.defaultAddress());
+    }
+
+    private MapSqlParameterSource lineParams(String orderId, int lineNo, OrderLine line) {
+        return new MapSqlParameterSource()
+                .addValue("order_id", orderId)
+                .addValue("line_no", lineNo)
+                .addValue("sku_id", line.skuId())
+                .addValue("product_id", line.productId())
+                .addValue("product_name", line.productName())
+                .addValue("sku_name", line.skuName())
+                .addValue("quantity", line.quantity())
+                .addValue("unit_amount", line.unitPrice().amount())
+                .addValue("unit_currency", line.unitPrice().currency());
     }
 
     private RowMapper<Order> orderRowMapper(String orderId) {
@@ -145,6 +169,7 @@ public class JdbcOrderRepository implements OrderRepository {
     private List<OrderLine> findLines(String orderId) {
         return jdbc.query(
                 SELECT_LINES,
+                new MapSqlParameterSource("order_id", orderId),
                 (rs, rowNum) -> new OrderLine(
                         rs.getString("sku_id"),
                         rs.getString("product_id"),
@@ -152,8 +177,7 @@ public class JdbcOrderRepository implements OrderRepository {
                         rs.getString("sku_name"),
                         rs.getInt("quantity"),
                         new Money(rs.getLong("unit_amount"), rs.getString("unit_currency"))
-                ),
-                orderId
+                )
         );
     }
 }
