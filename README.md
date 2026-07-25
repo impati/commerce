@@ -86,6 +86,7 @@ curl -X POST http://localhost:8080/checkout \
 - [로컬 실행 가이드](docs/local-run.md)
 - [시스템 아키텍처](docs/architecture.md)
 - [도메인 경계](docs/domain-map.md)
+- 겪은 문제 기록: [problem/](problem/)
 
 ## 프론트엔드 구조
 
