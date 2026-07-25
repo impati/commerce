@@ -59,8 +59,10 @@ public class MemberService {
      * 가입은 이메일 소유가 확인되지 않은 상태로 끝난다. 로그인은 확인 후에만 된다.
      *
      * <p>메일 요청이 실패해도 가입은 유지한다. 메일 시스템 장애로 가입을 막을 이유가 없고,
-     * 사용자는 재발송으로 복구할 수 있다. 다만 이 호출이 트랜잭션 안에 있어서 상대가 느리면
-     * DB 트랜잭션이 함께 늘어난다 — 완전한 해법은 member-service에도 아웃박스를 두는 것이다.
+     * 사용자는 재발송으로 복구할 수 있다.
+     *
+     * <p>TODO 이 호출이 트랜잭션 안에 있어 상대가 느리면 DB 트랜잭션이 함께 늘어난다.
+     * notification-service에 만든 것과 같은 아웃박스가 필요하다. NEXT.md 우선순위 3.
      */
     @Transactional
     public MemberResponse register(String email, String name, String rawPassword) {
