@@ -4,7 +4,6 @@ import com.impati.commerce.common.ApiContracts.ReservationLine;
 import com.impati.commerce.common.ApiContracts.ReservationResponse;
 import com.impati.commerce.common.ApiContracts.StockResponse;
 import com.impati.commerce.common.DomainException;
-import com.impati.commerce.inventory.adapter.out.persistence.InMemoryInventoryRepository;
 import com.impati.commerce.inventory.domain.InventoryModels.Reservation;
 import org.springframework.stereotype.Service;
 
@@ -12,9 +11,9 @@ import java.util.List;
 
 @Service
 public class InventoryService {
-    private final InMemoryInventoryRepository inventory;
+    private final InventoryRepository inventory;
 
-    public InventoryService(InMemoryInventoryRepository inventory) {
+    public InventoryService(InventoryRepository inventory) {
         this.inventory = inventory;
     }
 

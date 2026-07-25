@@ -11,7 +11,6 @@ import com.impati.commerce.common.ApiContracts.ReservationResponse;
 import com.impati.commerce.common.ApiContracts.ReserveInventoryRequest;
 import com.impati.commerce.common.DomainException;
 import com.impati.commerce.order.adapter.out.client.CommerceClients;
-import com.impati.commerce.order.adapter.out.persistence.InMemoryOrderRepository;
 import com.impati.commerce.order.domain.OrderModels.Order;
 import com.impati.commerce.order.domain.OrderModels.OrderLine;
 import org.springframework.stereotype.Service;
@@ -20,10 +19,10 @@ import java.util.List;
 
 @Service
 public class OrderService {
-    private final InMemoryOrderRepository orders;
+    private final OrderRepository orders;
     private final CommerceClients clients;
 
-    public OrderService(InMemoryOrderRepository orders, CommerceClients clients) {
+    public OrderService(OrderRepository orders, CommerceClients clients) {
         this.orders = orders;
         this.clients = clients;
     }

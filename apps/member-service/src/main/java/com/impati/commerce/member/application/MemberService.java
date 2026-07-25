@@ -3,7 +3,6 @@ package com.impati.commerce.member.application;
 import com.impati.commerce.common.ApiContracts.AddressResponse;
 import com.impati.commerce.common.ApiContracts.MemberResponse;
 import com.impati.commerce.common.DomainException;
-import com.impati.commerce.member.adapter.out.persistence.InMemoryMemberRepository;
 import com.impati.commerce.member.domain.MemberModels.Address;
 import com.impati.commerce.member.domain.MemberModels.Member;
 import org.springframework.stereotype.Service;
@@ -12,9 +11,9 @@ import java.util.List;
 
 @Service
 public class MemberService {
-    private final InMemoryMemberRepository members;
+    private final MemberRepository members;
 
-    public MemberService(InMemoryMemberRepository members) {
+    public MemberService(MemberRepository members) {
         this.members = members;
     }
 

@@ -3,7 +3,6 @@ package com.impati.commerce.payment.application;
 import com.impati.commerce.common.ApiContracts.Money;
 import com.impati.commerce.common.ApiContracts.PaymentResponse;
 import com.impati.commerce.common.DomainException;
-import com.impati.commerce.payment.adapter.out.persistence.InMemoryPaymentRepository;
 import com.impati.commerce.payment.domain.PaymentModels.Payment;
 import org.springframework.stereotype.Service;
 
@@ -13,9 +12,9 @@ import java.util.Set;
 public class PaymentService {
     private static final Set<String> DECLINE_TOKENS = Set.of("card_test_decline", "decline", "fail");
 
-    private final InMemoryPaymentRepository payments;
+    private final PaymentRepository payments;
 
-    public PaymentService(InMemoryPaymentRepository payments) {
+    public PaymentService(PaymentRepository payments) {
         this.payments = payments;
     }
 

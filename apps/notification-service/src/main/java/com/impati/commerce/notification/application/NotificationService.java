@@ -1,7 +1,6 @@
 package com.impati.commerce.notification.application;
 
 import com.impati.commerce.common.ApiContracts.NotificationResponse;
-import com.impati.commerce.notification.adapter.out.persistence.InMemoryNotificationRepository;
 import com.impati.commerce.notification.domain.NotificationModels.Notification;
 import org.springframework.stereotype.Service;
 
@@ -9,9 +8,9 @@ import java.util.List;
 
 @Service
 public class NotificationService {
-    private final InMemoryNotificationRepository notifications;
+    private final NotificationRepository notifications;
 
-    public NotificationService(InMemoryNotificationRepository notifications) {
+    public NotificationService(NotificationRepository notifications) {
         this.notifications = notifications;
     }
 

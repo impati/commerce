@@ -1,6 +1,5 @@
 package com.impati.commerce.catalog.application;
 
-import com.impati.commerce.catalog.adapter.out.persistence.InMemoryProductRepository;
 import com.impati.commerce.catalog.domain.CatalogModels.Product;
 import com.impati.commerce.catalog.domain.CatalogModels.SkuSpec;
 import com.impati.commerce.common.ApiContracts.Money;
@@ -14,9 +13,9 @@ import java.util.Map;
 
 @Service
 public class CatalogService {
-    private final InMemoryProductRepository products;
+    private final ProductRepository products;
 
-    public CatalogService(InMemoryProductRepository products) {
+    public CatalogService(ProductRepository products) {
         this.products = products;
     }
 

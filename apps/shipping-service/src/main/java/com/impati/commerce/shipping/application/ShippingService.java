@@ -3,15 +3,14 @@ package com.impati.commerce.shipping.application;
 import com.impati.commerce.common.ApiContracts.AddressResponse;
 import com.impati.commerce.common.ApiContracts.ShipmentResponse;
 import com.impati.commerce.common.DomainException;
-import com.impati.commerce.shipping.adapter.out.persistence.InMemoryShipmentRepository;
 import com.impati.commerce.shipping.domain.ShippingModels.Shipment;
 import org.springframework.stereotype.Service;
 
 @Service
 public class ShippingService {
-    private final InMemoryShipmentRepository shipments;
+    private final ShipmentRepository shipments;
 
-    public ShippingService(InMemoryShipmentRepository shipments) {
+    public ShippingService(ShipmentRepository shipments) {
         this.shipments = shipments;
     }
 
