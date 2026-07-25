@@ -5,6 +5,7 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Profile;
 
 @SpringBootApplication
 public class InventoryServiceApplication {
@@ -12,7 +13,9 @@ public class InventoryServiceApplication {
         SpringApplication.run(InventoryServiceApplication.class, args);
     }
 
+    /** 데모 시드. local 프로파일에서만 동작한다. 운영에 데모 데이터가 들어가지 않게 한다. */
     @Bean
+    @Profile("local")
     ApplicationRunner seedStock(InventoryService inventory) {
         return args -> {
             // 파일 DB는 데이터가 남는다. 재시작마다 시드를 넣으면 재고가 계속 늘어난다.

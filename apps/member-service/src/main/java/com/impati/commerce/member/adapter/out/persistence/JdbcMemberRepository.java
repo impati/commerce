@@ -3,6 +3,7 @@ package com.impati.commerce.member.adapter.out.persistence;
 import com.impati.commerce.member.application.MemberRepository;
 import com.impati.commerce.member.domain.MemberModels.Address;
 import com.impati.commerce.member.domain.MemberModels.Member;
+import com.impati.commerce.member.domain.MemberModels.PasswordHash;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -18,18 +19,19 @@ import java.util.Optional;
  */
 @Repository
 public class JdbcMemberRepository implements MemberRepository {
-    private static final String MEMBER_COLUMNS = "id, email, name, status";
+    private static final String MEMBER_COLUMNS = "id, email, name, status, password_hash";
 
     private static final String INSERT_MEMBER = """
-            insert into members (id, email, name, status)
-            values (:id, :email, :name, :status)
+            insert into members (id, email, name, status, password_hash)
+            values (:id, :email, :name, :status, :password_hash)
             """;
 
     private static final String UPDATE_MEMBER = """
             update members
                set email = :email,
                    name = :name,
-                   status = :status
+                   status = :status,
+                   password_hash = :password_hash
              where id = :id
             """;
 
@@ -78,7 +80,8 @@ public class JdbcMemberRepository implements MemberRepository {
                 .addValue("id", member.id())
                 .addValue("email", member.email())
                 .addValue("name", member.name())
-                .addValue("status", member.status());
+                .addValue("status", member.status())
+                .addValue("password_hash", member.passwordHash() == null ? null : member.passwordHash().value());
         if (jdbc.update(UPDATE_MEMBER, params) == 0) {
             jdbc.update(INSERT_MEMBER, params);
         }
@@ -128,12 +131,17 @@ public class JdbcMemberRepository implements MemberRepository {
     }
 
     private RowMapper<Member> memberMapper() {
-        return (rs, rowNum) -> Member.restore(
-                rs.getString("id"),
-                rs.getString("email"),
-                rs.getString("name"),
-                findAddresses(rs.getString("id"))
-        );
+        return (rs, rowNum) -> {
+            var storedHash = rs.getString("password_hash");
+            return Member.restore(
+                    rs.getString("id"),
+                    rs.getString("email"),
+                    rs.getString("name"),
+                    storedHash == null ? null : new PasswordHash(storedHash),
+                    rs.getString("status"),
+                    findAddresses(rs.getString("id"))
+            );
+        };
     }
 
     private List<Address> findAddresses(String memberId) {

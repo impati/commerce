@@ -45,6 +45,13 @@ configure(subprojects.findAll { it.path.startsWith(':apps:') }) {
 }
 
 // 서비스 간 HTTP 호출이 있는 서비스. 타임아웃이 자동 적용된다.
+// 비밀번호 해싱이 필요한 서비스. spring-security-crypto만 쓰고 Security 전체는 붙이지 않는다.
+configure([project(':apps:member-service')]) {
+    dependencies {
+        implementation 'org.springframework.security:spring-security-crypto:6.2.2'
+    }
+}
+
 configure([
         project(':apps:order-service'),
         project(':apps:api-gateway'),

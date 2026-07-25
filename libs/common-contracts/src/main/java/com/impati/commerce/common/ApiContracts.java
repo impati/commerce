@@ -28,7 +28,7 @@ public final class ApiContracts {
     ) {
     }
 
-    public record RegisterMemberRequest(String email, String name) {
+    public record RegisterMemberRequest(String email, String name, String password) {
     }
 
     public record AddAddressRequest(

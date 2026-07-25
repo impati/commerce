@@ -3,6 +3,7 @@ package com.impati.commerce.member.adapter.out.persistence;
 import com.impati.commerce.member.application.MemberRepository;
 import com.impati.commerce.member.domain.MemberModels.Address;
 import com.impati.commerce.member.domain.MemberModels.Member;
+import com.impati.commerce.member.domain.MemberModels.PasswordHash;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -12,6 +13,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:member-repo;DB_CLOSE_DELAY=-1")
 class JdbcMemberRepositoryTest {
+    private static final PasswordHash HASH = new PasswordHash("$2a$10$fakehashforpersistencetest");
+
     @Autowired
     private MemberRepository members;
 
@@ -20,7 +23,7 @@ class JdbcMemberRepositoryTest {
 
     @Test
     void roundTripsMemberWithAddresses() {
-        var member = new Member("mem_round", "round@impati.dev", "Round Tester");
+        var member = new Member("mem_round", "round@impati.dev", "Round Tester", HASH);
         member.addAddress(address("home", "Seoul", false));
         member.addAddress(address("office", "Busan", true));
 
@@ -29,7 +32,7 @@ class JdbcMemberRepositoryTest {
 
         assertThat(loaded.email()).isEqualTo("round@impati.dev");
         assertThat(loaded.name()).isEqualTo("Round Tester");
-        assertThat(loaded.status()).isEqualTo("ACTIVE");
+        assertThat(loaded.status()).isEqualTo("PENDING_VERIFICATION");
         assertThat(loaded.addresses()).hasSize(2);
         assertThat(loaded.addresses().stream().map(Address::alias)).containsExactly("home", "office");
     }
@@ -40,7 +43,7 @@ class JdbcMemberRepositoryTest {
      */
     @Test
     void keepsWhichAddressIsDefault() {
-        var member = new Member("mem_default", "default@impati.dev", "Default Tester");
+        var member = new Member("mem_default", "default@impati.dev", "Default Tester", HASH);
         member.addAddress(address("home", "Seoul", false));
         member.addAddress(address("office", "Busan", true));
         members.save(member);
@@ -57,7 +60,7 @@ class JdbcMemberRepositoryTest {
      */
     @Test
     void distinguishesCaseInEmail() {
-        var member = new Member("mem_email", "Mixed.Case@impati.dev", "Email Tester");
+        var member = new Member("mem_email", "Mixed.Case@impati.dev", "Email Tester", HASH);
         members.save(member);
 
         assertThat(members.findByEmail("Mixed.Case@impati.dev")).isPresent();
@@ -68,8 +71,8 @@ class JdbcMemberRepositoryTest {
     /** 대소문자가 다른 주소는 서로 다른 회원으로 가입할 수 있어야 한다. */
     @Test
     void allowsAddressesThatDifferOnlyByCase() {
-        members.save(new Member("mem_lower", "twin@impati.dev", "Lower Twin"));
-        members.save(new Member("mem_upper", "Twin@impati.dev", "Upper Twin"));
+        members.save(new Member("mem_lower", "twin@impati.dev", "Lower Twin", HASH));
+        members.save(new Member("mem_upper", "Twin@impati.dev", "Upper Twin", HASH));
 
         assertThat(members.findByEmail("twin@impati.dev").orElseThrow().id()).isEqualTo("mem_lower");
         assertThat(members.findByEmail("Twin@impati.dev").orElseThrow().id()).isEqualTo("mem_upper");
@@ -78,7 +81,7 @@ class JdbcMemberRepositoryTest {
     /** 왕복 테스트는 쓰기와 읽기가 같은 방향으로 틀리면 통과한다. 컬럼을 직접 읽어 막는다. */
     @Test
     void writesEachAddressFieldToItsOwnColumn() {
-        var member = new Member("mem_column", "column@impati.dev", "Column Tester");
+        var member = new Member("mem_column", "column@impati.dev", "Column Tester", HASH);
         member.addAddress(address("home", "Seoul", true));
         members.save(member);
 
@@ -95,6 +98,27 @@ class JdbcMemberRepositoryTest {
         assertThat(row.get("POSTAL_CODE")).isEqualTo("04524");
         assertThat(row.get("DEFAULT_ADDRESS")).isEqualTo(true);
         assertThat(row.get("ADDRESS_NO")).isEqualTo(0);
+    }
+
+    /** 가입 직후는 이메일 소유가 확인되지 않은 상태다. 확인 후 상태가 저장돼야 로그인이 가능해진다. */
+    @Test
+    void savesActivationAndPasswordHash() {
+        var member = new Member("mem_activate", "activate@impati.dev", "Activate Tester", HASH);
+        members.save(member);
+        assertThat(members.findById("mem_activate").orElseThrow().isActive()).isFalse();
+
+        member.activate();
+        members.save(member);
+
+        var loaded = members.findById("mem_activate").orElseThrow();
+        assertThat(loaded.isActive()).isTrue();
+        assertThat(loaded.passwordHash().value()).isEqualTo(HASH.value());
+        assertThat(jdbc.queryForObject(
+                "select password_hash from members where id = ?", String.class, "mem_activate"))
+                .isEqualTo(HASH.value());
+        assertThat(jdbc.queryForObject(
+                "select status from members where id = ?", String.class, "mem_activate"))
+                .isEqualTo("ACTIVE");
     }
 
     @Test

@@ -31,7 +31,7 @@ start_service() {
   fi
 
   echo "starting ${service} on ${port}"
-  java -jar "$jar" >"$log" 2>&1 &
+  java -jar "$jar" --spring.profiles.active="${SPRING_PROFILE:-local}" >"$log" 2>&1 &
   echo "$!" >"$pid_file"
 }
 

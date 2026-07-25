@@ -25,7 +25,7 @@ public class MemberController {
 
     @PostMapping
     MemberResponse register(@RequestBody RegisterMemberRequest request) {
-        return members.register(request.email(), request.name());
+        return members.register(request.email(), request.name(), request.password());
     }
 
     @GetMapping

@@ -103,25 +103,45 @@ public final class MemberModels {
         }
     }
 
+    /**
+     * 비밀번호 해시. 도메인은 해시 알고리즘을 모른다 — 해싱은 응용 계층의 포트가 맡는다.
+     *
+     * <p>평문 비밀번호가 도메인에 들어오지 않게 하는 것이 이 타입의 목적이다. 평문을 필드로
+     * 들고 있으면 로그나 직렬화로 새어 나갈 경로가 생긴다.
+     */
+    public record PasswordHash(String value) {
+        public PasswordHash {
+            if (value == null || value.isBlank()) {
+                throw DomainException.validation("password hash is required");
+            }
+        }
+    }
+
     public static final class Member {
+        /** 이메일 소유가 확인되지 않은 상태. 로그인할 수 없다. */
+        public static final String PENDING_VERIFICATION = "PENDING_VERIFICATION";
+        public static final String ACTIVE = "ACTIVE";
+
         private final String id;
         private final String email;
         private final String name;
-        private final String status;
+        private final PasswordHash passwordHash;
+        private String status;
         private final List<Address> addresses = new ArrayList<>();
 
-        public Member(String email, String name) {
-            this(Ids.newId("mem"), email, name);
+        public Member(String email, String name, PasswordHash passwordHash) {
+            this(Ids.newId("mem"), email, name, passwordHash);
         }
 
-        public Member(String id, String email, String name) {
+        public Member(String id, String email, String name, PasswordHash passwordHash) {
             if (email == null || !email.contains("@")) {
                 throw DomainException.validation("email must contain @");
             }
             this.id = required(id, "member id is required");
             this.email = email;
             this.name = required(name, "member name is required");
-            this.status = "ACTIVE";
+            this.passwordHash = passwordHash;
+            this.status = PENDING_VERIFICATION;
         }
 
         /**
@@ -130,8 +150,16 @@ public final class MemberModels {
          * <p>주소는 {@link #addAddress}를 거치지 않고 그대로 채운다. addAddress는 기본 배송지를
          * 재조정하므로, 복원에 쓰면 저장된 기본 배송지가 바뀔 수 있다. 영속화 어댑터만 쓴다.
          */
-        public static Member restore(String id, String email, String name, List<Address> addresses) {
-            var member = new Member(id, email, name);
+        public static Member restore(
+                String id,
+                String email,
+                String name,
+                PasswordHash passwordHash,
+                String status,
+                List<Address> addresses
+        ) {
+            var member = new Member(id, email, name, passwordHash);
+            member.status = status;
             member.addresses.addAll(addresses);
             return member;
         }
@@ -150,6 +178,19 @@ public final class MemberModels {
 
         public String status() {
             return status;
+        }
+
+        public PasswordHash passwordHash() {
+            return passwordHash;
+        }
+
+        public boolean isActive() {
+            return status.equals(ACTIVE);
+        }
+
+        /** 이메일 소유가 확인됐다. 이미 활성이면 다시 확인해도 문제가 없도록 멱등하게 둔다. */
+        public void activate() {
+            this.status = ACTIVE;
         }
 
         public List<Address> addresses() {
