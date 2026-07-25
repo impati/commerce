@@ -7,6 +7,8 @@ import org.springframework.web.client.RestClient;
 
 @Component
 public class HttpCartClient implements CartClient {
+    private static final String MEMBER_ID_HEADER = "X-Member-Id";
+
     private final RestClient restClient;
 
     public HttpCartClient(RestClient cartRestClient) {
@@ -15,11 +17,19 @@ public class HttpCartClient implements CartClient {
 
     @Override
     public CartResponse cart(String memberId) {
-        return restClient.get().uri("/carts/{memberId}", memberId).retrieve().body(CartResponse.class);
+        return restClient.get()
+                .uri("/carts")
+                .header(MEMBER_ID_HEADER, memberId)
+                .retrieve()
+                .body(CartResponse.class);
     }
 
     @Override
     public void clearCart(String memberId) {
-        restClient.post().uri("/carts/{memberId}/clear", memberId).retrieve().toBodilessEntity();
+        restClient.post()
+                .uri("/carts/clear")
+                .header(MEMBER_ID_HEADER, memberId)
+                .retrieve()
+                .toBodilessEntity();
     }
 }

@@ -16,6 +16,9 @@ public interface NotificationRepository {
     /** 기록된 순서를 유지한다. */
     List<Notification> findAll();
 
+    /** 특정 회원의 알림만. 전체 목록은 다른 회원의 주문 내용을 노출한다. */
+    List<Notification> findByMemberId(String memberId);
+
     /** 발송이 필요한 메일을 오래된 것부터 가져온다. 아웃박스를 비우는 쪽에서 쓴다. */
     List<Notification> findPendingMail(int limit);
 }

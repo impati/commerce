@@ -164,7 +164,8 @@ public final class ApiContracts {
     ) {
     }
 
-    public record CheckoutRequest(String memberId, String paymentToken, String addressId) {
+    /** 회원 신원은 X-Member-Id 헤더로 전달된다. 본문에 memberId를 두지 않는다. */
+    public record CheckoutRequest(String paymentToken, String addressId) {
     }
 
     public record CheckoutResponse(OrderResponse order, PaymentResponse payment, ShipmentResponse shipment) {

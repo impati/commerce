@@ -139,7 +139,7 @@ class CheckoutSagaTest {
                         "READY",
                         "TRK-SEED-0001"
                 )), MediaType.APPLICATION_JSON));
-        server.expect(times(1), requestTo(CART_URL + "/carts/" + MEMBER_ID + "/clear"))
+        server.expect(times(1), requestTo(CART_URL + "/carts/clear"))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withSuccess());
         // OrderPaid, ShipmentCreated
@@ -148,8 +148,9 @@ class CheckoutSagaTest {
                 .andRespond(withSuccess());
 
         mockMvc.perform(post("/checkouts")
+                        .header("X-Member-Id", MEMBER_ID)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(new CheckoutRequest(MEMBER_ID, "card_test_success", null))))
+                        .content(json(new CheckoutRequest("card_test_success", null))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.order.status").value("FULFILLING"))
                 .andExpect(jsonPath("$.order.paymentId").value("pay_seed"))
@@ -179,12 +180,13 @@ class CheckoutSagaTest {
         // commit도 같은 이유로 stub하지 않는다.
 
         mockMvc.perform(post("/checkouts")
+                        .header("X-Member-Id", MEMBER_ID)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(new CheckoutRequest(MEMBER_ID, "card_test_decline", null))))
+                        .content(json(new CheckoutRequest("card_test_decline", null))))
                 .andExpect(status().isPaymentRequired())
                 .andExpect(jsonPath("$.code").value("payment_declined"));
 
-        mockMvc.perform(get("/orders/{orderId}", reservedOrderId.get()))
+        mockMvc.perform(get("/orders/{orderId}", reservedOrderId.get()).header("X-Member-Id", MEMBER_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("CANCELLED"))
                 .andExpect(jsonPath("$.paymentId").value(nullValue()))
@@ -201,7 +203,7 @@ class CheckoutSagaTest {
                         "ACTIVE",
                         List.of(address())
                 )), MediaType.APPLICATION_JSON));
-        server.expect(times(1), requestTo(CART_URL + "/carts/" + MEMBER_ID))
+        server.expect(times(1), requestTo(CART_URL + "/carts"))
                 .andExpect(method(HttpMethod.GET))
                 .andRespond(withSuccess(json(new CartResponse(
                         MEMBER_ID,

@@ -44,6 +44,9 @@ public class JdbcNotificationRepository implements NotificationRepository {
 
     private static final String SELECT_ALL = "select " + COLUMNS + " from notifications order by seq";
 
+    private static final String SELECT_BY_MEMBER = "select " + COLUMNS
+            + " from notifications where member_id = :member_id order by seq";
+
     private static final String SELECT_PENDING_MAIL = """
             select
             """ + COLUMNS + """
@@ -95,6 +98,12 @@ public class JdbcNotificationRepository implements NotificationRepository {
     @Transactional(readOnly = true)
     public List<Notification> findAll() {
         return jdbc.query(SELECT_ALL, ROW_MAPPER);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Notification> findByMemberId(String memberId) {
+        return jdbc.query(SELECT_BY_MEMBER, new MapSqlParameterSource("member_id", memberId), ROW_MAPPER);
     }
 
     @Override

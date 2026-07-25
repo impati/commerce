@@ -81,8 +81,8 @@ public class NotificationService {
     }
 
     @Transactional(readOnly = true)
-    public List<NotificationResponse> list() {
-        return notifications.findAll().stream().map(NotificationMapper::toResponse).toList();
+    public List<NotificationResponse> listFor(String memberId) {
+        return notifications.findByMemberId(memberId).stream().map(NotificationMapper::toResponse).toList();
     }
 
     /** 로컬 데모에서 발송함을 들여다본다. 인증 토큰을 확인할 유일한 경로다. */

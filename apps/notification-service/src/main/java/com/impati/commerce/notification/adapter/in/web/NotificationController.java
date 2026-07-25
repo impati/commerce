@@ -34,8 +34,8 @@ public class NotificationController {
     }
 
     @GetMapping
-    List<NotificationResponse> list() {
-        return notifications.list();
+    List<NotificationResponse> list(@org.springframework.web.bind.annotation.RequestParam String memberId) {
+        return notifications.listFor(memberId);
     }
 
     /**

@@ -137,8 +137,18 @@ public class OrderService {
         }
     }
 
-    public OrderResponse get(String orderId) {
-        return OrderMapper.toResponse(getOrder(orderId));
+    /**
+     * 요청자 소유의 주문만 돌려준다.
+     *
+     * <p>없는 주문과 남의 주문을 같은 응답으로 거절한다. 구분하면 어떤 주문 id가 존재하는지
+     * 알아낼 수 있다.
+     */
+    public OrderResponse getOwned(String memberId, String orderId) {
+        var order = getOrder(orderId);
+        if (!order.memberId().equals(memberId)) {
+            throw DomainException.notFound("order not found");
+        }
+        return OrderMapper.toResponse(order);
     }
 
     public OrderResponse markDelivered(String orderId) {
