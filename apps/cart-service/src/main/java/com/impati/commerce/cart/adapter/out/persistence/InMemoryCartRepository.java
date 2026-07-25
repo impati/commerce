@@ -5,6 +5,7 @@ import com.impati.commerce.cart.domain.CartModels.Cart;
 import org.springframework.stereotype.Repository;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Repository
@@ -12,8 +13,8 @@ public class InMemoryCartRepository implements CartRepository {
     private final Map<String, Cart> carts = new ConcurrentHashMap<>();
 
     @Override
-    public Cart getOrCreate(String memberId) {
-        return carts.computeIfAbsent(memberId, Cart::new);
+    public Optional<Cart> findByMemberId(String memberId) {
+        return Optional.ofNullable(carts.get(memberId));
     }
 
     @Override
