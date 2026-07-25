@@ -54,7 +54,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 즉 컨트롤러 - OrderService - CommerceClients - JSON 직렬화까지는 실제 코드가 돌고,
  * 네트워크 경계만 대체된다. saga 보상 로직이 깨지면 여기서 잡힌다.
  */
-@SpringBootTest
+@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:order-saga;DB_CLOSE_DELAY=-1")
 @AutoConfigureMockMvc
 class CheckoutSagaTest {
     private static final String MEMBER_URL = "http://localhost:8101";

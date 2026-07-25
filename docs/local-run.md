@@ -82,6 +82,19 @@ curl -sS -X POST http://localhost:8080/checkout -H 'Content-Type: application/js
 
 주문은 `CANCELLED`가 되고 재고 예약은 release되며 장바구니는 유지된다.
 
+## 데이터가 남는 범위
+
+order-service만 H2 파일 DB를 쓴다. 프로세스를 재시작해도 주문은 남는다.
+
+```bash
+ls .data/            # order-service.mv.db
+rm -rf .data         # 초기화 (make stop 후에)
+```
+
+`.data/`는 상대경로이므로 저장소 루트에서 실행해야 그 자리에 생긴다. 스키마는 [V1__create_orders.sql](../apps/order-service/src/main/resources/db/migration/V1__create_orders.sql)이며 Flyway가 기동 시 적용한다.
+
+나머지 9개 서비스는 인메모리이므로 재시작하면 장바구니, 재고, 회원, 배송이 시드 상태로 돌아간다. 주문만 남아 있는 상태가 되므로, 재시작 후 예전 주문을 조회하면 배송 정보는 이미 사라져 있다.
+
 ## 로그와 종료
 
 ```bash
@@ -100,7 +113,8 @@ make stop
 | `Partial — demo: ...`가 뜬다 | 나열된 리소스의 서비스만 죽었다. `.run/<service>.log`를 본다 |
 | `did not become healthy` | 포트 충돌이 대부분이다. `lsof -i :8080` 등으로 확인 |
 | 상품이 비어 있다 | catalog-service가 죽었거나 태그가 어긋났다 |
-| 새로고침하니 주문이 사라졌다 | 모든 저장소가 인메모리다. 프로세스를 재시작하면 데이터가 날아간다 |
+| 재시작하니 장바구니·재고가 초기화됐다 | order-service를 뺀 9개는 아직 인메모리다. 주문만 `.data/`에 남는다 |
+| 주문 데이터를 비우고 싶다 | `make stop` 후 `rm -rf .data` |
 | `jq: command not found` | `make demo`가 jq를 쓴다. `brew install jq` |
 
 ## docker compose 대안

@@ -67,13 +67,41 @@ public final class OrderModels {
         private String inventoryReservationId;
 
         public Order(String memberId, List<OrderLine> lines, Address shippingAddress) {
+            this(Ids.newId("ord"), memberId, lines, shippingAddress);
+        }
+
+        private Order(String id, String memberId, List<OrderLine> lines, Address shippingAddress) {
             if (lines.isEmpty()) {
                 throw DomainException.validation("order requires at least one line");
             }
-            this.id = Ids.newId("ord");
+            this.id = id;
             this.memberId = memberId;
             this.lines = new ArrayList<>(lines);
             this.shippingAddress = shippingAddress;
+        }
+
+        /**
+         * 저장된 상태에서 주문을 복원한다.
+         *
+         * <p>상태 전이 규칙(markPaid 등)을 거치지 않고 status를 그대로 세운다. CANCELLED처럼
+         * 전이를 재생해서는 도달할 수 없는 상태가 있기 때문이다. 영속화 어댑터만 쓴다.
+         */
+        public static Order restore(
+                String id,
+                String memberId,
+                List<OrderLine> lines,
+                Address shippingAddress,
+                String status,
+                String paymentId,
+                String shipmentId,
+                String inventoryReservationId
+        ) {
+            var order = new Order(id, memberId, lines, shippingAddress);
+            order.status = status;
+            order.paymentId = paymentId;
+            order.shipmentId = shipmentId;
+            order.inventoryReservationId = inventoryReservationId;
+            return order;
         }
 
         public String id() {

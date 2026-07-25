@@ -49,7 +49,11 @@ Impati Commerce 작업 규칙. Java 21 + Spring Boot 3.2 멀티모듈, 10개 서
 
 ## 상태와 데이터
 
-- 모든 저장소는 `InMemory*Repository` (`ConcurrentHashMap`) 싱글턴이다. `@SpringBootTest` 컨텍스트는 캐시되므로 **테스트 간에 상태가 남는다.** 빈 저장소를 가정하는 테스트를 쓰지 말고, 테스트가 자기 데이터를 직접 만들게 한다.
+- **order-service만 H2 파일 DB를 쓴다.** 나머지 9개는 아직 `InMemory*Repository` (`ConcurrentHashMap`) 싱글턴이다. 저장소를 옮길 때마다 이 문장을 고친다.
+- 인메모리 서비스는 `@SpringBootTest` 컨텍스트가 캐시되므로 **테스트 간에 상태가 남는다.** 빈 저장소를 가정하는 테스트를 쓰지 말고, 테스트가 자기 데이터를 직접 만들게 한다.
+- DB를 쓰는 서비스의 테스트는 `@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:...")`로 URL만 덮어쓴다. `src/test/resources/application.properties`를 만들면 **main 쪽 파일을 가려서** `clients.*.url`이 사라지고 컨텍스트가 뜨지 않는다.
+- 로컬 DB 파일은 `.data/`에 생기고 git에 올리지 않는다. 초기화는 `rm -rf .data`다. 경로가 상대경로이므로 저장소 루트에서 실행해야 한다.
+- 스키마 변경은 Flyway 마이그레이션으로 한다. 파일 DB는 데이터가 남으므로 `schema.sql`을 다시 돌리는 방식은 깨진다.
 - 데모 시드 데이터(`mem_demo`, `sku_*`, `card_test_success`, `card_test_decline`)는 README에 정리돼 있다. 시드를 바꾸면 README와 프론트 `src/mockData.ts`도 같이 고친다.
 
 ## 되돌리기
@@ -85,6 +89,7 @@ git 저장소이지만 이력이 `first commit` 하나뿐이다. 되돌릴 지�
 
 ## 변경 이력
 
+- 2026-07-25 — 저장소 현황을 "모두 인메모리"에서 "order-service만 H2 파일"로 수정하고, DB 테스트의 프로퍼티 주입 방식과 Flyway 규칙 추가. 계기: order-service 영속화.
 - 2026-07-25 — 도메인에서 `XxxRequest`/`XxxResponse` 금지 규칙 추가. 계기: `Order`와 `Shipment`가 계약 DTO인 `AddressResponse`를 도메인 필드로 들고 있어, 영속화하면 DTO가 그대로 스키마가 되는 상태였다.
 - 2026-07-25 — "조회는 저장소에 쓰지 않는다" 규칙 추가. 계기: `CartService.get`이 `computeIfAbsent`로 조회만 해도 장바구니를 만들고 있었다.
 - 2026-07-25 — 컨텍스트 로드 테스트 규칙 추가. 계기: 10개 서비스 중 8개는 스프링 컨텍스트가 깨져도 `./gradlew test`가 잡지 못하는 상태였다.

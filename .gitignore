@@ -8,3 +8,4 @@ dist/
 frontend/storefront/node_modules/
 frontend/storefront/dist/
 *.log
+.data/

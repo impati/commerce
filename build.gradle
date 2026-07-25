@@ -43,3 +43,12 @@ configure(subprojects.findAll { it.path.startsWith(':apps:') }) {
         testImplementation 'org.springframework.boot:spring-boot-starter-test'
     }
 }
+
+// 영속화가 적용된 서비스. 저장소를 옮길 때마다 여기에 추가한다.
+configure([project(':apps:order-service')]) {
+    dependencies {
+        implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+        implementation 'org.flywaydb:flyway-core'
+        runtimeOnly 'com.h2database:h2'
+    }
+}
