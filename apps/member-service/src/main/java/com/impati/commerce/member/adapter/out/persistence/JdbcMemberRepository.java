@@ -81,7 +81,7 @@ public class JdbcMemberRepository implements MemberRepository {
                 .addValue("email", member.email())
                 .addValue("name", member.name())
                 .addValue("status", member.status())
-                .addValue("password_hash", member.passwordHash() == null ? null : member.passwordHash().value());
+                .addValue("password_hash", member.passwordHash().value());
         if (jdbc.update(UPDATE_MEMBER, params) == 0) {
             jdbc.update(INSERT_MEMBER, params);
         }
@@ -131,17 +131,14 @@ public class JdbcMemberRepository implements MemberRepository {
     }
 
     private RowMapper<Member> memberMapper() {
-        return (rs, rowNum) -> {
-            var storedHash = rs.getString("password_hash");
-            return Member.restore(
-                    rs.getString("id"),
-                    rs.getString("email"),
-                    rs.getString("name"),
-                    storedHash == null ? null : new PasswordHash(storedHash),
-                    rs.getString("status"),
-                    findAddresses(rs.getString("id"))
-            );
-        };
+        return (rs, rowNum) -> Member.restore(
+                rs.getString("id"),
+                rs.getString("email"),
+                rs.getString("name"),
+                new PasswordHash(rs.getString("password_hash")),
+                rs.getString("status"),
+                findAddresses(rs.getString("id"))
+        );
     }
 
     private List<Address> findAddresses(String memberId) {

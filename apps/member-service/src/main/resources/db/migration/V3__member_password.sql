@@ -1,9 +1,13 @@
--- 비밀번호와 인증 상태.
+-- 비밀번호를 필수로 둔다.
 --
--- password_hash를 nullable로 둔다. 이 마이그레이션 이전에 만들어진 회원은 비밀번호가 없고,
--- 그 상태를 "설정되지 않음"으로 정직하게 표현한다. 빈 문자열 같은 placeholder를 넣으면
--- 비밀번호가 있는 것처럼 보이면서 아무 값과도 일치하지 않는 모호한 상태가 된다.
--- 로그인은 password_hash가 없는 회원을 거부한다.
-alter table members add column password_hash varchar(100);
+-- 비밀번호 없는 회원을 표현할 이유가 없다. nullable로 두면 "비밀번호가 설정되지 않은 회원"이라는
+-- 상태가 스키마에 생기고, 로그인·재설정·인증 경로마다 그 분기를 다뤄야 한다.
+--
+-- 아직 계정이 없는 시점이므로 기존 행을 지우고 컬럼을 not null로 추가한다. 데모 회원은 시드가
+-- 다시 만든다. 계정이 생긴 뒤에는 이 방식을 쓸 수 없고 백필이 필요하다.
+delete from member_addresses;
+delete from members;
 
--- 기존 회원은 이미 활성 상태로 두고, 신규 가입만 PENDING_VERIFICATION으로 시작한다.
+alter table members add column password_hash varchar(100) not null;
+
+-- 신규 가입은 PENDING_VERIFICATION으로 시작한다. status가 이제 의미를 갖는다.

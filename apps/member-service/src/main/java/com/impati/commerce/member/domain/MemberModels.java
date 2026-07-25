@@ -140,6 +140,9 @@ public final class MemberModels {
             this.id = required(id, "member id is required");
             this.email = email;
             this.name = required(name, "member name is required");
+            if (passwordHash == null) {
+                throw DomainException.validation("password is required");
+            }
             this.passwordHash = passwordHash;
             this.status = PENDING_VERIFICATION;
         }
