@@ -11,6 +11,7 @@ import com.impati.commerce.common.ApiContracts.ReservationResponse;
 import com.impati.commerce.common.ApiContracts.ReserveInventoryRequest;
 import com.impati.commerce.common.DomainException;
 import com.impati.commerce.order.adapter.out.client.CommerceClients;
+import com.impati.commerce.order.domain.OrderModels.Address;
 import com.impati.commerce.order.domain.OrderModels.Order;
 import com.impati.commerce.order.domain.OrderModels.OrderLine;
 import org.springframework.stereotype.Service;
@@ -29,7 +30,7 @@ public class OrderService {
 
     public CheckoutResponse checkout(String memberId, String paymentToken, String addressId) {
         var member = clients.member(memberId);
-        var address = selectAddress(member.addresses(), addressId);
+        var address = OrderMapper.toAddress(selectAddress(member.addresses(), addressId));
         var cart = clients.cart(memberId);
         if (cart.lines().isEmpty()) {
             throw DomainException.validation("cart is empty");
@@ -73,7 +74,11 @@ public class OrderService {
             order.markPaid(payment.id());
             orders.save(order);
 
-            var shipment = clients.createShipment(new CreateShipmentRequest(order.id(), memberId, address));
+            var shipment = clients.createShipment(new CreateShipmentRequest(
+                    order.id(),
+                    memberId,
+                    OrderMapper.toResponse(address)
+            ));
             order.attachShipment(shipment.id());
             orders.save(order);
             clients.clearCart(memberId);
@@ -90,7 +95,7 @@ public class OrderService {
                     "Shipment ready",
                     "Tracking number: " + shipment.trackingNumber()
             ));
-            return new CheckoutResponse(order.toResponse(), payment, shipment);
+            return new CheckoutResponse(OrderMapper.toResponse(order), payment, shipment);
         } catch (RuntimeException exception) {
             if (reservation != null && reservation.status().equals("RESERVED") && !reservationCommitted) {
                 clients.releaseReservation(reservation.id());
@@ -108,7 +113,7 @@ public class OrderService {
     }
 
     public OrderResponse get(String orderId) {
-        return getOrder(orderId).toResponse();
+        return OrderMapper.toResponse(getOrder(orderId));
     }
 
     public OrderResponse markDelivered(String orderId) {
@@ -121,7 +126,7 @@ public class OrderService {
                 "Order delivered",
                 "Order " + order.id() + " has been delivered."
         ));
-        return order.toResponse();
+        return OrderMapper.toResponse(order);
     }
 
     private AddressResponse selectAddress(List<AddressResponse> addresses, String addressId) {

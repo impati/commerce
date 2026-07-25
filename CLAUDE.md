@@ -34,6 +34,7 @@ Impati Commerce 작업 규칙. Java 21 + Spring Boot 3.2 멀티모듈, 10개 서
 
 - `apps/*` 모듈은 서로 직접 의존하지 않는다. 서비스 간 통신은 HTTP뿐이다.
 - 서비스 간 주고받는 타입은 [ApiContracts](libs/common-contracts/src/main/java/com/impati/commerce/common/ApiContracts.java)에 record로 정의한다. 한쪽 서비스에만 있는 DTO를 따로 만들지 않는다.
+- **`XxxRequest`/`XxxResponse`는 응용 계층 DTO 네이밍이다.** 도메인은 이 이름을 쓰지 않고 필드 타입으로도 갖지 않는다. 도메인 ↔ 계약 변환은 응용 계층의 매퍼가 맡는다. 선례: [OrderMapper](apps/order-service/src/main/java/com/impati/commerce/order/application/OrderMapper.java), [MemberModels.Address](apps/member-service/src/main/java/com/impati/commerce/member/domain/MemberModels.java). 예외는 `Money` 하나이며, 공용 값 타입을 어디에 둘지는 아직 정하지 않았다.
 - 에러는 `DomainException` 팩토리(`validation`/`notFound`/`conflict`/`paymentDeclined`)로 던지고, HTTP 상태 매핑은 각 서비스 `support/ApiExceptionHandler`가 담당한다. 컨트롤러에서 상태 코드를 직접 만들지 않는다.
 - 패키지 구조는 `adapter/in/web`, `adapter/out/client`, `adapter/out/persistence`, `application`, `domain`, `support`를 따른다. 새 서비스도 같은 모양으로 만든다.
 - **조회는 저장소에 쓰지 않는다.** 없는 것을 만들어 넣는 `getOrCreate` 류를 저장소 포트에 두지 말고, 기본값 생성은 애플리케이션이 한다. GET에 INSERT가 따라붙으면 읽기 복제본·캐시·헬스체크가 전부 망가진다.
@@ -84,6 +85,7 @@ git 저장소이지만 이력이 `first commit` 하나뿐이다. 되돌릴 지�
 
 ## 변경 이력
 
+- 2026-07-25 — 도메인에서 `XxxRequest`/`XxxResponse` 금지 규칙 추가. 계기: `Order`와 `Shipment`가 계약 DTO인 `AddressResponse`를 도메인 필드로 들고 있어, 영속화하면 DTO가 그대로 스키마가 되는 상태였다.
 - 2026-07-25 — "조회는 저장소에 쓰지 않는다" 규칙 추가. 계기: `CartService.get`이 `computeIfAbsent`로 조회만 해도 장바구니를 만들고 있었다.
 - 2026-07-25 — 컨텍스트 로드 테스트 규칙 추가. 계기: 10개 서비스 중 8개는 스프링 컨텍스트가 깨져도 `./gradlew test`가 잡지 못하는 상태였다.
 - 2026-07-25 — 저장소 포트 규칙 추가. 계기: 저장소를 인터페이스로 추상화하면서, 애플리케이션이 구현 타입을 직접 참조하면 갈아끼울 수 없다는 점을 규칙으로 못박을 필요가 생겼다.

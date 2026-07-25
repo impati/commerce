@@ -1,7 +1,7 @@
 package com.impati.commerce.order.domain;
 
-import com.impati.commerce.common.ApiContracts.AddressResponse;
 import com.impati.commerce.common.ApiContracts.Money;
+import com.impati.commerce.order.domain.OrderModels.Address;
 import com.impati.commerce.order.domain.OrderModels.Order;
 import com.impati.commerce.order.domain.OrderModels.OrderLine;
 import org.junit.jupiter.api.Test;
@@ -13,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class OrderModelsTest {
     @Test
     void calculatesTotalAndMovesThroughPaidFulfillmentDelivery() {
-        var address = new AddressResponse(
+        var address = new Address(
                 "addr_demo",
                 "home",
                 "Demo Customer",
@@ -42,8 +42,8 @@ class OrderModelsTest {
         order.markDelivered();
 
         assertThat(order.total()).isEqualTo(Money.krw(58000));
-        assertThat(order.toResponse().status()).isEqualTo("DELIVERED");
-        assertThat(order.toResponse().inventoryReservationId()).isEqualTo("rsv_demo");
+        assertThat(order.status()).isEqualTo("DELIVERED");
+        assertThat(order.inventoryReservationId()).isEqualTo("rsv_demo");
+        assertThat(order.shippingAddress().recipient()).isEqualTo("Demo Customer");
     }
 }
-

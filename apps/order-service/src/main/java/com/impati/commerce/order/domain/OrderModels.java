@@ -1,9 +1,6 @@
 package com.impati.commerce.order.domain;
 
-import com.impati.commerce.common.ApiContracts.AddressResponse;
 import com.impati.commerce.common.ApiContracts.Money;
-import com.impati.commerce.common.ApiContracts.OrderLineResponse;
-import com.impati.commerce.common.ApiContracts.OrderResponse;
 import com.impati.commerce.common.DomainException;
 import com.impati.commerce.common.Ids;
 
@@ -12,6 +9,32 @@ import java.util.List;
 
 public final class OrderModels {
     private OrderModels() {
+    }
+
+    /**
+     * 주문 시점의 배송지 스냅샷. 회원의 주소록이 바뀌어도 주문에 남은 값은 변하지 않는다.
+     *
+     * <p>alias와 defaultAddress는 회원 주소록의 개념이고 배송에는 쓰이지 않는다.
+     * 응답 형태를 유지하기 위해 함께 스냅샷할 뿐이다.
+     */
+    public record Address(
+            String id,
+            String alias,
+            String recipient,
+            String phone,
+            String line1,
+            String city,
+            String postalCode,
+            boolean defaultAddress
+    ) {
+        public Address {
+            if (recipient == null || recipient.isBlank()) {
+                throw DomainException.validation("recipient is required");
+            }
+            if (line1 == null || line1.isBlank()) {
+                throw DomainException.validation("address line is required");
+            }
+        }
     }
 
     public record OrderLine(
@@ -31,31 +54,19 @@ public final class OrderModels {
         public Money lineTotal() {
             return new Money(unitPrice.amount() * quantity, unitPrice.currency());
         }
-
-        public OrderLineResponse toResponse() {
-            return new OrderLineResponse(
-                    skuId,
-                    productId,
-                    productName,
-                    skuName,
-                    quantity,
-                    unitPrice,
-                    lineTotal()
-            );
-        }
     }
 
     public static final class Order {
         private final String id;
         private final String memberId;
         private final List<OrderLine> lines;
-        private final AddressResponse shippingAddress;
+        private final Address shippingAddress;
         private String status = "CREATED";
         private String paymentId;
         private String shipmentId;
         private String inventoryReservationId;
 
-        public Order(String memberId, List<OrderLine> lines, AddressResponse shippingAddress) {
+        public Order(String memberId, List<OrderLine> lines, Address shippingAddress) {
             if (lines.isEmpty()) {
                 throw DomainException.validation("order requires at least one line");
             }
@@ -71,6 +82,30 @@ public final class OrderModels {
 
         public String memberId() {
             return memberId;
+        }
+
+        public String status() {
+            return status;
+        }
+
+        public List<OrderLine> lines() {
+            return List.copyOf(lines);
+        }
+
+        public Address shippingAddress() {
+            return shippingAddress;
+        }
+
+        public String paymentId() {
+            return paymentId;
+        }
+
+        public String shipmentId() {
+            return shipmentId;
+        }
+
+        public String inventoryReservationId() {
+            return inventoryReservationId;
         }
 
         public Money total() {
@@ -111,20 +146,5 @@ public final class OrderModels {
             }
             this.status = "CANCELLED";
         }
-
-        public OrderResponse toResponse() {
-            return new OrderResponse(
-                    id,
-                    memberId,
-                    status,
-                    lines.stream().map(OrderLine::toResponse).toList(),
-                    total(),
-                    shippingAddress,
-                    paymentId,
-                    shipmentId,
-                    inventoryReservationId
-            );
-        }
     }
 }
-
