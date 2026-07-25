@@ -173,6 +173,20 @@ public final class ApiContracts {
     public record NotificationEventRequest(String eventType, String memberId, String subject, String body) {
     }
 
+    public record VerifyEmailRequest(String token) {
+    }
+
+    public record LoginRequest(String email, String password) {
+    }
+
+    /** 로그인 결과. token은 불투명 문자열이며 서버가 해시만 보관한다. */
+    public record LoginResponse(String token, String expiresAt) {
+    }
+
+    /** 세션이 가리키는 회원. 게이트웨이가 신원을 확인할 때 쓴다. */
+    public record SessionResponse(String memberId) {
+    }
+
     public record EmailVerificationMailRequest(String memberId, String email, String token) {
     }
 

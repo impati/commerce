@@ -3,6 +3,7 @@ package com.impati.commerce.member.domain;
 import com.impati.commerce.common.DomainException;
 import com.impati.commerce.common.Ids;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -100,6 +101,120 @@ public final class MemberModels {
 
         public void markDefault(boolean value) {
             this.defaultAddress = value;
+        }
+    }
+
+    /**
+     * 이메일 소유 인증 토큰. 해시만 보관한다.
+     *
+     * <p>단일 사용이며 만료가 있다. 이미 쓴 토큰이나 만료된 토큰으로는 인증되지 않는다.
+     */
+    public static final class EmailVerification {
+        private final String tokenHash;
+        private final String memberId;
+        private final Instant expiresAt;
+        private Instant usedAt;
+
+        public EmailVerification(String tokenHash, String memberId, Instant expiresAt) {
+            this(tokenHash, memberId, expiresAt, null);
+        }
+
+        private EmailVerification(String tokenHash, String memberId, Instant expiresAt, Instant usedAt) {
+            this.tokenHash = required(tokenHash, "verification token is required");
+            this.memberId = required(memberId, "member id is required");
+            this.expiresAt = expiresAt;
+            this.usedAt = usedAt;
+        }
+
+        /** 저장된 상태에서 복원한다. 영속화 어댑터만 쓴다. */
+        public static EmailVerification restore(
+                String tokenHash,
+                String memberId,
+                Instant expiresAt,
+                Instant usedAt
+        ) {
+            return new EmailVerification(tokenHash, memberId, expiresAt, usedAt);
+        }
+
+        public String tokenHash() {
+            return tokenHash;
+        }
+
+        public String memberId() {
+            return memberId;
+        }
+
+        public Instant expiresAt() {
+            return expiresAt;
+        }
+
+        public Instant usedAt() {
+            return usedAt;
+        }
+
+        /**
+         * 토큰을 사용 처리한다.
+         *
+         * <p>이미 쓴 토큰과 만료된 토큰을 같은 메시지로 거절한다. 어느 쪽인지 알려주면 유효한
+         * 토큰이 존재했다는 사실이 드러난다.
+         */
+        public void use(Instant now) {
+            if (usedAt != null || now.isAfter(expiresAt)) {
+                throw DomainException.validation("verification token is not usable");
+            }
+            this.usedAt = now;
+        }
+    }
+
+    /**
+     * 로그인 세션. 해시만 보관한다.
+     *
+     * <p>불투명 토큰이므로 서버가 상태를 갖는다. 그 대가로 폐기가 즉시 된다.
+     */
+    public static final class Session {
+        private final String tokenHash;
+        private final String memberId;
+        private final Instant expiresAt;
+        private Instant revokedAt;
+
+        public Session(String tokenHash, String memberId, Instant expiresAt) {
+            this(tokenHash, memberId, expiresAt, null);
+        }
+
+        private Session(String tokenHash, String memberId, Instant expiresAt, Instant revokedAt) {
+            this.tokenHash = required(tokenHash, "session token is required");
+            this.memberId = required(memberId, "member id is required");
+            this.expiresAt = expiresAt;
+            this.revokedAt = revokedAt;
+        }
+
+        /** 저장된 상태에서 복원한다. 영속화 어댑터만 쓴다. */
+        public static Session restore(String tokenHash, String memberId, Instant expiresAt, Instant revokedAt) {
+            return new Session(tokenHash, memberId, expiresAt, revokedAt);
+        }
+
+        public String tokenHash() {
+            return tokenHash;
+        }
+
+        public String memberId() {
+            return memberId;
+        }
+
+        public Instant expiresAt() {
+            return expiresAt;
+        }
+
+        public Instant revokedAt() {
+            return revokedAt;
+        }
+
+        public boolean isUsable(Instant now) {
+            return revokedAt == null && !now.isAfter(expiresAt);
+        }
+
+        public void revoke(Instant now) {
+            this.revokedAt = now;
         }
     }
 

@@ -192,7 +192,7 @@ class CheckoutSagaTest {
     }
 
     private void stubMemberCartAndCatalog() {
-        server.expect(times(1), requestTo(MEMBER_URL + "/members/" + MEMBER_ID))
+        server.expect(times(1), requestTo(MEMBER_URL + "/members/internal/" + MEMBER_ID))
                 .andExpect(method(HttpMethod.GET))
                 .andRespond(withSuccess(json(new MemberResponse(
                         MEMBER_ID,

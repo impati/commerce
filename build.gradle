@@ -56,7 +56,8 @@ configure([
         project(':apps:order-service'),
         project(':apps:api-gateway'),
         project(':apps:display-service'),
-        project(':apps:cart-service')
+        project(':apps:cart-service'),
+        project(':apps:member-service')
 ]) {
     dependencies {
         implementation project(':libs:common-http')
