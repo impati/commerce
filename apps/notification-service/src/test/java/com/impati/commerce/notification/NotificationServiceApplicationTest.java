@@ -9,7 +9,7 @@ import org.springframework.boot.test.context.SpringBootTest;
  * <p>저장소 포트의 구현이 사라지거나 둘로 늘어나면, 설정값이 빠지면 여기서 깨진다.
  * 서비스별 시나리오 테스트가 생기면 이 파일은 지워도 된다.
  */
-@SpringBootTest
+@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:notification-ctx;DB_CLOSE_DELAY=-1")
 class NotificationServiceApplicationTest {
     @Test
     void contextLoads() {

@@ -1,6 +1,5 @@
 package com.impati.commerce.notification.domain;
 
-import com.impati.commerce.common.ApiContracts.NotificationResponse;
 import com.impati.commerce.common.Ids;
 
 public final class NotificationModels {
@@ -15,16 +14,46 @@ public final class NotificationModels {
         private final String body;
 
         public Notification(String eventType, String memberId, String subject, String body) {
-            this.id = Ids.newId("ntf");
+            this(Ids.newId("ntf"), eventType, memberId, subject, body);
+        }
+
+        private Notification(String id, String eventType, String memberId, String subject, String body) {
+            this.id = id;
             this.eventType = eventType;
             this.memberId = memberId;
             this.subject = subject;
             this.body = body;
         }
 
-        public NotificationResponse toResponse() {
-            return new NotificationResponse(id, eventType, memberId, subject, body);
+        /** 저장된 상태에서 복원한다. 영속화 어댑터만 쓴다. */
+        public static Notification restore(
+                String id,
+                String eventType,
+                String memberId,
+                String subject,
+                String body
+        ) {
+            return new Notification(id, eventType, memberId, subject, body);
+        }
+
+        public String id() {
+            return id;
+        }
+
+        public String eventType() {
+            return eventType;
+        }
+
+        public String memberId() {
+            return memberId;
+        }
+
+        public String subject() {
+            return subject;
+        }
+
+        public String body() {
+            return body;
         }
     }
 }
-

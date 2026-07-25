@@ -45,7 +45,11 @@ configure(subprojects.findAll { it.path.startsWith(':apps:') }) {
 }
 
 // 영속화가 적용된 서비스. 저장소를 옮길 때마다 여기에 추가한다.
-configure([project(':apps:order-service')]) {
+configure([
+        project(':apps:order-service'),
+        project(':apps:payment-service'),
+        project(':apps:notification-service')
+]) {
     dependencies {
         implementation 'org.springframework.boot:spring-boot-starter-jdbc'
         implementation 'org.flywaydb:flyway-core'

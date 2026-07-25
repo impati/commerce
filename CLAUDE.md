@@ -49,7 +49,8 @@ Impati Commerce 작업 규칙. Java 21 + Spring Boot 3.2 멀티모듈, 10개 서
 
 ## 상태와 데이터
 
-- **order-service만 H2 파일 DB를 쓴다.** 나머지 9개는 아직 `InMemory*Repository` (`ConcurrentHashMap`) 싱글턴이다. 저장소를 옮길 때마다 이 문장을 고친다.
+- **H2 파일 DB를 쓰는 서비스: order, payment, notification.** 나머지는 아직 `InMemory*Repository` (`ConcurrentHashMap`) 싱글턴이다. 저장소를 옮길 때마다 이 목록을 고친다.
+- DB를 쓰는 서비스는 [build.gradle](build.gradle)의 `configure([...])` 목록에도 넣어야 jdbc/flyway/h2 의존성이 붙는다.
 - 인메모리 서비스는 `@SpringBootTest` 컨텍스트가 캐시되므로 **테스트 간에 상태가 남는다.** 빈 저장소를 가정하는 테스트를 쓰지 말고, 테스트가 자기 데이터를 직접 만들게 한다.
 - DB를 쓰는 서비스의 테스트는 `@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:...")`로 URL만 덮어쓴다. `src/test/resources/application.properties`를 만들면 **main 쪽 파일을 가려서** `clients.*.url`이 사라지고 컨텍스트가 뜨지 않는다.
 - 로컬 DB 파일은 `.data/`에 생기고 git에 올리지 않는다. 초기화는 `rm -rf .data`다. 경로가 상대경로이므로 저장소 루트에서 실행해야 한다.

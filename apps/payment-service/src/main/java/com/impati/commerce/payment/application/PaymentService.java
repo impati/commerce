@@ -24,7 +24,6 @@ public class PaymentService {
         }
         var payment = new Payment(orderId, memberId, amount);
         payments.save(payment);
-        return payment.toResponse();
+        return PaymentMapper.toResponse(payment);
     }
 }
-

@@ -2,7 +2,7 @@ package com.impati.commerce.payment.application;
 
 import com.impati.commerce.payment.domain.PaymentModels.Payment;
 
-import java.util.Collection;
+import java.util.Optional;
 
 /**
  * 결제 저장소 포트. 구현은 {@code adapter/out/persistence}에 둔다.
@@ -10,5 +10,5 @@ import java.util.Collection;
 public interface PaymentRepository {
     void save(Payment payment);
 
-    Collection<Payment> findAll();
+    Optional<Payment> findById(String paymentId);
 }

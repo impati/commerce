@@ -17,11 +17,10 @@ public class NotificationService {
     public NotificationResponse record(String eventType, String memberId, String subject, String body) {
         var notification = new Notification(eventType, memberId, subject, body);
         notifications.save(notification);
-        return notification.toResponse();
+        return NotificationMapper.toResponse(notification);
     }
 
     public List<NotificationResponse> list() {
-        return notifications.findAll().stream().map(Notification::toResponse).toList();
+        return notifications.findAll().stream().map(NotificationMapper::toResponse).toList();
     }
 }
-
