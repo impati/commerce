@@ -51,14 +51,28 @@ class JdbcMemberRepositoryTest {
         assertThat(loaded.addresses().getFirst().defaultAddress()).isFalse();
     }
 
+    /**
+     * 이메일 조회는 대소문자를 구분한다. a@x.com과 A@x.com이 같은 사서함인지는 수신 도메인이
+     * 정하는 것이므로 외부에서 단정하지 않는다. 접으면 다른 사서함의 주인이 가입하지 못한다.
+     */
     @Test
-    void findsByEmailIgnoringCase() {
+    void distinguishesCaseInEmail() {
         var member = new Member("mem_email", "Mixed.Case@impati.dev", "Email Tester");
         members.save(member);
 
-        assertThat(members.findByEmail("mixed.case@impati.dev")).isPresent();
-        assertThat(members.findByEmail("MIXED.CASE@IMPATI.DEV")).isPresent();
-        assertThat(members.findByEmail("other@impati.dev")).isEmpty();
+        assertThat(members.findByEmail("Mixed.Case@impati.dev")).isPresent();
+        assertThat(members.findByEmail("mixed.case@impati.dev")).isEmpty();
+        assertThat(members.findByEmail("MIXED.CASE@IMPATI.DEV")).isEmpty();
+    }
+
+    /** 대소문자가 다른 주소는 서로 다른 회원으로 가입할 수 있어야 한다. */
+    @Test
+    void allowsAddressesThatDifferOnlyByCase() {
+        members.save(new Member("mem_lower", "twin@impati.dev", "Lower Twin"));
+        members.save(new Member("mem_upper", "Twin@impati.dev", "Upper Twin"));
+
+        assertThat(members.findByEmail("twin@impati.dev").orElseThrow().id()).isEqualTo("mem_lower");
+        assertThat(members.findByEmail("Twin@impati.dev").orElseThrow().id()).isEqualTo("mem_upper");
     }
 
     /** 왕복 테스트는 쓰기와 읽기가 같은 방향으로 틀리면 통과한다. 컬럼을 직접 읽어 막는다. */

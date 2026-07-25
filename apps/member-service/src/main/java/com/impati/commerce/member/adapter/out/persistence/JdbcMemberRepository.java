@@ -11,7 +11,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 
 /**
@@ -22,14 +21,13 @@ public class JdbcMemberRepository implements MemberRepository {
     private static final String MEMBER_COLUMNS = "id, email, name, status";
 
     private static final String INSERT_MEMBER = """
-            insert into members (id, email, email_normalized, name, status)
-            values (:id, :email, :email_normalized, :name, :status)
+            insert into members (id, email, name, status)
+            values (:id, :email, :name, :status)
             """;
 
     private static final String UPDATE_MEMBER = """
             update members
                set email = :email,
-                   email_normalized = :email_normalized,
                    name = :name,
                    status = :status
              where id = :id
@@ -37,7 +35,7 @@ public class JdbcMemberRepository implements MemberRepository {
 
     private static final String SELECT_BY_ID = "select " + MEMBER_COLUMNS + " from members where id = :id";
     private static final String SELECT_BY_EMAIL =
-            "select " + MEMBER_COLUMNS + " from members where email_normalized = :email_normalized";
+            "select " + MEMBER_COLUMNS + " from members where email = :email";
     private static final String SELECT_ALL = "select " + MEMBER_COLUMNS + " from members order by id";
 
     private static final String DELETE_ADDRESSES = "delete from member_addresses where member_id = :member_id";
@@ -79,7 +77,6 @@ public class JdbcMemberRepository implements MemberRepository {
         var params = new MapSqlParameterSource()
                 .addValue("id", member.id())
                 .addValue("email", member.email())
-                .addValue("email_normalized", normalize(member.email()))
                 .addValue("name", member.name())
                 .addValue("status", member.status());
         if (jdbc.update(UPDATE_MEMBER, params) == 0) {
@@ -117,16 +114,11 @@ public class JdbcMemberRepository implements MemberRepository {
     public Optional<Member> findByEmail(String email) {
         return jdbc.query(
                         SELECT_BY_EMAIL,
-                        new MapSqlParameterSource("email_normalized", normalize(email)),
+                        new MapSqlParameterSource("email", email),
                         memberMapper()
                 )
                 .stream()
                 .findFirst();
-    }
-
-    /** 로케일에 따라 결과가 달라지지 않게 ROOT로 고정한다. */
-    private static String normalize(String email) {
-        return email.toLowerCase(Locale.ROOT);
     }
 
     @Override
