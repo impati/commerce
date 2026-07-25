@@ -14,15 +14,62 @@ import {
   WifiOff
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { ApiUnavailableError, api, fallback } from './api';
+import { api, fallback } from './api';
 import { compactStatus, formatMoney } from './format';
 import { demoMemberId, productImages } from './mockData';
 import type { Cart, Checkout, DisplayHome, Notification, Product, Shipment, Stock } from './types';
 
-type ApiMode = 'live' | 'demo';
+type ApiMode = 'live' | 'partial' | 'demo';
 type BusyAction = 'load' | 'cart' | 'checkout' | 'ship' | 'deliver' | null;
 
 const categories = ['all', 'apparel', 'home', 'travel'];
+
+/**
+ * 첫 화면에 필요한 5개를 각각 독립적으로 가져온다.
+ *
+ * Promise.all이었을 때는 알림 하나가 죽어도 상품까지 데모 데이터로 바뀌었다.
+ * 살아있는 것은 실제 데이터를 쓰고, 죽은 것만 폴백으로 대체한다.
+ */
+async function fetchStorefront() {
+  const [homeResult, productsResult, cartResult, stockResult, notificationsResult] = await Promise.allSettled([
+    api.home(),
+    api.products(),
+    api.cart(demoMemberId),
+    api.stock(),
+    api.notifications()
+  ]);
+
+  const degraded: string[] = [];
+  function pick<T>(result: PromiseSettledResult<T>, name: string, fallbackValue: T): T {
+    if (result.status === 'fulfilled') {
+      return result.value;
+    }
+    degraded.push(name);
+    return fallbackValue;
+  }
+
+  const data = {
+    home: pick(homeResult, 'display', fallback.home),
+    products: pick(productsResult, 'products', fallback.products),
+    cart: pick(cartResult, 'cart', fallback.cart),
+    stock: pick(stockResult, 'inventory', fallback.stock),
+    notifications: pick(notificationsResult, 'notifications', fallback.notifications)
+  };
+
+  const total = 5;
+  const mode: ApiMode = degraded.length === 0 ? 'live' : degraded.length === total ? 'demo' : 'partial';
+  return { data, degraded, mode };
+}
+
+function noticeFor(mode: ApiMode, degraded: string[]): string {
+  if (mode === 'live') {
+    return 'Gateway connected';
+  }
+  if (mode === 'demo') {
+    return 'Demo mode';
+  }
+  return `Partial — demo: ${degraded.join(', ')}`;
+}
 
 export function App() {
   const [home, setHome] = useState<DisplayHome>(fallback.home);
@@ -39,41 +86,25 @@ export function App() {
   const [busy, setBusy] = useState<BusyAction>('load');
   const [notice, setNotice] = useState('Ready');
 
+  function applyStorefront(result: Awaited<ReturnType<typeof fetchStorefront>>) {
+    setHome(result.data.home);
+    setProducts(result.data.products);
+    setCart(result.data.cart);
+    setStock(result.data.stock);
+    setNotifications(result.data.notifications);
+    setApiMode(result.mode);
+    setNotice(noticeFor(result.mode, result.degraded));
+  }
+
   useEffect(() => {
     let ignore = false;
 
     async function load() {
       setBusy('load');
-      try {
-        const [homeData, productData, cartData, stockData, notificationData] = await Promise.all([
-          api.home(),
-          api.products(),
-          api.cart(demoMemberId),
-          api.stock(),
-          api.notifications()
-        ]);
-        if (ignore) return;
-        setHome(homeData);
-        setProducts(productData);
-        setCart(cartData);
-        setStock(stockData);
-        setNotifications(notificationData);
-        setApiMode('live');
-        setNotice('Gateway connected');
-      } catch (error) {
-        if (ignore) return;
-        setHome(fallback.home);
-        setProducts(fallback.products);
-        setCart(fallback.cart);
-        setStock(fallback.stock);
-        setNotifications(fallback.notifications);
-        setApiMode('demo');
-        setNotice(error instanceof ApiUnavailableError ? 'Demo mode' : 'Demo mode');
-      } finally {
-        if (!ignore) {
-          setBusy(null);
-        }
-      }
+      const result = await fetchStorefront();
+      if (ignore) return;
+      applyStorefront(result);
+      setBusy(null);
     }
 
     load();
@@ -113,23 +144,7 @@ export function App() {
   async function refresh() {
     setBusy('load');
     try {
-      const [homeData, productData, cartData, stockData, notificationData] = await Promise.all([
-        api.home(),
-        api.products(),
-        api.cart(demoMemberId),
-        api.stock(),
-        api.notifications()
-      ]);
-      setHome(homeData);
-      setProducts(productData);
-      setCart(cartData);
-      setStock(stockData);
-      setNotifications(notificationData);
-      setApiMode('live');
-      setNotice('Gateway connected');
-    } catch {
-      setApiMode('demo');
-      setNotice('Demo mode');
+      applyStorefront(await fetchStorefront());
     } finally {
       setBusy(null);
     }
@@ -140,7 +155,7 @@ export function App() {
     if (!skuId) return;
     setBusy('cart');
     try {
-      if (apiMode === 'live') {
+      if (apiMode !== 'demo') {
         setCart(await api.addCartItem(demoMemberId, skuId, 1));
       } else {
         setCart((current) => addLine(current, skuId));
@@ -162,7 +177,7 @@ export function App() {
     }
     setBusy('checkout');
     try {
-      const result = apiMode === 'live' ? await api.checkout(demoMemberId) : fallback.checkout(cart);
+      const result = apiMode !== 'demo' ? await api.checkout(demoMemberId) : fallback.checkout(cart);
       setCheckout(result);
       setShipment(result.shipment);
       setCart({ memberId: demoMemberId, lines: [] });
@@ -195,7 +210,7 @@ export function App() {
     if (!shipment) return;
     setBusy('ship');
     try {
-      const shipped = apiMode === 'live' ? await api.ship(shipment.id) : { ...shipment, status: 'IN_TRANSIT' };
+      const shipped = apiMode !== 'demo' ? await api.ship(shipment.id) : { ...shipment, status: 'IN_TRANSIT' };
       setShipment(shipped);
       setCheckout((current) =>
         current ? { ...current, shipment: shipped, order: { ...current.order, status: 'FULFILLING' } } : current
@@ -217,7 +232,7 @@ export function App() {
     setBusy('deliver');
     try {
       const delivered =
-        apiMode === 'live'
+        apiMode !== 'demo'
           ? await api.deliver(shipment.id)
           : { shipment: { ...shipment, status: 'DELIVERED' }, order: { ...checkout.order, status: 'DELIVERED' } };
       setShipment(delivered.shipment);
@@ -259,7 +274,7 @@ export function App() {
         </div>
         <div className="topbar-actions">
           <span className={`connection ${apiMode}`}>
-            {apiMode === 'live' ? <Wifi size={16} /> : <WifiOff size={16} />}
+            {apiMode !== 'demo' ? <Wifi size={16} /> : <WifiOff size={16} />}
             {notice}
           </span>
           <button className="icon-button" type="button" onClick={refresh} title="Refresh" disabled={busy === 'load'}>

@@ -92,6 +92,12 @@ button:disabled {
   font-weight: 700;
 }
 
+.connection.partial {
+  border-color: #bcd0e4;
+  color: #1d4e79;
+  background: #eaf2fa;
+}
+
 .connection.demo {
   border-color: #e4d3af;
   color: #78520e;

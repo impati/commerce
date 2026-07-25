@@ -33,8 +33,9 @@ make frontend-dev
 
 화면 우측 상단 배지가 판정 기준이다.
 
-- **`Gateway connected`** — 백엔드에서 받아온 실제 데이터
-- **`Demo mode`** — 게이트웨이 호출이 실패해서 `src/mockData.ts`의 시드로 그린 화면
+- **`Gateway connected`** (초록) — 5개 리소스 전부 실제 데이터
+- **`Partial — demo: ...`** (파랑) — 나열된 것만 `src/mockData.ts` 시드로 대체, 나머지는 실제 데이터
+- **`Demo mode`** (노랑) — 5개 전부 실패. 화면 전체가 시드 데이터
 
 Demo mode에서도 상품이 보이므로 **화면만 보고 백엔드가 붙었다고 판단하면 안 된다.** 배지를 먼저 본다.
 
@@ -48,20 +49,19 @@ curl -s http://localhost:8080/display/home | jq '.sections[] | {key, count: (.pr
 
 ## 상품 노출만 보려면 몇 개를 띄워야 하나
 
-10개 전부는 필요 없지만, **6개는 필요하다.**
+**3개면 된다.**
 
 | 서비스 | 왜 필요한가 |
 | --- | --- |
 | api-gateway | 프론트의 유일한 진입점 |
 | display-service | `/display/home` 섹션 구성 |
-| catalog-service | display와 cart가 상품/SKU를 물어본다 |
-| cart-service | 첫 화면에서 장바구니를 조회한다 |
-| inventory-service | 첫 화면에서 재고를 조회한다 |
-| notification-service | 첫 화면에서 알림 목록을 조회한다 |
+| catalog-service | display가 상품/SKU를 물어본다 |
 
-프론트의 초기 로딩이 `home`, `products`, `cart`, `inventory`, `notifications`를 `Promise.all`로 한꺼번에 부르고, **하나만 실패해도 전체가 Demo mode로 떨어지기** 때문이다 ([api.ts](../frontend/storefront/src/api.ts), [App.tsx](../frontend/storefront/src/App.tsx)). 지면만 보려는데 Demo mode가 뜬다면 재고나 알림 서비스가 죽어 있는 경우가 많다.
+프론트 초기 로딩은 `home`, `products`, `cart`, `inventory`, `notifications`를 각각 독립적으로 가져오므로, 살아있는 것은 실제 데이터를 쓰고 죽은 것만 시드로 대체된다 ([App.tsx](../frontend/storefront/src/App.tsx)의 `fetchStorefront`). cart / inventory / notification 3개를 죽이고 확인하면 상품은 실제 가격으로 뜨고 배지가 `Partial — demo: cart, inventory, notifications`가 된다.
 
-member / payment / shipping / order 4개는 지면 노출에는 필요 없고 checkout을 눌렀을 때 필요하다.
+**5개 전부를 실제 데이터로 보려면** 여기에 cart-service, inventory-service, notification-service를 더해 6개다. member / payment / shipping / order 4개는 지면 노출에 필요 없고 checkout을 눌렀을 때 필요하다.
+
+재고 숫자로 실제/시드를 구분할 수 있다. 시드 합계는 100이고, 체크아웃을 한 번이라도 했으면 실제 값은 그보다 작다.
 
 ## 전체 흐름 확인
 
@@ -96,7 +96,8 @@ make stop
 
 | 증상 | 원인과 대처 |
 | --- | --- |
-| `Demo mode`가 뜬다 | 게이트웨이가 안 떴거나, 위 6개 중 하나가 죽었다. `.run/*.log`를 본다 |
+| `Demo mode`가 뜬다 | 게이트웨이가 아예 안 떴다. 5개 호출이 전부 실패한 상태다 |
+| `Partial — demo: ...`가 뜬다 | 나열된 리소스의 서비스만 죽었다. `.run/<service>.log`를 본다 |
 | `did not become healthy` | 포트 충돌이 대부분이다. `lsof -i :8080` 등으로 확인 |
 | 상품이 비어 있다 | catalog-service가 죽었거나 태그가 어긋났다 |
 | 새로고침하니 주문이 사라졌다 | 모든 저장소가 인메모리다. 프로세스를 재시작하면 데이터가 날아간다 |
