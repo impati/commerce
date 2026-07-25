@@ -26,6 +26,7 @@ Impati Commerce 작업 규칙. Java 21 + Spring Boot 3.2 멀티모듈, 10개 서
 - **도메인/애플리케이션 로직을 바꾸면** 해당 모듈에 단위 테스트를 함께 추가하거나 갱신한다. 참고: [OrderModelsTest](apps/order-service/src/test/java/com/impati/commerce/order/domain/OrderModelsTest.java), [InventoryServiceTest](apps/inventory-service/src/test/java/com/impati/commerce/inventory/application/InventoryServiceTest.java)
 - **서비스 경계나 checkout saga에 닿는 변경이면** `@SpringBootTest` 시나리오를 추가한다. 기준 패턴은 [CheckoutSagaTest](apps/order-service/src/test/java/com/impati/commerce/order/CheckoutSagaTest.java): 대상 서비스만 실제로 띄우고, 다른 서비스 호출은 `MockServerRestClientCustomizer` + `MockRestServiceServer`로 stub한다. 컨트롤러 → 애플리케이션 → 클라이언트 → JSON 직렬화까지는 실제 코드가 돈다.
 - **프로세스를 실제로 띄우는 e2e는 만들지 않는다.** `@SpringBootTest` + HTTP stub 수준까지가 이 프로젝트의 합의된 상한이다. [scripts/demo-checkout.sh](scripts/demo-checkout.sh)는 수동 확인용 데모이며 검증 수단이 아니다 (assert가 없다).
+- **모든 서비스는 최소한 컨텍스트 로드 테스트를 갖는다** (`XxxApplicationTest.contextLoads`). 빈이 빠지거나 둘로 늘어나거나 설정값이 없으면 여기서 깨진다. 서비스별 시나리오 테스트가 생기면 지워도 된다.
 - 보상/롤백 경로는 성공 경로와 **같은 비중으로** 테스트한다. 이 아키텍처에서 실제로 깨지는 곳이 거기다.
 - 테스트를 새로 짰거나 크게 고쳤으면, 검증 대상 로직을 일부러 망가뜨려 테스트가 실패하는지 한 번 확인하고 원복한다. 통과만 확인한 테스트는 통과만 하는 테스트일 수 있다.
 
@@ -82,6 +83,7 @@ git 저장소이지만 이력이 `first commit` 하나뿐이다. 되돌릴 지�
 
 ## 변경 이력
 
+- 2026-07-25 — 컨텍스트 로드 테스트 규칙 추가. 계기: 10개 서비스 중 8개는 스프링 컨텍스트가 깨져도 `./gradlew test`가 잡지 못하는 상태였다.
 - 2026-07-25 — 저장소 포트 규칙 추가. 계기: 저장소를 인터페이스로 추상화하면서, 애플리케이션이 구현 타입을 직접 참조하면 갈아끼울 수 없다는 점을 규칙으로 못박을 필요가 생겼다.
 - 2026-07-25 — 프론트 `latest` 의존성과 lockfile 주의 추가. 계기: `npm install`이 TypeScript 7을 끌어와 `make frontend-build`가 깨졌고, `@types/react`는 애초에 의존성에 없어 한 번도 통과한 적이 없었다.
 - 2026-07-25 — "문서와 룰의 배치" 추가. pre-commit 훅을 자동 게이트로 도입하고 `.idea/` 추적 해제. 계기: 하네스 룰을 `.claude/` 아래 문서로 관리할지 논의하면서, 자동 로드되는 것은 CLAUDE.md뿐이라는 점을 명시할 필요가 생겼다.
