@@ -25,7 +25,8 @@ echo "$checkout_response"
 echo
 echo
 
-shipment_id="$(printf '%s' "$checkout_response" | sed -n 's/.*"shipment"[^{]*{[^}]*"id"[ ]*:[ ]*"\([^"]*\)".*/\1/p')"
+# sed로 뽑으면 greedy 매칭이 shipment.address.id를 집어온다. 필드 순서에 의존하지 않게 jq를 쓴다.
+shipment_id="$(printf '%s' "$checkout_response" | jq -r '.shipment.id')"
 
 echo "4. ship"
 json_post "/shipments/${shipment_id}/ship" '{}'
