@@ -16,6 +16,7 @@ import com.impati.commerce.common.ApiContracts.ProductResponse;
 import com.impati.commerce.common.ApiContracts.RegisterMemberRequest;
 import com.impati.commerce.common.ApiContracts.ShipmentResponse;
 import com.impati.commerce.common.ApiContracts.StockResponse;
+import com.impati.commerce.common.ApiContracts.SessionTokenRequest;
 import com.impati.commerce.common.ApiContracts.VerifyEmailRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
@@ -100,7 +101,7 @@ public class GatewayClients {
     public void logout(String token) {
         members.post()
                 .uri("/members/logout")
-                .body(new VerifyEmailRequest(token))
+                .body(new SessionTokenRequest(token))
                 .retrieve()
                 .toBodilessEntity();
     }

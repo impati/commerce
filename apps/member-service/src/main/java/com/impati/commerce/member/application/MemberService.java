@@ -196,8 +196,7 @@ public class MemberService {
         try {
             notifications.requestEmailVerification(member.id(), member.email(), rawToken);
         } catch (RuntimeException failure) {
-            log.warn("verification mail request failed memberId={} reason={}",
-                    member.id(), failure.getMessage());
+            log.warn("verification mail request failed memberId={} reason={}", member.id(), failure.getMessage());
         }
     }
 

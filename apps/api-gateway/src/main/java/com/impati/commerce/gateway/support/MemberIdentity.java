@@ -1,6 +1,7 @@
 package com.impati.commerce.gateway.support;
 
-import com.impati.commerce.common.ApiContracts.VerifyEmailRequest;
+import com.impati.commerce.common.ApiContracts.SessionResponse;
+import com.impati.commerce.common.ApiContracts.SessionTokenRequest;
 import com.impati.commerce.common.DomainException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -38,9 +39,9 @@ public class MemberIdentity {
         try {
             var session = members.post()
                     .uri("/members/sessions/resolve")
-                    .body(new VerifyEmailRequest(token))
+                    .body(new SessionTokenRequest(token))
                     .retrieve()
-                    .body(com.impati.commerce.common.ApiContracts.SessionResponse.class);
+                    .body(SessionResponse.class);
             if (session == null) {
                 throw unauthorized();
             }

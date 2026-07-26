@@ -7,6 +7,7 @@ import com.impati.commerce.common.ApiContracts.LoginResponse;
 import com.impati.commerce.common.ApiContracts.MemberResponse;
 import com.impati.commerce.common.ApiContracts.RegisterMemberRequest;
 import com.impati.commerce.common.ApiContracts.SessionResponse;
+import com.impati.commerce.common.ApiContracts.SessionTokenRequest;
 import com.impati.commerce.common.ApiContracts.VerifyEmailRequest;
 import com.impati.commerce.member.application.MemberService;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -54,12 +55,12 @@ public class MemberController {
 
     /** 세션 확인. 게이트웨이 전용이며 외부에 노출하지 않는다. */
     @PostMapping("/sessions/resolve")
-    SessionResponse resolveSession(@RequestBody VerifyEmailRequest request) {
+    SessionResponse resolveSession(@RequestBody SessionTokenRequest request) {
         return members.resolveSession(request.token());
     }
 
     @PostMapping("/logout")
-    void logout(@RequestBody VerifyEmailRequest request) {
+    void logout(@RequestBody SessionTokenRequest request) {
         members.logout(request.token());
     }
 

@@ -174,7 +174,17 @@ public final class ApiContracts {
     public record NotificationEventRequest(String eventType, String memberId, String subject, String body) {
     }
 
+    /** 이메일 소유 인증 토큰. 단일 사용이며 짧은 만료를 갖는다. */
     public record VerifyEmailRequest(String token) {
+    }
+
+    /**
+     * 세션 토큰. 확인과 폐기가 같은 값을 다루므로 한 타입으로 둔다.
+     *
+     * <p>이메일 인증 토큰과 모양이 같지만 개념이 다르다. 발급 경로, 수명, 단일 사용 여부,
+     * 폐기 방식이 모두 다르므로 타입을 나눠 잘못된 사용을 컴파일러가 잡게 한다.
+     */
+    public record SessionTokenRequest(String token) {
     }
 
     public record LoginRequest(String email, String password) {
