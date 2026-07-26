@@ -88,6 +88,14 @@ order-service → notification-service 구간도 같은 문제다. 그쪽은 예
 
 `make verify`에 넣으면 매번 느려지므로 별도 타깃(`make smoke`)으로 두고 커밋 훅에는 넣지 않는 쪽이 맞다고 본다. 급한 부채는 아니다 — 1~5번이 먼저다.
 
+### 7. member 정책 배치와 경합 응답 (급하지 않음)
+
+클래스 리뷰에서 나온 두 건이다. 지금 동작에는 문제가 없다.
+
+**비밀번호 최소 길이가 응용 계층에 있다.** `RegistrationService.requirePassword`가 private 메서드로 갖고 있다. 어기면 저장된 데이터가 틀리므로 불변식이고, 비밀번호 변경 API가 생기면 그때 복제된다. 이메일 형식 검증은 `Member` 생성자에 있는데 비밀번호 길이는 응용에 있어 같은 종류가 다른 층에 있는 상태다. 도메인 값 객체(`RawPassword`)로 올리면 8자 미만이 타입으로 존재할 수 없어진다.
+
+**동시 가입 경합에서 한 건이 500을 받는다.** 사전 조회 두 건이 모두 통과한 뒤 하나가 `ux_members_email`에 걸리면 `DataIntegrityViolationException`이 나는데 [ApiExceptionHandler](apps/member-service/src/main/java/com/impati/commerce/member/support/ApiExceptionHandler.java)가 `DomainException`만 매핑한다. 409여야 한다 — 500은 "서버가 고장났다"는 뜻이라 클라이언트가 재시도 판단을 못 한다.
+
 ## 합의된 방향 (재논의하지 않는다)
 
 이미 판단이 끝난 것들이다. 뒤집으려면 새 근거가 필요하다.
@@ -105,6 +113,8 @@ order-service → notification-service 구간도 같은 문제다. 그쪽은 예
 
 - `Money`를 도메인별로 분리하기로 합의했으나 아직 하지 않았다. 지금은 `ApiContracts.Money`를 order/payment/catalog 도메인이 함께 쓴다
 - `Ids.newId`가 UUID를 12자(48비트)로 잘라 쓴다. 약 1,700만 건에서 충돌 확률 50%이고 시간 정렬이 안 된다. PK라 미루면 비싸진다
+- **흐름을 캡슐화 대상으로 볼 것인가.** 회원 가입 같은 흐름을 도메인 서비스에 두고 포트로 외부에 접근하는 설계(정통 DDD)와, 불변식만 도메인에 두고 흐름은 응용에 두는 설계(현재) 둘 다 일관되면 동작한다. 위험한 것은 섞이는 것이고 지금 섞여 있다 (7번). 어느 쪽으로 갈지 정하고 `decisions/`에 남긴다
+- **실행 모듈을 나눌 것인가.** 지금은 서비스당 실행 가능한 서버가 하나여서 컨슈머·배치·internal API를 따로 만들 수 없다. `build.gradle`이 `apps/*` 전부에 boot 플러그인을 붙이는 것이 코드적 제약이다. 나눌 이유가 실재하는 곳은 member(external vs internal)와 notification(api vs worker) 둘이다. **member를 external/internal로 나누는 것은 1번의 해법 후보이기도 하다** — 공유 시크릿은 코드로 막는 것이고 별도 프로세스는 네트워크로 막는 것이라 후자가 강하다. 같은 일을 두 번 하지 않도록 1번을 풀 때 함께 판단한다
 - 테스트 격리가 작성자 규율에 의존한다. `@Transactional` 롤백으로 바꿀지 미정
 - `docker-compose.yml` 경로는 한 번도 실행해보지 않았다
 
