@@ -61,6 +61,8 @@ make verify
 - **`XxxRequest`/`XxxResponse`는 응용 계층 DTO 네이밍이다.** 도메인은 이 이름을 쓰지 않고 필드 타입으로도 갖지 않는다. 도메인 ↔ 계약 변환은 응용 계층의 매퍼가 맡는다. 선례: [OrderMapper](apps/order-service/src/main/java/com/impati/commerce/order/application/OrderMapper.java), [MemberModels.Address](apps/member-service/src/main/java/com/impati/commerce/member/domain/MemberModels.java). 예외는 `Money` 하나이며, 공용 값 타입을 어디에 둘지는 아직 정하지 않았다.
 - 에러는 `DomainException` 팩토리(`validation`/`notFound`/`conflict`/`paymentDeclined`)로 던지고, HTTP 상태 매핑은 각 서비스 `support/ApiExceptionHandler`가 담당한다. 컨트롤러에서 상태 코드를 직접 만들지 않는다.
 - 패키지 구조는 `adapter/in/web`, `adapter/out/client`, `adapter/out/persistence`, `application`, `domain`, `support`를 따른다. 새 서비스도 같은 모양으로 만든다.
+- **`application`에는 네 종류가 산다** — 유스케이스(`XxxService`), 출력 포트(`XxxRepository`/`XxxClient`/능력 이름), 매퍼(`XxxMapper`), 그리고 있어서는 안 되는 구동자. 각각의 의미와 커질 때 나누는 순서는 [docs/architecture.md](docs/architecture.md)에 있다. **포트 이름에 수단을 넣지 않는다** — `PasswordHasher`이고 `BCryptHasher`가 아니다. 수단이 이름에 박히면 갈아끼울 때 호출하는 쪽이 전부 바뀐다.
+- **스케줄러나 앱 시작으로 구동되는 진입점은 `adapter/in` 아래 둔다.** 컨트롤러와 역할이 같다 — 애플리케이션을 바깥에서 호출한다. `application`에 두면 응용 계층이 자기를 깨우는 모양이 된다.
 - **조회는 저장소에 쓰지 않는다.** 없는 것을 만들어 넣는 `getOrCreate` 류를 저장소 포트에 두지 말고, 기본값 생성은 애플리케이션이 한다. GET에 INSERT가 따라붙으면 읽기 복제본·캐시·헬스체크가 전부 망가진다.
 - **다른 서비스 호출도 포트로만 쓴다.** 협력자별 인터페이스(`XxxClient`)를 `application`에 두고 HTTP 구현(`HttpXxxClient`)은 `adapter/out/client`에 둔다. 프로토콜 오류를 도메인 언어로 옮기는 것도 어댑터의 일이다 (예: 402 → `paymentDeclined`). 예외는 api-gateway로, 응용·도메인 계층이 없는 순수 어댑터라 뒤집을 대상이 없다.
 - `RestClient.Builder`는 서비스당 한 번만 주입받아 복제한다. 어댑터마다 주입받으면 빌더가 어댑터 수만큼 생겨서 빌더 단위로 동작하는 테스트 스텁과 공통 커스터마이저가 갈라진다. 선례: [CommerceRestClients](apps/order-service/src/main/java/com/impati/commerce/order/adapter/out/client/CommerceRestClients.java)
@@ -128,6 +130,9 @@ git 저장소이지만 이력이 `first commit` 하나뿐이다. 되돌릴 지�
 룰을 바꿨으면 아래 이력에 한 줄 남긴다.
 
 ## 변경 이력
+
+- 2026-07-27 — `application` 패키지의 네 종류(유스케이스·출력 포트·매퍼·구동자)와 포트 이름 규칙, 구동자 배치 규칙 추가. 상세는 `docs/architecture.md`에 뺐다. 계기: `application`에 인터페이스만 있는 파일과 `Service` 접미사 클래스가 섞여 있어 각각이 무엇인지, 커지면 어떻게 나눌지 기준이 없다는 질문이 나왔다. 확인해보니 구동자 2개(`OutboxDispatcher`, `LocalDemoSeeder`)가 응용 계층에 잘못 놓여 있었다.
+- 2026-07-27 — 설계 원칙을 별도 문서로 옮기지 않기로 했다. 원칙 문장은 자동 로드되는 이 파일에 남기고, 근거·선례·예외만 기존 `docs/`에 붙인다. 원칙을 `docs/`로 빼면 읽히지 않으므로 룰이 무력화된다. 계층 상세는 `docs/architecture.md`, 애그리거트는 `docs/domain-map.md`가 정본이며 새 문서를 만들면 같은 주제가 두 곳으로 갈린다.
 
 - 2026-07-27 — 경계 규칙에 두 줄 추가: 응용 서비스는 응집으로 나눈다(SRP), 불변식을 지키는 단위는 쪼개지 않는다. 후자의 상세는 `docs/domain-map.md`의 "응집 단위"로 뺐다. 계기: `MemberService`가 의존성 9개 중 8개를 인증에만 쓰면서 세 책임을 들고 있는 것을 사용자가 클래스 단위 리뷰에서 발견했고, SRP만 룰로 두면 도메인이 잘게 쪼개져 불변식을 지킬 주체가 사라진다는 요구가 함께 나왔다.
 
