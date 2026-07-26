@@ -1,5 +1,6 @@
 package com.impati.commerce.member.application;
 
+import com.impati.commerce.common.ApiContracts.AddAddressRequest;
 import com.impati.commerce.common.ApiContracts.AddressResponse;
 import com.impati.commerce.common.ApiContracts.MemberResponse;
 import com.impati.commerce.member.domain.MemberModels.Address;
@@ -10,6 +11,19 @@ import com.impati.commerce.member.domain.MemberModels.Member;
  */
 final class MemberMapper {
     private MemberMapper() {
+    }
+
+    /** 계약 -> 도메인. 도메인은 {@code AddAddressRequest}를 모른다. */
+    static Address toAddress(AddAddressRequest request) {
+        return new Address(
+                request.alias(),
+                request.recipient(),
+                request.phone(),
+                request.line1(),
+                request.city(),
+                request.postalCode(),
+                request.defaultAddress()
+        );
     }
 
     static AddressResponse toResponse(Address address) {

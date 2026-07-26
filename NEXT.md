@@ -30,7 +30,7 @@ make todo
 
 인증을 붙여놓고 뒷문이 열려 있는 상태이므로 다른 어떤 작업보다 먼저다.
 
-로컬에서 표현할 수 있는 방법은 서비스 간 공유 시크릿 헤더 검증이다. 게이트웨이가 붙이고 서비스가 확인한다. compose 네트워크에서 포트 노출을 제거하는 것은 로컬 프로세스 실행에서는 표현되지 않는다. 운영이라면 내부 구간도 mTLS로 암호화하는 것이 답이다.
+로컬에서 표현할 수 있는 방법은 서비스 간 공유 시크릿 헤더 검증이다. 게이트웨이가 붙이고 서비스가 확인한다. member-service는 내부 전용 경로를 `/members/internal/**` 하나로 모아뒀으므로 ([InternalMemberController](apps/member-service/src/main/java/com/impati/commerce/member/adapter/in/web/InternalMemberController.java)) 그 프리픽스에 걸면 된다. 다른 서비스도 같은 모양으로 모아야 한다. compose 네트워크에서 포트 노출을 제거하는 것은 로컬 프로세스 실행에서는 표현되지 않는다. 운영이라면 내부 구간도 mTLS로 암호화하는 것이 답이다.
 
 관련: [MemberIdentity](apps/api-gateway/src/main/java/com/impati/commerce/gateway/support/MemberIdentity.java), [decisions/001](decisions/001-session-token-strategy.md)
 

@@ -27,6 +27,9 @@ import static org.mockito.Mockito.verify;
 /**
  * 가입 → 이메일 인증 → 로그인 경로를 검증한다.
  *
+ * <p>흐름이 {@link RegistrationService}와 {@link SessionService} 두 클래스에 걸쳐 있으므로 둘을 함께
+ * 주입한다. 클래스가 나뉘어도 사용자가 겪는 경로는 하나이며, 그 경로가 이 테스트의 대상이다.
+ *
  * <p>만료를 확인하려면 시간을 앞으로 돌릴 수 있어야 하므로 {@link Clock}을 테스트가 조작하는
  * 구현으로 바꾼다. {@code Thread.sleep}으로 기다리는 테스트는 느리고 불안정하다.
  *
@@ -68,7 +71,10 @@ class MemberAuthTest {
     }
 
     @Autowired
-    private MemberService members;
+    private RegistrationService registrations;
+
+    @Autowired
+    private SessionService sessions;
 
     @Autowired
     private SecureTokens tokens;
@@ -84,7 +90,7 @@ class MemberAuthTest {
 
     @Test
     void registerLeavesMemberUnverifiedAndRequestsMail() {
-        var member = members.register("flow@impati.dev", "Flow", "flow-password");
+        var member = registrations.register("flow@impati.dev", "Flow", "flow-password");
 
         assertThat(member.status()).isEqualTo("PENDING_VERIFICATION");
         verify(notifications).requestEmailVerification(eq(member.id()), eq("flow@impati.dev"), anyString());
@@ -92,20 +98,20 @@ class MemberAuthTest {
 
     @Test
     void verifiedMemberCanLoginAndSessionResolves() {
-        var member = members.register("login@impati.dev", "Login", "login-password");
-        members.verifyEmail(rawTokenOf(member.id()));
+        var member = registrations.register("login@impati.dev", "Login", "login-password");
+        registrations.verifyEmail(rawTokenOf(member.id()));
 
-        var login = members.login("login@impati.dev", "login-password");
+        var login = sessions.login("login@impati.dev", "login-password");
 
-        assertThat(members.resolveSession(login.token()).memberId()).isEqualTo(member.id());
+        assertThat(sessions.resolveSession(login.token()).memberId()).isEqualTo(member.id());
     }
 
     /** 인증 전에는 로그인할 수 없다. 이메일 소유가 확인되지 않은 계정이다. */
     @Test
     void unverifiedMemberCannotLogin() {
-        members.register("unverified@impati.dev", "Unverified", "unverified-pw");
+        registrations.register("unverified@impati.dev", "Unverified", "unverified-pw");
 
-        assertThatThrownBy(() -> members.login("unverified@impati.dev", "unverified-pw"))
+        assertThatThrownBy(() -> sessions.login("unverified@impati.dev", "unverified-pw"))
                 .isInstanceOf(DomainException.class)
                 .hasMessageContaining("not verified");
     }
@@ -113,11 +119,11 @@ class MemberAuthTest {
     /** 인증 토큰은 단일 사용이다. */
     @Test
     void verificationTokenCannotBeReused() {
-        var member = members.register("reuse@impati.dev", "Reuse", "reuse-password");
+        var member = registrations.register("reuse@impati.dev", "Reuse", "reuse-password");
         var raw = rawTokenOf(member.id());
-        members.verifyEmail(raw);
+        registrations.verifyEmail(raw);
 
-        assertThatThrownBy(() -> members.verifyEmail(raw))
+        assertThatThrownBy(() -> registrations.verifyEmail(raw))
                 .isInstanceOf(DomainException.class)
                 .hasMessageContaining("not usable");
     }
@@ -125,12 +131,12 @@ class MemberAuthTest {
     /** 만료된 토큰으로는 인증되지 않는다. 재사용과 같은 메시지로 거절한다. */
     @Test
     void expiredVerificationTokenIsRejected() {
-        var member = members.register("expired@impati.dev", "Expired", "expired-pw");
+        var member = registrations.register("expired@impati.dev", "Expired", "expired-pw");
         var raw = rawTokenOf(member.id());
 
         clock.advance(Duration.ofDays(2));
 
-        assertThatThrownBy(() -> members.verifyEmail(raw))
+        assertThatThrownBy(() -> registrations.verifyEmail(raw))
                 .isInstanceOf(DomainException.class)
                 .hasMessageContaining("not usable");
     }
@@ -138,46 +144,46 @@ class MemberAuthTest {
     /** 없는 이메일과 틀린 비밀번호를 같은 메시지로 거절한다. 이메일 열거를 막는다. */
     @Test
     void wrongPasswordAndUnknownEmailFailIdentically() {
-        var member = members.register("same@impati.dev", "Same", "same-password");
-        members.verifyEmail(rawTokenOf(member.id()));
+        var member = registrations.register("same@impati.dev", "Same", "same-password");
+        registrations.verifyEmail(rawTokenOf(member.id()));
 
-        var wrongPassword = catchMessage(() -> members.login("same@impati.dev", "not-the-password"));
-        var unknownEmail = catchMessage(() -> members.login("absent@impati.dev", "not-the-password"));
+        var wrongPassword = catchMessage(() -> sessions.login("same@impati.dev", "not-the-password"));
+        var unknownEmail = catchMessage(() -> sessions.login("absent@impati.dev", "not-the-password"));
 
         assertThat(wrongPassword).isEqualTo(unknownEmail);
     }
 
     @Test
     void expiredSessionDoesNotResolve() {
-        var member = members.register("session@impati.dev", "Session", "session-pw12");
-        members.verifyEmail(rawTokenOf(member.id()));
-        var login = members.login("session@impati.dev", "session-pw12");
+        var member = registrations.register("session@impati.dev", "Session", "session-pw12");
+        registrations.verifyEmail(rawTokenOf(member.id()));
+        var login = sessions.login("session@impati.dev", "session-pw12");
 
         clock.advance(Duration.ofDays(15));
 
-        assertThatThrownBy(() -> members.resolveSession(login.token()))
+        assertThatThrownBy(() -> sessions.resolveSession(login.token()))
                 .isInstanceOf(DomainException.class);
     }
 
     @Test
     void logoutRevokesSessionImmediately() {
-        var member = members.register("logout@impati.dev", "Logout", "logout-pw123");
-        members.verifyEmail(rawTokenOf(member.id()));
-        var login = members.login("logout@impati.dev", "logout-pw123");
+        var member = registrations.register("logout@impati.dev", "Logout", "logout-pw123");
+        registrations.verifyEmail(rawTokenOf(member.id()));
+        var login = sessions.login("logout@impati.dev", "logout-pw123");
 
-        members.logout(login.token());
+        sessions.logout(login.token());
 
-        assertThatThrownBy(() -> members.resolveSession(login.token()))
+        assertThatThrownBy(() -> sessions.resolveSession(login.token()))
                 .isInstanceOf(DomainException.class);
     }
 
     /** 원문 토큰은 저장되지 않는다. DB에는 해시만 있어야 한다. */
     @Test
     void storesOnlyHashedTokens() {
-        var member = members.register("hash@impati.dev", "Hash", "hash-password");
+        var member = registrations.register("hash@impati.dev", "Hash", "hash-password");
         var raw = rawTokenOf(member.id());
-        members.verifyEmail(raw);
-        var login = members.login("hash@impati.dev", "hash-password");
+        registrations.verifyEmail(raw);
+        var login = sessions.login("hash@impati.dev", "hash-password");
 
         assertThat(countVerifications(raw)).isZero();
         assertThat(countVerifications(tokens.hash(raw))).isEqualTo(1);

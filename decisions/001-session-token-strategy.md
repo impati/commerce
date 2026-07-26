@@ -14,7 +14,7 @@
 
 - 토큰은 256비트 난수를 base64url로 인코딩한 문자열이다. 아무 의미도 담지 않는다
 - 서버는 SHA-256 해시만 보관한다. 원문은 발급 시 한 번만 응답으로 나간다
-- 게이트웨이가 `POST /members/sessions/resolve`로 확인하고, 얻은 회원 식별자를 `X-Member-Id` 헤더로 하위 서비스에 넘긴다
+- 게이트웨이가 `POST /members/internal/sessions/resolve`로 확인하고, 얻은 회원 식별자를 `X-Member-Id` 헤더로 하위 서비스에 넘긴다
 - 하위 서비스는 토큰을 모르고 헤더만 신뢰한다
 
 ## 근거

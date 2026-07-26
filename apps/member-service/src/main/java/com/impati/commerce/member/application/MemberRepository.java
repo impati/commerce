@@ -2,7 +2,6 @@ package com.impati.commerce.member.application;
 
 import com.impati.commerce.member.domain.MemberModels.Member;
 
-import java.util.Collection;
 import java.util.Optional;
 
 /**
@@ -15,6 +14,4 @@ public interface MemberRepository {
 
     /** 이메일은 대소문자를 구분한다. 로컬부의 해석 권한이 수신 도메인에 있으므로 우리가 접지 않는다. */
     Optional<Member> findByEmail(String email);
-
-    Collection<Member> findAll();
 }

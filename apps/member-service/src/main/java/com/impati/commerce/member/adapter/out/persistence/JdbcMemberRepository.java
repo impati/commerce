@@ -10,7 +10,6 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -38,7 +37,6 @@ public class JdbcMemberRepository implements MemberRepository {
     private static final String SELECT_BY_ID = "select " + MEMBER_COLUMNS + " from members where id = :id";
     private static final String SELECT_BY_EMAIL =
             "select " + MEMBER_COLUMNS + " from members where email = :email";
-    private static final String SELECT_ALL = "select " + MEMBER_COLUMNS + " from members order by id";
 
     private static final String DELETE_ADDRESSES = "delete from member_addresses where member_id = :member_id";
     private static final String INSERT_ADDRESS = """
@@ -122,12 +120,6 @@ public class JdbcMemberRepository implements MemberRepository {
                 )
                 .stream()
                 .findFirst();
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public Collection<Member> findAll() {
-        return jdbc.query(SELECT_ALL, memberMapper());
     }
 
     private RowMapper<Member> memberMapper() {

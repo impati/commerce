@@ -180,7 +180,7 @@ public final class ApiContracts {
     }
 
     /**
-     * POST /members/sessions/resolve, POST /members/logout — 세션 토큰.
+     * POST /members/internal/sessions/resolve, POST /members/logout — 세션 토큰.
      *
      * <p>확인과 폐기가 같은 값을 다루므로 한 타입으로 둔다.
      *
@@ -198,7 +198,7 @@ public final class ApiContracts {
     public record LoginResponse(String token, String expiresAt) {
     }
 
-    /** POST /members/sessions/resolve 응답. 게이트웨이가 신원을 확인할 때 쓴다. */
+    /** POST /members/internal/sessions/resolve 응답. 게이트웨이가 신원을 확인할 때 쓴다. */
     public record SessionResponse(String memberId) {
     }
 
