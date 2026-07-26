@@ -30,12 +30,12 @@ Impati Commerce 작업 규칙. Java 21 + Spring Boot 3.2 멀티모듈, 10개 서
 이 저장소에서 "동작한다"의 유일한 근거는 아래 명령의 종료 코드다.
 
 ```bash
-./gradlew test
+make verify
 ```
 
 - 작업을 끝냈다고 보고하기 전에 반드시 실행한다. 실행하지 않았으면 "테스트하지 않았다"고 명시한다.
 - 실패하면 실패 출력을 그대로 보고한다. 통과했다고 요약하지 않는다.
-- **파이프로 감싸지 말 것.** `./gradlew test | tail -30`은 `tail`의 종료 코드를 반환해서 BUILD FAILED를 0으로 보고한다. 파이프가 필요하면 `set -o pipefail`을 먼저 쓴다.
+- **`./gradlew test`를 직접 파이프로 감싸지 말 것.** `./gradlew test | grep ...`은 `grep`의 종료 코드를 반환한다. `grep`이 아무것도 못 찾으면 1을 내므로 성공을 실패로, `set -o pipefail` 없이는 실패를 성공으로 읽는다. 이 오독이 반복됐기 때문에 `make verify`가 있다 — 성공은 한 줄, 실패는 실패한 테스트 이름과 종료코드 1이다.
 - 프론트엔드를 건드렸으면 `make frontend-build`까지 확인한다.
 - CI가 없다. 자동 게이트는 [scripts/git-hooks/pre-commit](scripts/git-hooks/pre-commit) 하나뿐이고, 이건 커밋할 때만 돈다. 커밋하지 않는 작업에는 아무 안전망이 없으므로 직접 돌린다.
 - 훅은 `core.hooksPath` 설정이 필요하다. 새 clone에서는 `make setup-hooks`를 한 번 실행한다. `--no-verify`로 만든 커밋은 검증되지 않은 커밋이다.
@@ -55,6 +55,7 @@ Impati Commerce 작업 규칙. Java 21 + Spring Boot 3.2 멀티모듈, 10개 서
 
 - `apps/*` 모듈은 서로 직접 의존하지 않는다. 서비스 간 통신은 HTTP뿐이다.
 - 서비스 간 주고받는 타입은 [ApiContracts](libs/common-contracts/src/main/java/com/impati/commerce/common/ApiContracts.java)에 record로 정의한다. 한쪽 서비스에만 있는 DTO를 따로 만들지 않는다.
+- **모양이 같다는 이유로 계약 타입을 재사용하지 않는다.** 필드가 같아도 개념이 다르면 타입을 나눈다. 재사용은 같은 개념일 때만 한다. 계약 타입에는 어느 경로가 쓰는지 한 줄로 적어 재사용이 눈에 띄게 한다. 선례: 세션 토큰에 `VerifyEmailRequest`를 쓰다가 `SessionTokenRequest`로 나눴다 — 둘 다 `String token` 하나였지만 수명·단일 사용·폐기 방식이 달랐다.
 - **`XxxRequest`/`XxxResponse`는 응용 계층 DTO 네이밍이다.** 도메인은 이 이름을 쓰지 않고 필드 타입으로도 갖지 않는다. 도메인 ↔ 계약 변환은 응용 계층의 매퍼가 맡는다. 선례: [OrderMapper](apps/order-service/src/main/java/com/impati/commerce/order/application/OrderMapper.java), [MemberModels.Address](apps/member-service/src/main/java/com/impati/commerce/member/domain/MemberModels.java). 예외는 `Money` 하나이며, 공용 값 타입을 어디에 둘지는 아직 정하지 않았다.
 - 에러는 `DomainException` 팩토리(`validation`/`notFound`/`conflict`/`paymentDeclined`)로 던지고, HTTP 상태 매핑은 각 서비스 `support/ApiExceptionHandler`가 담당한다. 컨트롤러에서 상태 코드를 직접 만들지 않는다.
 - 패키지 구조는 `adapter/in/web`, `adapter/out/client`, `adapter/out/persistence`, `application`, `domain`, `support`를 따른다. 새 서비스도 같은 모양으로 만든다.
@@ -124,6 +125,7 @@ git 저장소이지만 이력이 `first commit` 하나뿐이다. 되돌릴 지�
 
 ## 변경 이력
 
+- 2026-07-25 — 검증 진입점을 `make verify`로 바꾸고, 계약 타입을 모양만 보고 재사용하지 말라는 규칙 추가. 계기: 검증 명령을 파이프로 감싸 종료코드를 오독한 일이 세 번 있었고(`timeout` 부재 2회, `grep` 미발견 1회), 세션 토큰에 `VerifyEmailRequest`를 재사용한 것을 사용자가 발견했다.
 - 2026-07-25 — NEXT.md 도입. 부채는 코드 TODO, 우선순위·합의·미결정은 NEXT.md, 완료 이력은 git log로 나눴다. 계기: 남은 부채와 우선순위가 채팅 보고에만 있어 세션이 끝나면 사라지는 상태였다. 코드에 TODO로 남은 것은 5개 중 1개뿐이었다.
 - 2026-07-25 — `problem/` 문서는 사용자가 요구할 때만 쓴다는 규칙 추가. 계기: 작업 계획에 problem 문서 작성을 스스로 포함시킨 것을 사용자가 지적했다.
 - 2026-07-25 — 적용된 마이그레이션을 고치지 말라는 규칙 추가. 계기: 이미 적용된 V3를 수정해 체크섬 불일치로 member-service 기동이 실패했고, `./gradlew test`는 이를 잡지 못했다.

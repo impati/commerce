@@ -28,6 +28,7 @@ public final class ApiContracts {
     ) {
     }
 
+    /** POST /members */
     public record RegisterMemberRequest(String email, String name, String password) {
     }
 
@@ -174,12 +175,14 @@ public final class ApiContracts {
     public record NotificationEventRequest(String eventType, String memberId, String subject, String body) {
     }
 
-    /** 이메일 소유 인증 토큰. 단일 사용이며 짧은 만료를 갖는다. */
+    /** POST /members/verifications — 이메일 소유 인증 토큰. 단일 사용이며 짧은 만료를 갖는다. */
     public record VerifyEmailRequest(String token) {
     }
 
     /**
-     * 세션 토큰. 확인과 폐기가 같은 값을 다루므로 한 타입으로 둔다.
+     * POST /members/sessions/resolve, POST /members/logout — 세션 토큰.
+     *
+     * <p>확인과 폐기가 같은 값을 다루므로 한 타입으로 둔다.
      *
      * <p>이메일 인증 토큰과 모양이 같지만 개념이 다르다. 발급 경로, 수명, 단일 사용 여부,
      * 폐기 방식이 모두 다르므로 타입을 나눠 잘못된 사용을 컴파일러가 잡게 한다.
@@ -187,17 +190,19 @@ public final class ApiContracts {
     public record SessionTokenRequest(String token) {
     }
 
+    /** POST /login */
     public record LoginRequest(String email, String password) {
     }
 
-    /** 로그인 결과. token은 불투명 문자열이며 서버가 해시만 보관한다. */
+    /** POST /login 응답. token은 불투명 문자열이며 서버가 해시만 보관한다. */
     public record LoginResponse(String token, String expiresAt) {
     }
 
-    /** 세션이 가리키는 회원. 게이트웨이가 신원을 확인할 때 쓴다. */
+    /** POST /members/sessions/resolve 응답. 게이트웨이가 신원을 확인할 때 쓴다. */
     public record SessionResponse(String memberId) {
     }
 
+    /** POST /notifications/email-verifications — member-service가 notification-service에 보낸다. */
     public record EmailVerificationMailRequest(String memberId, String email, String token) {
     }
 
