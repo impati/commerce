@@ -10,12 +10,7 @@ import com.impati.commerce.common.ApiContracts.SessionResponse;
 import com.impati.commerce.common.ApiContracts.SessionTokenRequest;
 import com.impati.commerce.common.ApiContracts.VerifyEmailRequest;
 import com.impati.commerce.member.application.MemberService;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 /**
  * 회원 API.
@@ -88,7 +83,7 @@ public class MemberController {
 
     /** order-service가 배송지를 읽기 위한 내부 경로. 게이트웨이는 이 경로를 노출하지 않는다. */
     @GetMapping("/internal/{memberId}")
-    MemberResponse internalGet(@org.springframework.web.bind.annotation.PathVariable String memberId) {
+    MemberResponse internalGet(@PathVariable String memberId) {
         return members.get(memberId);
     }
 }
