@@ -23,6 +23,7 @@
 | --- | --- | --- |
 | [0001](0001-session-token-strategy.md) | 로그인 세션을 불투명 토큰으로 유지한다 | 승인됨 |
 | [0002](0002-network-segmentation-as-trust-boundary.md) | 서비스 간 신뢰 경계를 네트워크 분리로 강제한다 | 승인됨 |
+| [0003](0003-internal-path-prefix.md) | 노출하지 않을 경로를 `/internal` 프리픽스로 선언한다 | 승인됨 |
 
 ## ADR이 없는 합의
 
