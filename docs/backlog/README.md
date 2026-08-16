@@ -29,14 +29,13 @@ make todo
 
 | 순서 | 항목 | 왜 이 순서인가 |
 | --- | --- | --- |
-| 1 | [BL-0017](bl-0017-classify-internal-endpoints.md) 내부 경로 구분 | [ADR-0002](../adr/0002-network-segmentation-as-trust-boundary.md)를 실행하려면 무엇을 막을지가 코드에서 읽혀야 한다 |
-| 2 | [BL-0002](bl-0002-verification-token-referer-leak.md) 인증 링크 토큰의 Referer 유출 | 토큰이 정적 호스트 로그·히스토리에 남는다 |
-| 3 | [BL-0003](bl-0003-session-lookup-coupling.md) 세션 확인의 가용성 결합과 지연 | 한 서비스 장애가 전 서비스 인증 장애가 된다 |
-| 4 | [BL-0004](bl-0004-member-service-outbox.md) member-service 아웃박스 | 서비스 간 호출이 DB 트랜잭션 안에 있다 |
-| 5 | [BL-0005](bl-0005-token-storage-to-cookie.md) 프론트 토큰 보관을 쿠키로 | XSS로 토큰이 읽힌다 |
-| 6 | [BL-0006](bl-0006-local-profile-smoke.md) local 프로파일 스모크 | 하네스가 못 보는 구간이다. 급하지 않다 |
-| 7 | [BL-0007](bl-0007-password-policy-to-domain.md) 비밀번호 정책을 도메인으로 | 클래스 리뷰에서 나왔다. 지금 동작에는 문제가 없다 |
-| 8 | [BL-0008](bl-0008-duplicate-signup-conflict-response.md) 동시 가입 경합 응답 | 위와 같다 |
+| 1 | [BL-0002](bl-0002-verification-token-referer-leak.md) 인증 링크 토큰의 Referer 유출 | 토큰이 정적 호스트 로그·히스토리에 남는다 |
+| 2 | [BL-0003](bl-0003-session-lookup-coupling.md) 세션 확인의 가용성 결합과 지연 | 한 서비스 장애가 전 서비스 인증 장애가 된다 |
+| 3 | [BL-0004](bl-0004-member-service-outbox.md) member-service 아웃박스 | 서비스 간 호출이 DB 트랜잭션 안에 있다 |
+| 4 | [BL-0005](bl-0005-token-storage-to-cookie.md) 프론트 토큰 보관을 쿠키로 | XSS로 토큰이 읽힌다 |
+| 5 | [BL-0006](bl-0006-local-profile-smoke.md) local 프로파일 스모크 | 하네스가 못 보는 구간이다. 급하지 않다 |
+| 6 | [BL-0007](bl-0007-password-policy-to-domain.md) 비밀번호 정책을 도메인으로 | 클래스 리뷰에서 나왔다. 지금 동작에는 문제가 없다 |
+| 7 | [BL-0008](bl-0008-duplicate-signup-conflict-response.md) 동시 가입 경합 응답 | 위와 같다 |
 
 ## 순서를 정하지 않은 항목
 

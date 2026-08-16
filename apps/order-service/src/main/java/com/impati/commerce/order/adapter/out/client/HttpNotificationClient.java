@@ -20,7 +20,7 @@ public class HttpNotificationClient implements NotificationClient {
     @Override
     public void notify(NotificationEventRequest request) {
         try {
-            restClient.post().uri("/notifications/events").body(request).retrieve().toBodilessEntity();
+            restClient.post().uri("/internal/notifications/events").body(request).retrieve().toBodilessEntity();
         } catch (RuntimeException ignored) {
             // TODO 아웃박스 도입 시 제거. 지금은 실패가 기록되지 않는다. BL-0004.
         }

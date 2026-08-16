@@ -2,7 +2,6 @@ package com.impati.commerce.catalog.adapter.in.web;
 
 import com.impati.commerce.catalog.application.CatalogService;
 import com.impati.commerce.common.ApiContracts.ProductResponse;
-import com.impati.commerce.common.ApiContracts.SkuResponse;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -31,11 +30,6 @@ public class CatalogController {
     @GetMapping("/products/{productId}")
     ProductResponse product(@PathVariable String productId) {
         return catalog.getProduct(productId);
-    }
-
-    @GetMapping("/skus/{skuId}")
-    SkuResponse sku(@PathVariable String skuId) {
-        return catalog.getSku(skuId);
     }
 }
 

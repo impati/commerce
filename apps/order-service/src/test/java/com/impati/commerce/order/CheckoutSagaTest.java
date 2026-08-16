@@ -113,7 +113,7 @@ class CheckoutSagaTest {
     void capturedPaymentCommitsReservationAndClearsCart() throws Exception {
         stubMemberCartAndCatalog();
         stubReservation();
-        server.expect(times(1), requestTo(PAYMENT_URL + "/payments/capture"))
+        server.expect(times(1), requestTo(PAYMENT_URL + "/internal/payments/capture"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(MockRestRequestMatchers.jsonPath("$.paymentToken").value("card_test_success"))
                 .andExpect(MockRestRequestMatchers.jsonPath("$.amount.amount").value(UNIT_PRICE * QUANTITY))
@@ -126,10 +126,10 @@ class CheckoutSagaTest {
                         "CAPTURED",
                         "txn_seed"
                 )), MediaType.APPLICATION_JSON));
-        server.expect(times(1), requestTo(INVENTORY_URL + "/reservations/" + RESERVATION_ID + "/commit"))
+        server.expect(times(1), requestTo(INVENTORY_URL + "/internal/reservations/" + RESERVATION_ID + "/commit"))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withSuccess());
-        server.expect(times(1), requestTo(SHIPPING_URL + "/shipments"))
+        server.expect(times(1), requestTo(SHIPPING_URL + "/internal/shipments"))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withSuccess(json(new ShipmentResponse(
                         "shp_seed",
@@ -139,11 +139,11 @@ class CheckoutSagaTest {
                         "READY",
                         "TRK-SEED-0001"
                 )), MediaType.APPLICATION_JSON));
-        server.expect(times(1), requestTo(CART_URL + "/carts/clear"))
+        server.expect(times(1), requestTo(CART_URL + "/internal/carts/clear"))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withSuccess());
         // OrderPaid, ShipmentCreated
-        server.expect(times(2), requestTo(NOTIFICATION_URL + "/notifications/events"))
+        server.expect(times(2), requestTo(NOTIFICATION_URL + "/internal/notifications/events"))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withSuccess());
 
@@ -163,17 +163,17 @@ class CheckoutSagaTest {
     void declinedPaymentCancelsOrderReleasesReservationAndKeepsCart() throws Exception {
         stubMemberCartAndCatalog();
         stubReservation();
-        server.expect(times(1), requestTo(PAYMENT_URL + "/payments/capture"))
+        server.expect(times(1), requestTo(PAYMENT_URL + "/internal/payments/capture"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(MockRestRequestMatchers.jsonPath("$.paymentToken").value("card_test_decline"))
                 .andRespond(withStatus(HttpStatus.PAYMENT_REQUIRED)
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(json(new ErrorResponse("payment_declined", "card was declined"))));
-        server.expect(times(1), requestTo(INVENTORY_URL + "/reservations/" + RESERVATION_ID + "/release"))
+        server.expect(times(1), requestTo(INVENTORY_URL + "/internal/reservations/" + RESERVATION_ID + "/release"))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withSuccess());
         // OrderCancelled
-        server.expect(times(1), requestTo(NOTIFICATION_URL + "/notifications/events"))
+        server.expect(times(1), requestTo(NOTIFICATION_URL + "/internal/notifications/events"))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withSuccess());
         // 장바구니 clear는 stub하지 않는다. 보상 경로에서 호출되면 예상하지 않은 요청으로 테스트가 깨진다.
@@ -194,7 +194,7 @@ class CheckoutSagaTest {
     }
 
     private void stubMemberCartAndCatalog() {
-        server.expect(times(1), requestTo(MEMBER_URL + "/members/internal/" + MEMBER_ID))
+        server.expect(times(1), requestTo(MEMBER_URL + "/internal/members/" + MEMBER_ID))
                 .andExpect(method(HttpMethod.GET))
                 .andRespond(withSuccess(json(new MemberResponse(
                         MEMBER_ID,
@@ -209,7 +209,7 @@ class CheckoutSagaTest {
                         MEMBER_ID,
                         List.of(new CartLineResponse(SKU_ID, QUANTITY))
                 )), MediaType.APPLICATION_JSON));
-        server.expect(times(1), requestTo(CATALOG_URL + "/skus/" + SKU_ID))
+        server.expect(times(1), requestTo(CATALOG_URL + "/internal/skus/" + SKU_ID))
                 .andExpect(method(HttpMethod.GET))
                 .andRespond(withSuccess(json(sku()), MediaType.APPLICATION_JSON));
         server.expect(times(1), requestTo(CATALOG_URL + "/products/" + PRODUCT_ID))
@@ -228,7 +228,7 @@ class CheckoutSagaTest {
 
     /** 예약은 성공시키고, 응답 본문 대신 요청 본문에서 주문 id를 확보한다. */
     private void stubReservation() {
-        server.expect(times(1), requestTo(INVENTORY_URL + "/reservations"))
+        server.expect(times(1), requestTo(INVENTORY_URL + "/internal/reservations"))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(request -> {
                     var body = objectMapper.readValue(

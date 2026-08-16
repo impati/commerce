@@ -15,6 +15,6 @@ public class HttpMemberClient implements MemberClient {
 
     @Override
     public MemberResponse member(String memberId) {
-        return restClient.get().uri("/members/internal/{memberId}", memberId).retrieve().body(MemberResponse.class);
+        return restClient.get().uri("/internal/members/{memberId}", memberId).retrieve().body(MemberResponse.class);
     }
 }

@@ -37,7 +37,7 @@ public class MemberIdentity {
         var token = bearerToken(authorizationHeader);
         try {
             var session = members.post()
-                    .uri("/members/internal/sessions/resolve")
+                    .uri("/internal/members/sessions/resolve")
                     .body(new SessionTokenRequest(token))
                     .retrieve()
                     .body(SessionResponse.class);

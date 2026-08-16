@@ -20,7 +20,7 @@ public class HttpNotificationClient implements NotificationClient {
     @Override
     public void requestEmailVerification(String memberId, String email, String token) {
         restClient.post()
-                .uri("/notifications/email-verifications")
+                .uri("/internal/notifications/email-verifications")
                 .body(new EmailVerificationMailRequest(memberId, email, token))
                 .retrieve()
                 .toBodilessEntity();

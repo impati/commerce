@@ -27,7 +27,7 @@ public class HttpCartClient implements CartClient {
     @Override
     public void clearCart(String memberId) {
         restClient.post()
-                .uri("/carts/clear")
+                .uri("/internal/carts/clear")
                 .header(MEMBER_ID_HEADER, memberId)
                 .retrieve()
                 .toBodilessEntity();

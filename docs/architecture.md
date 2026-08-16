@@ -26,6 +26,14 @@ flowchart LR
     Order --> Notification
 ```
 
+### 경로의 두 등급
+
+**게이트웨이가 브라우저에 노출하는 경로와 그렇지 않은 경로를 프리픽스로 나눈다.** 노출하지 않을 경로는 각 서비스의 `/internal` 아래에 있고 `Internal*Controller`가 담는다.
+
+이 구분은 등급을 **선언**할 뿐 아무것도 막지 않는다. 실제로 막는 것은 배포 토폴로지다 — 게이트웨이만 퍼블릭 인그레스에 두고 나머지는 프라이빗망에 둔다. 왜 앱이 아니라 네트워크가 막는지는 [ADR-0002](adr/0002-network-segmentation-as-trust-boundary.md), 왜 어노테이션이 아니라 경로로 선언하는지는 [ADR-0003](adr/0003-internal-path-prefix.md)에 있다.
+
+기준은 "누가 부르는가"가 아니라 **"게이트웨이가 노출하는가"**다. 게이트웨이 자신이 `/internal/members/sessions/resolve`를 부르고, `/carts`와 `/products`는 게이트웨이와 형제 서비스가 함께 부른다.
+
 ## Checkout Saga
 
 ```mermaid
@@ -43,24 +51,24 @@ sequenceDiagram
 
     C->>G: POST /checkout
     G->>O: POST /checkouts
-    O->>M: GET /members/{memberId}
-    O->>Cart: GET /carts/{memberId}
-    O->>Cat: GET /skus/{skuId}
+    O->>M: GET /internal/members/{memberId}
+    O->>Cart: GET /carts
+    O->>Cat: GET /internal/skus/{skuId}
     O->>Cat: GET /products/{productId}
     O->>O: Create Order
-    O->>Inv: POST /reservations
-    O->>Pay: POST /payments/capture
+    O->>Inv: POST /internal/reservations
+    O->>Pay: POST /internal/payments/capture
     alt Payment success
-        O->>Inv: POST /reservations/{id}/commit
-        O->>Ship: POST /shipments
-        O->>Cart: POST /carts/{memberId}/clear
-        O->>N: POST /notifications/events
+        O->>Inv: POST /internal/reservations/{id}/commit
+        O->>Ship: POST /internal/shipments
+        O->>Cart: POST /internal/carts/clear
+        O->>N: POST /internal/notifications/events
         O-->>G: CheckoutResponse
         G-->>C: Order + Payment + Shipment
     else Payment declined
-        O->>Inv: POST /reservations/{id}/release
+        O->>Inv: POST /internal/reservations/{id}/release
         O->>O: Cancel Order
-        O->>N: POST /notifications/events
+        O->>N: POST /internal/notifications/events
         O-->>G: 402 payment_declined
         G-->>C: error
     end

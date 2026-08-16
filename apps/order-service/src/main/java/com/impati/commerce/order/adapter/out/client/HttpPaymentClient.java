@@ -20,7 +20,7 @@ public class HttpPaymentClient implements PaymentClient {
     @Override
     public PaymentResponse capturePayment(CapturePaymentRequest request) {
         try {
-            return restClient.post().uri("/payments/capture").body(request).retrieve().body(PaymentResponse.class);
+            return restClient.post().uri("/internal/payments/capture").body(request).retrieve().body(PaymentResponse.class);
         } catch (RestClientResponseException exception) {
             if (exception.getStatusCode().value() == 402) {
                 throw DomainException.paymentDeclined("payment was declined by issuer");

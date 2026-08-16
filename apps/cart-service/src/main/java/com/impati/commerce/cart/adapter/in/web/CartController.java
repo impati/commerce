@@ -34,9 +34,4 @@ public class CartController {
     CartResponse addItem(@RequestHeader("X-Member-Id") String memberId, @RequestBody CartItemRequest request) {
         return carts.addItem(memberId, request.skuId(), request.quantity());
     }
-
-    @PostMapping("/clear")
-    CartResponse clear(@RequestHeader("X-Member-Id") String memberId) {
-        return carts.clear(memberId);
-    }
 }

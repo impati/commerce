@@ -17,7 +17,7 @@ public class HttpCatalogClient implements CatalogClient {
     @Override
     public SkuResponse getSku(String skuId) {
         return restClient.get()
-                .uri("/skus/{skuId}", skuId)
+                .uri("/internal/skus/{skuId}", skuId)
                 .retrieve()
                 .body(SkuResponse.class);
     }

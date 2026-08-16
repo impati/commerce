@@ -16,6 +16,6 @@ public class HttpShippingClient implements ShippingClient {
 
     @Override
     public ShipmentResponse createShipment(CreateShipmentRequest request) {
-        return restClient.post().uri("/shipments").body(request).retrieve().body(ShipmentResponse.class);
+        return restClient.post().uri("/internal/shipments").body(request).retrieve().body(ShipmentResponse.class);
     }
 }

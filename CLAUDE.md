@@ -76,6 +76,7 @@ make verify
 - **모양이 같다는 이유로 계약 타입을 재사용하지 않는다.** 필드가 같아도 개념이 다르면 타입을 나눈다. 재사용은 같은 개념일 때만 한다. 계약 타입에는 어느 경로가 쓰는지 한 줄로 적어 재사용이 눈에 띄게 한다. 선례: 세션 토큰에 `VerifyEmailRequest`를 쓰다가 `SessionTokenRequest`로 나눴다 — 둘 다 `String token` 하나였지만 수명·단일 사용·폐기 방식이 달랐다.
 - **`XxxRequest`/`XxxResponse`는 응용 계층 DTO 네이밍이다.** 도메인은 이 이름을 쓰지 않고 필드 타입으로도 갖지 않는다. 도메인 ↔ 계약 변환은 응용 계층의 매퍼가 맡는다. 선례: [OrderMapper](apps/order-service/src/main/java/com/impati/commerce/order/application/OrderMapper.java), [MemberModels.Address](apps/member-service/src/main/java/com/impati/commerce/member/domain/MemberModels.java). 예외는 `Money` 하나이며, 공용 값 타입을 어디에 둘지는 아직 정하지 않았다.
 - 에러는 `DomainException` 팩토리(`validation`/`notFound`/`conflict`/`paymentDeclined`)로 던지고, HTTP 상태 매핑은 각 서비스 `support/ApiExceptionHandler`가 담당한다. 컨트롤러에서 상태 코드를 직접 만들지 않는다.
+- **게이트웨이가 노출하지 않을 경로는 `/internal` 아래에 두고 `Internal*Controller`가 담는다.** 기준은 "누가 부르는가"가 아니라 "게이트웨이가 브라우저에 노출하는가"다 — 게이트웨이도 내부 경로를 부른다. 이 프리픽스는 등급을 선언할 뿐 아무것도 막지 않으며, 막는 것은 배포 토폴로지다. 근거는 [docs/adr/0003](docs/adr/0003-internal-path-prefix.md), 경계 전체는 [docs/adr/0002](docs/adr/0002-network-segmentation-as-trust-boundary.md)에 있다.
 - 패키지 구조는 `adapter/in/web`, `adapter/out/client`, `adapter/out/persistence`, `application`, `domain`, `support`를 따른다. 새 서비스도 같은 모양으로 만든다.
 - **`application`에는 네 종류가 산다** — 유스케이스(`XxxService`), 출력 포트(`XxxRepository`/`XxxClient`/능력 이름), 매퍼(`XxxMapper`), 그리고 있어서는 안 되는 구동자. 각각의 의미와 커질 때 나누는 순서는 [docs/architecture.md](docs/architecture.md)에 있다. **포트 이름에 수단을 넣지 않는다** — `PasswordHasher`이고 `BCryptHasher`가 아니다. 수단이 이름에 박히면 갈아끼울 때 호출하는 쪽이 전부 바뀐다.
 - **스케줄러나 앱 시작으로 구동되는 진입점은 `adapter/in` 아래 둔다.** 컨트롤러와 역할이 같다 — 애플리케이션을 바깥에서 호출한다. `application`에 두면 응용 계층이 자기를 깨우는 모양이 된다.
@@ -151,6 +152,7 @@ git 저장소이지만 이력이 `first commit` 하나뿐이다. 되돌릴 지�
 
 ## 변경 이력
 
+- 2026-08-16 — 경계 규칙에 `/internal` 프리픽스 한 줄 추가. 상세는 `docs/adr/0003`, 다이어그램과 등급 정의는 `docs/architecture.md`로 뺐다. 계기: ADR-0002가 신뢰 경계를 배포 토폴로지로 강제하기로 정했는데, 각 서비스에서 무엇을 노출하면 안 되는지가 코드로 드러나지 않아 그 결정을 실행할 수 없었다 (BL-0017).
 - 2026-08-16 — 완료한 백로그 항목을 지우지 않고 `docs/backlog/done/`으로 옮기는 규칙 추가. 상태는 위치로만 구분하고 채번은 `done/`까지 센다. 계기: 플러그인 0.6.0이 같은 규칙을 도입했고, 그 근거(완료 항목을 지우면 `BL-NNNN` 번호를 재사용하게 된다)가 이 저장소에도 그대로 성립한다. 직전 룰이었던 "끝나면 지운다"를 대체한다.
 - 2026-08-16 — `CHANGELOG.md`를 도입 당일에 철회하고 "이 저장소는 관리하지 않는다"를 명시했다. 계기: 도입 근거였던 플러그인의 변경 기록 규칙이 0.5.1에서 하네스 저장소 전용으로 한정됐다. 적용 프로젝트의 이력 방식은 로컬 규칙을 따르며, 여기서는 `git log`가 정본이다.
 - 2026-08-16 — `impati-agent-tools` 플러그인 규약에 맞춰 문서 체계를 바꿨다. `NEXT.md` → `docs/backlog/`(항목당 파일 + `BL-NNNN`), `decisions/` → `docs/adr/`, `CHANGELOG.md` 도입, 작업 흐름(`capture-backlog` → `start-work` → ADR → `rca-code-review`)과 커밋·브랜치 컨벤션을 명시. 커밋 룰을 "요청할 때만"에서 "작업이 끝나면 리뷰 단위로 커밋하고 보고"로 뒤집었다. 계기: 플러그인이 매 세션 공통 규칙을 주입하는데 이 파일과 개념·이름이 어긋나 있었고, 충돌 시 플러그인을 따르기로 정했다. `problem/`은 충돌이 없어 그대로 둔다.

@@ -16,16 +16,16 @@ public class HttpInventoryClient implements InventoryClient {
 
     @Override
     public ReservationResponse reserve(ReserveInventoryRequest request) {
-        return restClient.post().uri("/reservations").body(request).retrieve().body(ReservationResponse.class);
+        return restClient.post().uri("/internal/reservations").body(request).retrieve().body(ReservationResponse.class);
     }
 
     @Override
     public void commitReservation(String reservationId) {
-        restClient.post().uri("/reservations/{reservationId}/commit", reservationId).retrieve().toBodilessEntity();
+        restClient.post().uri("/internal/reservations/{reservationId}/commit", reservationId).retrieve().toBodilessEntity();
     }
 
     @Override
     public void releaseReservation(String reservationId) {
-        restClient.post().uri("/reservations/{reservationId}/release", reservationId).retrieve().toBodilessEntity();
+        restClient.post().uri("/internal/reservations/{reservationId}/release", reservationId).retrieve().toBodilessEntity();
     }
 }
