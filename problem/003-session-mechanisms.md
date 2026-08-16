@@ -10,7 +10,7 @@
 
 ## 범위가 아닌 것
 
-이 저장소가 어떤 방식을 골랐는지와 그 근거는 [decisions/001](../decisions/001-session-token-strategy.md)에 있다. 이 문서는 방식 자체를 정리한다.
+이 저장소가 어떤 방식을 골랐는지와 그 근거는 [ADR-0001](../docs/adr/0001-session-token-strategy.md)에 있다. 이 문서는 방식 자체를 정리한다.
 
 인증(누구인지 확인)과 인가(무엇을 할 수 있는지)는 다른 주제다. 여기서는 인증된 신원을 요청 간에 어떻게 이어가는지만 다룬다.
 
@@ -108,4 +108,4 @@ JWT의 페이로드를 암호화한다. 서명만으로는 페이로드가 읽�
 
 - RFC 7662 OAuth 2.0 Token Introspection — 불투명 토큰 검증의 표준
 - RFC 7519 JWT, RFC 7515 JWS, RFC 7516 JWE
-- [decisions/001](../decisions/001-session-token-strategy.md) — 이 저장소의 선택과 근거
+- [ADR-0001](../docs/adr/0001-session-token-strategy.md) — 이 저장소의 선택과 근거

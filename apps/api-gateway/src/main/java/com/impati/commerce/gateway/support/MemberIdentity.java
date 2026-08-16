@@ -18,10 +18,10 @@ import org.springframework.web.client.RestClientResponseException;
  * <p>불투명 토큰이므로 요청마다 member-service를 부른다. 폐기가 즉시 되는 대가다.
  *
  * <p>TODO 서비스가 8101~8109로 직접 노출돼 있어 게이트웨이를 우회하면 X-Member-Id를 위조할 수
- * 있다. 공유 시크릿 헤더 검증이 필요하다. NEXT.md 우선순위 1.
+ * 있다. 공유 시크릿 헤더 검증이 필요하다. BL-0001.
  *
  * <p>TODO 세션 확인에 캐시가 없어 요청마다 홉이 하나 붙는다. 짧은 TTL 캐시가 필요하고, 그 TTL이
- * 폐기 지연 상한이 된다. NEXT.md 우선순위 2.
+ * 폐기 지연 상한이 된다. BL-0003.
  */
 @Component
 public class MemberIdentity {

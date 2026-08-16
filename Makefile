@@ -12,7 +12,7 @@ verify:
 todo:
 	@grep -rn "TODO" --include="*.java" --include="*.ts" --include="*.tsx" apps libs frontend/storefront/src || echo "코드에 남은 TODO 없음"
 	@echo
-	@echo "우선순위와 합의된 방향은 NEXT.md 를 본다"
+	@echo "우선순위는 docs/backlog/README.md, 내린 결정은 docs/adr/ 를 본다"
 
 setup-hooks:
 	git config core.hooksPath scripts/git-hooks

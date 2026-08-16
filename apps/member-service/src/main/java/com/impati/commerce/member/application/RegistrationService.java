@@ -56,7 +56,7 @@ public class RegistrationService {
      * 사용자는 재발송으로 복구할 수 있다.
      *
      * <p>TODO 이 호출이 트랜잭션 안에 있어 상대가 느리면 DB 트랜잭션이 함께 늘어난다.
-     * notification-service에 만든 것과 같은 아웃박스가 필요하다. NEXT.md 우선순위 4.
+     * notification-service에 만든 것과 같은 아웃박스가 필요하다. BL-0004.
      */
     @Transactional
     public MemberResponse register(String email, String name, String rawPassword) {

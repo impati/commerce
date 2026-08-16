@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
  * <p><strong>이 클래스가 존재하는 이유는 그 등급을 프리픽스 하나로 모으는 것이다.</strong>
  * 서비스 간 공유 시크릿 검증을 붙일 때 {@code /members/internal/**} 하나에 걸면 되고, 다음에
  * 내부 경로를 추가하는 사람이 검증을 빠뜨릴 수 없다. 이전에는 내부 경로가 퍼블릭 경로와 같은
- * 컨트롤러에 섞여 있었고 보호 수단이 주석뿐이었다. NEXT.md 우선순위 1이 이 검증을 붙이는 일이다.
+ * 컨트롤러에 섞여 있었고 보호 수단이 주석뿐이었다. BL-0001이 이 검증을 붙이는 일이다.
  */
 @RestController
 @RequestMapping("/members/internal")

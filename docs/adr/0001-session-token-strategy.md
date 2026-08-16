@@ -1,10 +1,12 @@
-# 001. 로그인 세션을 불투명 토큰으로 유지한다
+# ADR-0001: 로그인 세션을 불투명 토큰으로 유지한다
 
-결정일 2026-07-25 / 상태 유효 / 관련 커밋 `50e5eec`, `6bd86d1`
+- **상태:** 승인됨
+- **날짜:** 2026-07-25
+- **관련 커밋:** `50e5eec`, `6bd86d1`
 
 ## 배경
 
-로그인을 도입하면서 요청 간에 신원을 이어갈 수단이 필요했다. 후보는 불투명 세션 토큰, JWT, JWE, 하이브리드 등이며 각각 무엇을 포기하는지가 다르다. 방식별 정리는 [problem/003](../problem/003-session-mechanisms.md)에 있다.
+로그인을 도입하면서 요청 간에 신원을 이어갈 수단이 필요했다. 후보는 불투명 세션 토큰, JWT, JWE, 하이브리드 등이며 각각 무엇을 포기하는지가 다르다. 방식별 정리는 [problem/003](../../problem/003-session-mechanisms.md)에 있다.
 
 이 저장소는 예제 수준에서 출발해 고도화 중이고, 실제 외부 호출과 운영 인프라는 붙이지 않되 도메인과 응용 계층은 완성 상태를 목표로 한다. 따라서 선택 기준은 "지금 구현이 쉬운 것"이 아니라 운영에서 무엇을 잃는지가 명확한 것이어야 한다.
 
@@ -49,7 +51,7 @@ JWT의 가장 큰 이점은 검증자가 발급자에게 물어볼 수 없는 �
 - JWT 단독: 폐기 방법이 없다. 블랙리스트를 두면 매 요청 조회가 생겨 불투명 토큰과 같아지므로 이점이 사라진다. 키 배포·회전 부담과 알고리즘 confusion류 구현 취약점도 함께 들어온다
 - JWE: 검증자가 복호화 키를 가져야 하므로 공개키 검증이라는 JWT의 이점이 사라진다. 감출 값이 필요하지 않은 상황에서 비용만 늘어난다
 - Access token + refresh token 하이브리드: 요청당 조회를 없애면서 폐기를 refresh 쪽에만 남기는 구성이다. 이 저장소의 현재 규모에서는 얻는 것이 없고, 폐기가 "즉시"에서 "수명 내"로 약해진다. 다만 발급자 장애 결합이 문제가 되면 이 방향이 답이다
-- 세션 쿠키: 전달 방식의 차이일 뿐 저장 구조는 불투명 토큰과 같다. `HttpOnly`로 XSS 표면을 줄이는 이점이 있어 후속으로 검토 중이다 ([NEXT.md](../NEXT.md) 우선순위 5). 대신 CSRF 대응이 따라온다
+- 세션 쿠키: 전달 방식의 차이일 뿐 저장 구조는 불투명 토큰과 같다. `HttpOnly`로 XSS 표면을 줄이는 이점이 있어 후속으로 검토 중이다 ([BL-0005](../backlog/bl-0005-token-storage-to-cookie.md)). 대신 CSRF 대응이 따라온다
 - PASETO: 알고리즘 협상을 없애 구현 취약점을 줄이지만 폐기 문제는 JWT와 같다. 생태계가 작다
 - mTLS 클라이언트 인증서: 최종 사용자에게 인증서를 배포·갱신할 수 없다
 
@@ -59,7 +61,7 @@ JWT의 가장 큰 이점은 검증자가 발급자에게 물어볼 수 없는 �
 
 요청당 홉이 하나 붙는다. 현재 규모에서는 문제가 아니지만 캐시가 없는 상태다.
 
-전제가 깨져 있는 항목이 하나 있다. 서비스가 8101~8109로 직접 노출돼 있어 게이트웨이를 우회하면 `X-Member-Id`를 위조할 수 있고, TLS 종료 이후 구간이 평문이므로 헤더를 읽을 수도 있다. 이 결정은 게이트웨이가 유일한 진입점이라는 전제에 서 있으므로 그 전제를 코드로 강제해야 한다. [NEXT.md](../NEXT.md) 우선순위 1이다.
+전제가 깨져 있는 항목이 하나 있다. 서비스가 8101~8109로 직접 노출돼 있어 게이트웨이를 우회하면 `X-Member-Id`를 위조할 수 있고, TLS 종료 이후 구간이 평문이므로 헤더를 읽을 수도 있다. 이 결정은 게이트웨이가 유일한 진입점이라는 전제에 서 있으므로 그 전제를 코드로 강제해야 한다. [BL-0001](../backlog/bl-0001-gateway-bypass-block.md)이다.
 
 ## 재검토 조건
 
@@ -79,7 +81,7 @@ JWT의 가장 큰 이점은 검증자가 발급자에게 물어볼 수 없는 �
 
 ## 참고
 
-- [problem/003](../problem/003-session-mechanisms.md) — 방식별 보장과 한계
-- [MemberService](../apps/member-service/src/main/java/com/impati/commerce/member/application/MemberService.java) — 발급, 확인, 폐기
-- [Sha256SecureTokens](../apps/member-service/src/main/java/com/impati/commerce/member/adapter/out/security/Sha256SecureTokens.java) — 토큰 생성과 해싱
-- [MemberIdentity](../apps/api-gateway/src/main/java/com/impati/commerce/gateway/support/MemberIdentity.java) — 게이트웨이의 확인과 신원 전달
+- [problem/003](../../problem/003-session-mechanisms.md) — 방식별 보장과 한계
+- [MemberService](../../apps/member-service/src/main/java/com/impati/commerce/member/application/MemberService.java) — 발급, 확인, 폐기
+- [Sha256SecureTokens](../../apps/member-service/src/main/java/com/impati/commerce/member/adapter/out/security/Sha256SecureTokens.java) — 토큰 생성과 해싱
+- [MemberIdentity](../../apps/api-gateway/src/main/java/com/impati/commerce/gateway/support/MemberIdentity.java) — 게이트웨이의 확인과 신원 전달
