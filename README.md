@@ -106,7 +106,6 @@ curl -X POST http://localhost:8080/checkout \
 - 기술 결정 기록(ADR): [docs/adr/](docs/adr/)
 - 백로그(앞으로 할 후보): [docs/backlog/](docs/backlog/)
 - 겪은 문제와 기술 조사: [problem/](problem/)
-- 변경 이력: [CHANGELOG.md](CHANGELOG.md)
 
 ## 프론트엔드 구조
 
