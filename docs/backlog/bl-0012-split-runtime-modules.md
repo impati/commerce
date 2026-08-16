@@ -9,8 +9,8 @@
 
 나눌 이유가 실재하는 곳은 둘이다 — member(external vs internal)와 notification(api vs worker).
 
-member를 external/internal로 나누는 것은 [BL-0001](bl-0001-gateway-bypass-block.md)의 해법 후보이기도 하다. 공유 시크릿은 코드로 막는 것이고 별도 프로세스는 네트워크로 막는 것이라 후자가 강하다.
+member를 external/internal로 나누면 내부 경로를 네트워크로 분리할 수 있다. 다만 신뢰 경계 자체는 [ADR-0002](../adr/0002-network-segmentation-as-trust-boundary.md)에서 네트워크 분리로 강제하기로 이미 정했으므로, 이 항목은 보안 대책이 아니라 실행 단위 구성의 문제로 남는다.
 
 ## 목표
 
-한 서비스가 여러 실행 단위를 가질 수 있는지 정하고, 가능하다면 boot 플러그인 적용 범위를 그에 맞게 바꾼다. BL-0001과 같은 일을 두 번 하지 않도록 함께 판단한다.
+한 서비스가 여러 실행 단위를 가질 수 있는지 정하고, 가능하다면 boot 플러그인 적용 범위를 그에 맞게 바꾼다.
