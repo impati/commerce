@@ -109,9 +109,10 @@ class MemberAuthTest {
     }
 
     /**
-     * [PD-0001-R1] 인증 전에는 로그인할 수 없다. 이메일 소유가 확인되지 않은 계정이다.
+     * [PD-0001-R1][PD-0002-R2] 인증 전에는 로그인할 수 없다. 이메일 소유가 확인되지 않은 계정이다.
      *
-     * <p>거절된다는 것만 잡는다. 이 응답이 미인증 계정의 존재를 드러낸다는 점은 보지 않는다.
+     * <p>거절된다는 것만 잡는다. 이 응답이 다른 거절과 구분되어 미인증 계정의 존재를 드러낸다는
+     * 점은 보지 않는다. BL-0022.
      */
     @Test
     void unverifiedMemberCannotLogin() {
@@ -151,7 +152,11 @@ class MemberAuthTest {
                 .hasMessageContaining("not usable");
     }
 
-    /** 없는 이메일과 틀린 비밀번호를 같은 메시지로 거절한다. 이메일 열거를 막는다. */
+    /**
+     * [PD-0002-R1] 없는 이메일과 틀린 비밀번호를 같은 메시지로 거절한다. 이메일 열거를 막는다.
+     *
+     * <p>두 응답을 직접 비교하므로 한쪽만 바뀌어도 잡힌다. 미인증 계정의 거절은 이 비교에 없다.
+     */
     @Test
     void wrongPasswordAndUnknownEmailFailIdentically() {
         var member = registrations.register("same@impati.dev", "Same", "same-password");
@@ -163,6 +168,7 @@ class MemberAuthTest {
         assertThat(wrongPassword).isEqualTo(unknownEmail);
     }
 
+    /** [PD-0002-R4] 만료된 세션은 확인되지 않는다. 사용해도 만료가 연장되지 않는지는 보지 않는다. */
     @Test
     void expiredSessionDoesNotResolve() {
         var member = registrations.register("session@impati.dev", "Session", "session-pw12");
@@ -175,6 +181,7 @@ class MemberAuthTest {
                 .isInstanceOf(DomainException.class);
     }
 
+    /** [PD-0002-R5] 로그아웃이 만료 전 세션을 즉시 끊는 것을 잡는다. 다른 기기의 세션은 보지 않는다. */
     @Test
     void logoutRevokesSessionImmediately() {
         var member = registrations.register("logout@impati.dev", "Logout", "logout-pw123");

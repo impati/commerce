@@ -27,3 +27,4 @@
 | # | 정책 | 상태 |
 | --- | --- | --- |
 | [0001](pd-0001-signup-and-email-verification.md) | 가입과 이메일 소유 확인 | 유효 |
+| [0002](pd-0002-login-rejection-and-session-lifetime.md) | 로그인 거절과 세션 수명 | 유효 |

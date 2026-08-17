@@ -55,3 +55,5 @@ make todo
 | [BL-0019](bl-0019-invalidate-previous-verification-token.md) 재발송 시 이전 토큰 무효화 | 유효한 확인 토큰이 여러 개 존재한다 |
 | [BL-0020](bl-0020-password-length-upper-bound.md) 비밀번호 길이 상한 | BCrypt가 72바이트 초과분을 조용히 버린다 |
 | [BL-0021](bl-0021-pd-0001-verification-gaps.md) PD-0001 검증 공백 | 규칙 10개 중 5개를 아무것도 고정하지 않는다 |
+| [BL-0022](bl-0022-unverified-login-leaks-account-existence.md) 미인증 로그인 응답의 계정 열거 | 한 문서 안에서 R1과 R2가 어긋난다 ([PD-0002](../policy/pd-0002-login-rejection-and-session-lifetime.md)) |
+| [BL-0023](bl-0023-pd-0002-verification-gaps.md) PD-0002 검증 공백 | 규칙 7개 중 3개를 아무것도 고정하지 않는다 |
