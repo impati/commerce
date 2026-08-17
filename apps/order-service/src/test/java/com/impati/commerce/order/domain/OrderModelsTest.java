@@ -11,6 +11,12 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class OrderModelsTest {
+    /**
+     * [PD-0003-R1][PD-0003-R2][PD-0003-R3][PD-0003-R5] 허용되는 전이 순서와 총액 계산을 잡는다.
+     *
+     * <p>거절되는 전이는 하나도 보지 않는다. 결제 전 주문에 배송을 붙이거나 완료된 주문을
+     * 취소하는 시도가 막히는지는 여기서 드러나지 않는다. BL-0030.
+     */
     @Test
     void calculatesTotalAndMovesThroughPaidFulfillmentDelivery() {
         var address = new Address(

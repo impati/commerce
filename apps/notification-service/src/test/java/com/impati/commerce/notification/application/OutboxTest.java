@@ -27,7 +27,7 @@ class OutboxTest {
     @MockBean
     private MailSender mailSender;
 
-    /** 기록만으로는 발송되지 않는다. 메일 시스템 장애가 가입 실패가 되지 않게 하는 성질이다. */
+    /** [PD-0009-R1] 기록만으로는 발송되지 않는다. 메일 시스템 장애가 가입 실패가 되지 않게 하는 성질이다. */
     @Test
     void recordsPendingWithoutSending() {
         doNothing().when(mailSender).send(anyString(), anyString(), anyString());
@@ -40,6 +40,7 @@ class OutboxTest {
         assertThat(entry.body()).contains("tok_pending");
     }
 
+    /** [PD-0009-R1] 기록된 알림이 별도 발송으로 나가는 것을 잡는다. 발송 주기는 보지 않는다. */
     @Test
     void dispatchMarksSent() {
         doNothing().when(mailSender).send(anyString(), anyString(), anyString());
@@ -52,7 +53,7 @@ class OutboxTest {
         assertThat(entry.attempts()).isEqualTo(1);
     }
 
-    /** 발송 실패가 기록으로 남는다. 예외를 삼켜 사라지게 하지 않는다. */
+    /** [PD-0009-R4] 발송 실패가 기록으로 남는다. 예외를 삼켜 사라지게 하지 않는다. 3회를 채우면 실패로 확정된다. */
     @Test
     void keepsFailureVisibleAndRetriesUntilLimit() {
         doThrow(new IllegalStateException("smtp down"))
@@ -71,7 +72,7 @@ class OutboxTest {
         assertThat(exhausted.attempts()).isEqualTo(3);
     }
 
-    /** 기록만 남기는 알림은 발송 대상이 아니다. */
+    /** [PD-0009-R2] 기록만 남기는 알림은 발송 대상이 아니다. */
     @Test
     void plainRecordIsNotQueuedForDelivery() {
         notifications.record("OrderPaid", "mem_plain", "Order paid", "Order ord_plain has been paid.");

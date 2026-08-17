@@ -39,6 +39,7 @@ class CartServiceTest {
         ));
     }
 
+    /** [PD-0006-R1] 같은 상품을 다시 담으면 줄이 늘지 않고 수량이 합산된다. */
     @Test
     void addItemAccumulatesQuantityForSameSku() {
         var memberId = "mem_accumulate";
@@ -52,7 +53,7 @@ class CartServiceTest {
     }
 
     /**
-     * 조회는 저장소를 바꾸지 않는다. 이전 구현은 computeIfAbsent라서 조회만으로 장바구니가 생겼다.
+     * [PD-0006-R5] 조회는 저장소를 바꾸지 않는다. 이전 구현은 computeIfAbsent라서 조회만으로 장바구니가 생겼다.
      * DB에서는 GET에 INSERT가 따라붙는 셈이 되므로 여기서 막는다. problem/001 참고.
      */
     @Test
@@ -64,6 +65,7 @@ class CartServiceTest {
         assertThat(carts.findByMemberId("mem_never_seen")).isEmpty();
     }
 
+    /** [PD-0006-R7] 명시적으로 비운 장바구니는 저장된 채 비어 있다. 없는 장바구니와 다르다. */
     @Test
     void clearEmptiesStoredCart() {
         var memberId = "mem_clear";

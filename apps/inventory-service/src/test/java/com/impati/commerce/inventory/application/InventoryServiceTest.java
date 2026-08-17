@@ -24,6 +24,7 @@ class InventoryServiceTest {
     @Autowired
     private JdbcTemplate jdbc;
 
+    /** [PD-0005-R1][PD-0005-R4] 가용 수량 계산과 확정·해제가 각각 무엇을 줄이는지 잡는다. */
     @Test
     void reservesCommitsAndReleasesStock() {
         var skuId = "sku_lifecycle";
@@ -42,6 +43,7 @@ class InventoryServiceTest {
         assertThat(stockOf(skuId).reserved()).isZero();
     }
 
+    /** [PD-0005-R2] 가용 수량을 넘는 예약이 거절되는 것을 잡는다. 여러 줄 중 하나만 모자란 경우는 보지 않는다. */
     @Test
     void rejectsReservationBeyondAvailableStock() {
         var skuId = "sku_insufficient";
@@ -54,6 +56,7 @@ class InventoryServiceTest {
         assertThat(stockOf(skuId).reserved()).isZero();
     }
 
+    /** [PD-0005-R3] 등록되지 않은 상품은 예약할 수 없다. 예약 시도가 재고를 만들지 않는다. */
     @Test
     void rejectsReservationForUnknownSku() {
         assertThatThrownBy(() -> inventory.reserve("ord_unknown", List.of(new ReservationLine("sku_absent", 1))))
@@ -62,8 +65,8 @@ class InventoryServiceTest {
     }
 
     /**
-     * 재고가 음수로 저장되는 것은 DB 제약이 막는다. 락과 별개인 최후 방어선이며, 애플리케이션 검증을
-     * 우회해 직접 update를 걸어 확인한다.
+     * [PD-0005-R7] 재고가 음수로 저장되는 것은 DB 제약이 막는다. 락과 별개인 최후 방어선이며,
+     * 애플리케이션 검증을 우회해 직접 update를 걸어 확인한다.
      */
     @Test
     void databaseRejectsNegativeStock() {

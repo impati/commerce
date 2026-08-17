@@ -48,7 +48,7 @@ class JdbcCartRepositoryTest {
         assertThat(loaded.lines().getFirst().quantity()).isEqualTo(9);
     }
 
-    /** 빈 장바구니와 없는 장바구니는 다르다. clear 후에는 행이 남아 있어야 한다. */
+    /** [PD-0006-R7] 빈 장바구니와 없는 장바구니는 다르다. clear 후에는 행이 남아 있어야 한다. */
     @Test
     void distinguishesEmptyCartFromMissingCart() {
         var cart = new Cart("mem_empty");

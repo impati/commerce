@@ -109,6 +109,11 @@ class CheckoutSagaTest {
         server.verify();
     }
 
+    /**
+     * [PD-0004-R5][PD-0004-R8][PD-0006-R6] 성공 경로의 호출 순서와 알림, 장바구니 비움을 잡는다.
+     *
+     * <p>예약이 확정된 뒤에 실패하는 경로는 보지 않는다. BL-0024.
+     */
     @Test
     void capturedPaymentCommitsReservationAndClearsCart() throws Exception {
         stubMemberCartAndCatalog();
@@ -159,6 +164,10 @@ class CheckoutSagaTest {
                 .andExpect(jsonPath("$.order.total.amount").value(UNIT_PRICE * QUANTITY));
     }
 
+    /**
+     * [PD-0004-R6][PD-0008-R3] 결제 확정 전 실패의 보상을 잡는다. 거절이 시스템 오류와 다른
+     * 결과로 전달되는 것도 함께 확인한다 — 402가 도메인 언어로 옮겨지지 않으면 여기서 깨진다.
+     */
     @Test
     void declinedPaymentCancelsOrderReleasesReservationAndKeepsCart() throws Exception {
         stubMemberCartAndCatalog();
