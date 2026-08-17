@@ -51,3 +51,7 @@ make todo
 | [BL-0014](bl-0014-verify-docker-compose-path.md) docker-compose 경로 검증 | 한 번도 실행해보지 않았다 |
 | [BL-0015](bl-0015-pre-commit-scans-working-tree.md) pre-commit이 working tree를 본다 | 알려진 한계였다 |
 | [BL-0016](bl-0016-display-card-price-mismatch.md) 지면 카드 가격 | 알려진 한계였다 |
+| [BL-0018](bl-0018-normalize-email-case.md) 이메일 대소문자 정규화 | 기존 결정을 뒤집는 교환. 관측치가 필요하다 ([PD-0001](../policy/pd-0001-signup-and-email-verification.md)) |
+| [BL-0019](bl-0019-invalidate-previous-verification-token.md) 재발송 시 이전 토큰 무효화 | 유효한 확인 토큰이 여러 개 존재한다 |
+| [BL-0020](bl-0020-password-length-upper-bound.md) 비밀번호 길이 상한 | BCrypt가 72바이트 초과분을 조용히 버린다 |
+| [BL-0021](bl-0021-pd-0001-verification-gaps.md) PD-0001 검증 공백 | 규칙 10개 중 5개를 아무것도 고정하지 않는다 |
