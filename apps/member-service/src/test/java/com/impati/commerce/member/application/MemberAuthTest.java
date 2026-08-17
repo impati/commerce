@@ -88,6 +88,7 @@ class MemberAuthTest {
     @MockBean
     private NotificationClient notifications;
 
+    /** [PD-0001-R1] 가입 직후 상태가 미인증인 것을 잡는다. 그 상태로 로그인이 막히는지는 보지 않는다. */
     @Test
     void registerLeavesMemberUnverifiedAndRequestsMail() {
         var member = registrations.register("flow@impati.dev", "Flow", "flow-password");
@@ -96,6 +97,7 @@ class MemberAuthTest {
         verify(notifications).requestEmailVerification(eq(member.id()), eq("flow@impati.dev"), anyString());
     }
 
+    /** [PD-0001-R1] 확인을 마치면 로그인이 되는 것을 잡는다. 확인 없이 막히는 쪽은 아래 테스트가 본다. */
     @Test
     void verifiedMemberCanLoginAndSessionResolves() {
         var member = registrations.register("login@impati.dev", "Login", "login-password");
@@ -106,7 +108,11 @@ class MemberAuthTest {
         assertThat(sessions.resolveSession(login.token()).memberId()).isEqualTo(member.id());
     }
 
-    /** 인증 전에는 로그인할 수 없다. 이메일 소유가 확인되지 않은 계정이다. */
+    /**
+     * [PD-0001-R1] 인증 전에는 로그인할 수 없다. 이메일 소유가 확인되지 않은 계정이다.
+     *
+     * <p>거절된다는 것만 잡는다. 이 응답이 미인증 계정의 존재를 드러낸다는 점은 보지 않는다.
+     */
     @Test
     void unverifiedMemberCannotLogin() {
         registrations.register("unverified@impati.dev", "Unverified", "unverified-pw");
@@ -116,7 +122,7 @@ class MemberAuthTest {
                 .hasMessageContaining("not verified");
     }
 
-    /** 인증 토큰은 단일 사용이다. */
+    /** [PD-0001-R6][PD-0001-R7] 단일 사용을 잡는다. 만료와 같은 응답인지는 두 테스트를 견줘야 알 수 있다. */
     @Test
     void verificationTokenCannotBeReused() {
         var member = registrations.register("reuse@impati.dev", "Reuse", "reuse-password");
@@ -128,7 +134,11 @@ class MemberAuthTest {
                 .hasMessageContaining("not usable");
     }
 
-    /** 만료된 토큰으로는 인증되지 않는다. 재사용과 같은 메시지로 거절한다. */
+    /**
+     * [PD-0001-R6][PD-0001-R7] 만료된 토큰으로는 인증되지 않는다. 재사용과 같은 메시지로 거절한다.
+     *
+     * <p>두 응답을 직접 비교하지 않으므로 한쪽 문구만 바뀌면 잡지 못한다. BL-0021.
+     */
     @Test
     void expiredVerificationTokenIsRejected() {
         var member = registrations.register("expired@impati.dev", "Expired", "expired-pw");
