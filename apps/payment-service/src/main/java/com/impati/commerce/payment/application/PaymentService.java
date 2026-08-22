@@ -64,6 +64,26 @@ public class PaymentService {
         return PaymentMapper.toResponse(payment);
     }
 
+    /**
+     * 매입된 대금을 되돌린다 (PD-0011-R8).
+     *
+     * <p>승인 취소로 정리할 수 없는 경우에만 쓴다. 매입 결과를 확인하지 못한 체크아웃이
+     * 그것이다 — 되돌리려는 시점에 결제가 이미 매입돼 있으면 취소가 통하지 않는다.
+     */
+    @Transactional
+    public PaymentResponse refund(String paymentId) {
+        var payment = require(paymentId);
+        payment.refund();
+        payments.update(payment);
+        return PaymentMapper.toResponse(payment);
+    }
+
+    /** 매입 여부를 확인하는 경로. 결과를 받지 못한 호출자가 나중에 다시 묻는다. */
+    @Transactional(readOnly = true)
+    public PaymentResponse get(String paymentId) {
+        return PaymentMapper.toResponse(require(paymentId));
+    }
+
     private Payment require(String paymentId) {
         return payments.findById(paymentId)
                 .orElseThrow(() -> DomainException.notFound("payment not found"));

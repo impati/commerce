@@ -113,7 +113,7 @@ class PaymentServiceTest {
 
         assertThatThrownBy(() -> payments.capture(authorized.id()))
                 .isInstanceOf(DomainException.class)
-                .hasMessageContaining("cancelled payment cannot be captured");
+                .hasMessageContaining("no longer authorized");
     }
 
     /** PD-0011-R4: 매입 요청이 여러 번 도착해도 첫 결과를 유지한다. */
@@ -138,6 +138,77 @@ class PaymentServiceTest {
 
         assertThat(second.status()).isEqualTo("CANCELLED");
         assertThat(second).isEqualTo(first);
+    }
+
+    /** PD-0011-R8: 매입된 결제는 환불할 수 있다. */
+    @Test
+    void capturedPaymentCanBeRefunded() {
+        var authorized = payments.authorize("ord_refund", "mem_a", AMOUNT, OK_TOKEN);
+        payments.capture(authorized.id());
+
+        var refunded = payments.refund(authorized.id());
+
+        assertThat(refunded.status()).isEqualTo("REFUNDED");
+    }
+
+    /** PD-0011-R8: 매입되지 않은 결제는 환불할 수 없다. 되돌릴 대금이 없다. */
+    @Test
+    void authorizedPaymentCannotBeRefunded() {
+        var authorized = payments.authorize("ord_no_refund", "mem_a", AMOUNT, OK_TOKEN);
+
+        assertThatThrownBy(() -> payments.refund(authorized.id()))
+                .isInstanceOf(DomainException.class)
+                .hasMessageContaining("only a captured payment can be refunded");
+    }
+
+    /** PD-0011-R8: 취소된 결제도 환불할 수 없다. */
+    @Test
+    void cancelledPaymentCannotBeRefunded() {
+        var authorized = payments.authorize("ord_cancelled_refund", "mem_a", AMOUNT, OK_TOKEN);
+        payments.cancel(authorized.id());
+
+        assertThatThrownBy(() -> payments.refund(authorized.id()))
+                .isInstanceOf(DomainException.class)
+                .hasMessageContaining("only a captured payment can be refunded");
+    }
+
+    /** PD-0011-R4: 환불 요청이 여러 번 도착해도 첫 결과를 유지한다. */
+    @Test
+    void refundIsIdempotent() {
+        var authorized = payments.authorize("ord_idem_refund", "mem_a", AMOUNT, OK_TOKEN);
+        payments.capture(authorized.id());
+
+        var first = payments.refund(authorized.id());
+        var second = payments.refund(authorized.id());
+
+        assertThat(second.status()).isEqualTo("REFUNDED");
+        assertThat(second).isEqualTo(first);
+    }
+
+    /** PD-0011-R3: 환불된 결제는 다시 매입할 수 없다. */
+    @Test
+    void refundedPaymentCannotBeCaptured() {
+        var authorized = payments.authorize("ord_refunded_capture", "mem_a", AMOUNT, OK_TOKEN);
+        payments.capture(authorized.id());
+        payments.refund(authorized.id());
+
+        assertThatThrownBy(() -> payments.capture(authorized.id()))
+                .isInstanceOf(DomainException.class)
+                .hasMessageContaining("no longer authorized");
+    }
+
+    /**
+     * PD-0011-R9: 매입 여부를 나중에 다시 물을 수 있다.
+     *
+     * <p>응답을 받지 못한 호출자가 결과를 확인하는 경로다. 이것이 없으면 모르는 상태를
+     * 영원히 확정할 수 없다.
+     */
+    @Test
+    void captureOutcomeCanBeLookedUpLater() {
+        var authorized = payments.authorize("ord_lookup", "mem_a", AMOUNT, OK_TOKEN);
+        payments.capture(authorized.id());
+
+        assertThat(payments.get(authorized.id()).status()).isEqualTo("CAPTURED");
     }
 
     /** PD-0011-R5: 결제 수단은 카드로 고정한다. */

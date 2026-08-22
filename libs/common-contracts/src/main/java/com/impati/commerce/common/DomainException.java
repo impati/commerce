@@ -33,5 +33,14 @@ public class DomainException extends RuntimeException {
     public static DomainException paymentDeclined(String message) {
         return new DomainException("payment_declined", message, 402);
     }
-}
 
+    /**
+     * 협력자에게 요청은 보냈으나 결과를 받지 못했다. 실패가 아니라 <b>모름</b>이다.
+     *
+     * <p>전송이 끊기거나 시간이 초과된 경우이며, 상대는 정상적으로 처리를 마쳤을 수 있다.
+     * 이것을 실패로 단정하면 이미 일어난 일을 되돌리게 된다.
+     */
+    public static DomainException outcomeUnknown(String message) {
+        return new DomainException("outcome_unknown", message, 502);
+    }
+}

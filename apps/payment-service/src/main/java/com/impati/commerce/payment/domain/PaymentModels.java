@@ -18,6 +18,7 @@ public final class PaymentModels {
         public static final String AUTHORIZED = "AUTHORIZED";
         public static final String CAPTURED = "CAPTURED";
         public static final String CANCELLED = "CANCELLED";
+        public static final String REFUNDED = "REFUNDED";
 
         private final String id;
         private final String orderId;
@@ -68,7 +69,7 @@ public final class PaymentModels {
                 return;
             }
             if (!status.equals(AUTHORIZED)) {
-                throw DomainException.conflict("cancelled payment cannot be captured");
+                throw DomainException.conflict("payment is no longer authorized and cannot be captured");
             }
             status = CAPTURED;
         }
@@ -82,6 +83,22 @@ public final class PaymentModels {
                 throw DomainException.conflict("captured payment cannot be cancelled");
             }
             status = CANCELLED;
+        }
+
+        /**
+         * 매입된 대금을 되돌린다 (PD-0011-R8). 이미 환불됐으면 아무것도 하지 않는다.
+         *
+         * <p>승인 취소와 달리 사용자 명세서에 청구와 환불 두 줄이 남는다. 그래서 이 경로는
+         * 정상 흐름이 아니라 매입 결과를 확인하지 못한 체크아웃을 정리할 때만 쓴다.
+         */
+        public void refund() {
+            if (status.equals(REFUNDED)) {
+                return;
+            }
+            if (!status.equals(CAPTURED)) {
+                throw DomainException.conflict("only a captured payment can be refunded");
+            }
+            status = REFUNDED;
         }
 
         public String id() {
