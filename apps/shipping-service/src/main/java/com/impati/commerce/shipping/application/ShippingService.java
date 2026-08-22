@@ -31,6 +31,14 @@ public class ShippingService {
         return ShipmentMapper.toResponse(shipment);
     }
 
+    /** 아직 나가지 않은 배송을 없앤다 (PD-0013-R5). 체크아웃 보상이 부른다 (PD-0012-R6). */
+    public ShipmentResponse cancel(String shipmentId) {
+        var shipment = getShipment(shipmentId);
+        shipment.cancel();
+        shipments.save(shipment);
+        return ShipmentMapper.toResponse(shipment);
+    }
+
     public ShipmentResponse deliver(String shipmentId) {
         var shipment = getShipment(shipmentId);
         shipment.deliver();

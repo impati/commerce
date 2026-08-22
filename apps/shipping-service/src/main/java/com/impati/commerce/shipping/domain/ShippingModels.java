@@ -114,5 +114,22 @@ public final class ShippingModels {
             }
             status = "DELIVERED";
         }
+
+        /**
+         * 아직 나가지 않은 배송을 없앤다 (PD-0013-R5).
+         *
+         * <p>출고 후의 회수는 반품이며 검수와 환불이 따르는 다른 절차다. 이미 취소됐으면
+         * 아무것도 하지 않는다 — 취소는 되돌리는 경로에서 호출되고 그 경로가 재시도될 수
+         * 있다 (PD-0013-R7).
+         */
+        public void cancel() {
+            if (status.equals("CANCELLED")) {
+                return;
+            }
+            if (!status.equals("READY")) {
+                throw DomainException.conflict("shipment already left and cannot be cancelled");
+            }
+            status = "CANCELLED";
+        }
     }
 }
