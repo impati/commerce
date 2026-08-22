@@ -17,7 +17,7 @@ CLAUDE.md는 도메인·응용 계층과 포트를 완성 상태로 만들고 �
 
 ## 결정
 
-**`PaymentGateway` 포트를 `application`에 두고 로컬 대역을 `adapter/out/gateway`에 둔다.** 선례는 [MailSender](../../apps/notification-service/src/main/java/com/impati/commerce/notification/application/MailSender.java)와 [LoggingMailSender](../../apps/notification-service/src/main/java/com/impati/commerce/notification/adapter/out/mail/LoggingMailSender.java)이며, 그 javadoc이 목표를 그대로 적어 두었다 — 애플리케이션과 도메인은 구현의 존재를 모르고, 외부 호출을 하지 않는다는 사실도 알지 못한다.
+**`PaymentGateway` 포트를 `application`에 두고 로컬 대역을 `adapter/out/gateway`에 둔다.** 선례는 [MailSender](../../apps/notification-service/src/main/java/com/impati/commerce/notification/application/port/out/MailSender.java)와 [LoggingMailSender](../../apps/notification-service/src/main/java/com/impati/commerce/notification/adapter/out/mail/LoggingMailSender.java)이며, 그 javadoc이 목표를 그대로 적어 두었다 — 애플리케이션과 도메인은 구현의 존재를 모르고, 외부 호출을 하지 않는다는 사실도 알지 못한다.
 
 **승인 거절을 예외가 아니라 결과 값으로 표현한다.** 인터페이스는 그 자체로 의도를 표현해야 한다. 거절은 시스템 오류가 아니라 정상적인 결과이며([PD-0011-R6](../policy/pd-0011-payment-authorization-and-capture.md)) 실제 대행사도 사유 코드를 함께 돌려준다. 예외로 표현하면 그 사유를 담을 자리가 사라지고, 벤더를 붙일 때 포트를 다시 열게 된다. 응용 계층이 그 값을 도메인 예외로 옮긴다 — 판정은 대행사가 하고 응용 계층은 전달만 한다.
 

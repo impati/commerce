@@ -84,6 +84,6 @@ JWT의 가장 큰 이점은 검증자가 발급자에게 물어볼 수 없는 �
 ## 참고
 
 - [problem/003](../../problem/003-session-mechanisms.md) — 방식별 보장과 한계
-- [MemberService](../../apps/member-service/src/main/java/com/impati/commerce/member/application/MemberService.java) — 발급, 확인, 폐기
+- [MemberService](../../apps/member-service/src/main/java/com/impati/commerce/member/application/component/MemberExecutor.java) — 발급, 확인, 폐기
 - [Sha256SecureTokens](../../apps/member-service/src/main/java/com/impati/commerce/member/adapter/out/security/Sha256SecureTokens.java) — 토큰 생성과 해싱
 - [MemberIdentity](../../apps/api-gateway/src/main/java/com/impati/commerce/gateway/support/MemberIdentity.java) — 게이트웨이의 확인과 신원 전달

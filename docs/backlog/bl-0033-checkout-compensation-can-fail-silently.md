@@ -5,7 +5,7 @@
 
 ## 배경
 
-[OrderService.checkout](../../apps/order-service/src/main/java/com/impati/commerce/order/application/OrderService.java)의 catch 블록은 예약 해제 → 주문 취소 → 저장 → 알림 → 원래 예외 재던지기 순으로 돈다. 이 보상 자체가 실패할 수 있다는 것을 다루지 않는다.
+[OrderService.checkout](../../apps/order-service/src/main/java/com/impati/commerce/order/application/component/OrderExecutor.java)의 catch 블록은 예약 해제 → 주문 취소 → 저장 → 알림 → 원래 예외 재던지기 순으로 돈다. 이 보상 자체가 실패할 수 있다는 것을 다루지 않는다.
 
 `inventory.releaseReservation`은 HTTP 호출이므로 상대 장애나 타임아웃으로 던질 수 있고, `orders.save`도 DB 오류로 던질 수 있다. 둘 중 하나가 던지면 마지막 `throw exception`에 도달하지 못한다. 결과가 둘이다.
 

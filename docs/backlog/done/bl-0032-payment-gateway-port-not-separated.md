@@ -11,7 +11,7 @@ payment-service에 **결제 대행사로 나가는 호출이 하나도 없다.**
 
 빠진 것이 셋이다.
 
-- **거절 판정을 응용 계층이 한다.** [PaymentService](../../apps/payment-service/src/main/java/com/impati/commerce/payment/application/PaymentService.java)가 `DECLINE_TOKENS` 집합을 들고 특정 토큰 문자열을 거절로 판정한다. 거절 경로를 데모와 테스트에서 밟을 수 있게 하려고 넣은 장치이며, 그 토큰은 데모 시드 데이터이고 README에 문서화돼 있다.
+- **거절 판정을 응용 계층이 한다.** [PaymentService](../../apps/payment-service/src/main/java/com/impati/commerce/payment/application/component/PaymentExecutor.java)가 `DECLINE_TOKENS` 집합을 들고 특정 토큰 문자열을 거절로 판정한다. 거절 경로를 데모와 테스트에서 밟을 수 있게 하려고 넣은 장치이며, 그 토큰은 데모 시드 데이터이고 README에 문서화돼 있다.
 - **도메인이 자기 것이 아닌 값을 만든다.** [Payment](../../apps/payment-service/src/main/java/com/impati/commerce/payment/domain/PaymentModels.java) 생성자가 `transactionId`를 자체 식별자로 발급하고 `method`를 `CARD`로 고정한다. 둘 다 대행사가 돌려주는 값이며, 특히 거래 식별자는 대사의 기준이 된다.
 - **매입·취소·환불에 호출이 없다.** 승인만이 아니다. 되돌리는 경로 전체가 로컬 상태만 바꾼다.
 

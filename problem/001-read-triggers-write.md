@@ -102,6 +102,6 @@ public void saveStock(StockItem item) {
 
 ## 참고
 
-- [CartRepository](../apps/cart-service/src/main/java/com/impati/commerce/cart/application/CartRepository.java), [CartService](../apps/cart-service/src/main/java/com/impati/commerce/cart/application/CartService.java)
-- [InventoryRepository](../apps/inventory-service/src/main/java/com/impati/commerce/inventory/application/InventoryRepository.java), [InventoryService](../apps/inventory-service/src/main/java/com/impati/commerce/inventory/application/InventoryService.java)
-- [InventoryServiceTest](../apps/inventory-service/src/test/java/com/impati/commerce/inventory/application/InventoryServiceTest.java) — `DetachedInventoryRepository`
+- [CartRepository](../apps/cart-service/src/main/java/com/impati/commerce/cart/application/port/out/CartRepository.java), [CartService](../apps/cart-service/src/main/java/com/impati/commerce/cart/application/component/CartExecutor.java)
+- [InventoryRepository](../apps/inventory-service/src/main/java/com/impati/commerce/inventory/application/port/out/InventoryRepository.java), [InventoryService](../apps/inventory-service/src/main/java/com/impati/commerce/inventory/application/component/InventoryExecutor.java)
+- [InventoryServiceTest](../apps/inventory-service/src/test/java/com/impati/commerce/inventory/application/component/InventoryExecutorTest.java) — `DetachedInventoryRepository`

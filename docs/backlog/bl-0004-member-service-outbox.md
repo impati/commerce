@@ -5,7 +5,7 @@
 
 ## 배경
 
-인증 메일 요청이 가입 트랜잭션 안에 있다 ([RegistrationService](../../apps/member-service/src/main/java/com/impati/commerce/member/application/RegistrationService.java)). 실패해도 가입은 유지되지만 상대가 느리면 DB 트랜잭션이 함께 늘어난다.
+인증 메일 요청이 가입 트랜잭션 안에 있다 ([RegistrationService](../../apps/member-service/src/main/java/com/impati/commerce/member/application/component/RegistrationExecutor.java)). 실패해도 가입은 유지되지만 상대가 느리면 DB 트랜잭션이 함께 늘어난다.
 
 order-service → notification-service 구간도 같은 문제다. 그쪽은 예외를 삼켜 실패가 기록되지 않는다.
 
