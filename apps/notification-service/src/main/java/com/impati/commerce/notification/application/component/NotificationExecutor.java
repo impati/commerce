@@ -20,16 +20,16 @@ public class NotificationExecutor implements NotificationUseCase {
     private static final int MAX_ATTEMPTS = 3;
     private static final int DISPATCH_BATCH = 20;
 
-    private final NotificationRepository notifications;
+    private final NotificationRepository notificationRepository;
     private final MailSender mailSender;
     private final String verificationBaseUrl;
 
     public NotificationExecutor(
-            NotificationRepository notifications,
+            NotificationRepository notificationRepository,
             MailSender mailSender,
             @Value("${notifications.verification-base-url}") String verificationBaseUrl
     ) {
-        this.notifications = notifications;
+        this.notificationRepository = notificationRepository;
         this.mailSender = mailSender;
         this.verificationBaseUrl = verificationBaseUrl;
     }
@@ -38,7 +38,7 @@ public class NotificationExecutor implements NotificationUseCase {
     @Override
     public NotificationDetails record(String eventType, String memberId, String subject, String body) {
         var notification = new Notification(eventType, memberId, subject, body);
-        notifications.save(notification);
+        notificationRepository.save(notification);
         return NotificationMapper.toDetails(notification);
     }
 
@@ -58,7 +58,7 @@ public class NotificationExecutor implements NotificationUseCase {
                 "이메일 주소를 확인해주세요",
                 "아래 링크로 이메일 소유를 확인해주세요.\n" + verificationBaseUrl + "?token=" + token
         );
-        notifications.save(notification);
+        notificationRepository.save(notification);
         return NotificationMapper.toDetails(notification);
     }
 
@@ -70,7 +70,7 @@ public class NotificationExecutor implements NotificationUseCase {
      */
     @Override
     public int dispatchPending() {
-        var pending = notifications.findPendingMail(DISPATCH_BATCH);
+        var pending = notificationRepository.findPendingMail(DISPATCH_BATCH);
         var sent = 0;
         for (var notification : pending) {
             try {
@@ -81,7 +81,7 @@ public class NotificationExecutor implements NotificationUseCase {
                 notification.markFailed(failure.getMessage(), MAX_ATTEMPTS);
                 log.warn("mail delivery failed id={} attempts={}", notification.id(), notification.attempts());
             }
-            notifications.save(notification);
+            notificationRepository.save(notification);
         }
         return sent;
     }
@@ -89,13 +89,13 @@ public class NotificationExecutor implements NotificationUseCase {
     @Transactional(readOnly = true)
     @Override
     public List<NotificationDetails> listFor(String memberId) {
-        return notifications.findByMemberId(memberId).stream().map(NotificationMapper::toDetails).toList();
+        return notificationRepository.findByMemberId(memberId).stream().map(NotificationMapper::toDetails).toList();
     }
 
     /** 로컬 데모에서 발송함을 들여다본다. 인증 토큰을 확인할 유일한 경로다. */
     @Transactional(readOnly = true)
     @Override
     public List<OutboxEntry> outbox() {
-        return notifications.findAll().stream().map(NotificationMapper::toOutboxEntry).toList();
+        return notificationRepository.findAll().stream().map(NotificationMapper::toOutboxEntry).toList();
     }
 }

@@ -22,30 +22,30 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/internal")
 public class InternalInventoryController {
-    private final InventoryUseCase inventory;
+    private final InventoryUseCase inventoryUseCase;
 
-    public InternalInventoryController(InventoryUseCase inventory) {
-        this.inventory = inventory;
+    public InternalInventoryController(InventoryUseCase inventoryUseCase) {
+        this.inventoryUseCase = inventoryUseCase;
     }
 
     @PostMapping("/stock")
     StockResponse addStock(@RequestBody StockIncreaseRequest request) {
-        return InventoryResponseMapper.from(inventory.addStock(request.skuId(), request.quantity()));
+        return InventoryResponseMapper.from(inventoryUseCase.addStock(request.skuId(), request.quantity()));
     }
 
     @PostMapping("/reservations")
     ReservationResponse reserve(@RequestBody ReserveInventoryRequest request) {
         return InventoryResponseMapper.from(
-                inventory.reserve(request.orderId(), InventoryResponseMapper.toLines(request.lines())));
+                inventoryUseCase.reserve(request.orderId(), InventoryResponseMapper.toLines(request.lines())));
     }
 
     @PostMapping("/reservations/{reservationId}/commit")
     ReservationResponse commit(@PathVariable String reservationId) {
-        return InventoryResponseMapper.from(inventory.commit(reservationId));
+        return InventoryResponseMapper.from(inventoryUseCase.commit(reservationId));
     }
 
     @PostMapping("/reservations/{reservationId}/release")
     ReservationResponse release(@PathVariable String reservationId) {
-        return InventoryResponseMapper.from(inventory.release(reservationId));
+        return InventoryResponseMapper.from(inventoryUseCase.release(reservationId));
     }
 }

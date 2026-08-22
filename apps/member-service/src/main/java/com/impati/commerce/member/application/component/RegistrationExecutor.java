@@ -29,28 +29,28 @@ import java.time.Duration;
 public class RegistrationExecutor implements RegistrationUseCase {
     private static final Logger log = LoggerFactory.getLogger(RegistrationExecutor.class);
 
-    private final MemberRepository members;
-    private final EmailVerificationRepository verifications;
+    private final MemberRepository memberRepository;
+    private final EmailVerificationRepository emailVerificationRepository;
     private final PasswordHasher passwordHasher;
-    private final SecureTokens tokens;
-    private final NotificationClient notifications;
+    private final SecureTokens secureTokens;
+    private final NotificationClient notificationClient;
     private final Clock clock;
     private final Duration verificationTtl;
 
     public RegistrationExecutor(
-            MemberRepository members,
-            EmailVerificationRepository verifications,
+            MemberRepository memberRepository,
+            EmailVerificationRepository emailVerificationRepository,
             PasswordHasher passwordHasher,
-            SecureTokens tokens,
-            NotificationClient notifications,
+            SecureTokens secureTokens,
+            NotificationClient notificationClient,
             Clock clock,
             @Value("${member.verification-ttl}") Duration verificationTtl
     ) {
-        this.members = members;
-        this.verifications = verifications;
+        this.memberRepository = memberRepository;
+        this.emailVerificationRepository = emailVerificationRepository;
         this.passwordHasher = passwordHasher;
-        this.tokens = tokens;
-        this.notifications = notifications;
+        this.secureTokens = secureTokens;
+        this.notificationClient = notificationClient;
         this.clock = clock;
         this.verificationTtl = verificationTtl;
     }
@@ -67,13 +67,13 @@ public class RegistrationExecutor implements RegistrationUseCase {
     @Transactional
     @Override
     public MemberDetails register(String email, String name, String rawPassword) {
-        members.findByEmail(email).ifPresent(existing -> {
+        memberRepository.findByEmail(email).ifPresent(existing -> {
             throw DomainException.conflict("member email already exists");
         });
         requirePassword(rawPassword);
 
         var member = new Member(email, name, passwordHasher.hash(rawPassword));
-        members.save(member);
+        memberRepository.save(member);
         issueVerification(member);
         return MemberMapper.toDetails(member);
     }
@@ -97,26 +97,26 @@ public class RegistrationExecutor implements RegistrationUseCase {
     @Transactional
     @Override
     public MemberDetails verifyEmail(String rawToken) {
-        var verification = verifications.findByTokenHash(tokens.hash(rawToken))
+        var verification = emailVerificationRepository.findByTokenHash(secureTokens.hash(rawToken))
                 .orElseThrow(() -> DomainException.validation("verification token is not usable"));
         verification.use(clock.instant());
-        verifications.save(verification);
+        emailVerificationRepository.save(verification);
 
         var member = getMember(verification.memberId());
         member.activate();
-        members.save(member);
+        memberRepository.save(member);
         return MemberMapper.toDetails(member);
     }
 
     private void issueVerification(Member member) {
-        var rawToken = tokens.newToken();
-        verifications.save(new EmailVerification(
-                tokens.hash(rawToken),
+        var rawToken = secureTokens.newToken();
+        emailVerificationRepository.save(new EmailVerification(
+                secureTokens.hash(rawToken),
                 member.id(),
                 clock.instant().plus(verificationTtl)
         ));
         try {
-            notifications.requestEmailVerification(member.id(), member.email(), rawToken);
+            notificationClient.requestEmailVerification(member.id(), member.email(), rawToken);
         } catch (RuntimeException failure) {
             log.warn("verification mail request failed memberId={} reason={}", member.id(), failure.getMessage());
         }
@@ -129,7 +129,7 @@ public class RegistrationExecutor implements RegistrationUseCase {
     }
 
     private Member getMember(String memberId) {
-        return members.findById(memberId)
+        return memberRepository.findById(memberId)
                 .orElseThrow(() -> DomainException.notFound("member not found"));
     }
 }

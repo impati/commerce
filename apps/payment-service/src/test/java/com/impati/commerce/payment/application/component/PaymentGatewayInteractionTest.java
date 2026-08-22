@@ -76,19 +76,19 @@ class PaymentGatewayInteractionTest {
     private PaymentExecutor payments;
 
     @Autowired
-    private RecordingPaymentGateway gateway;
+    private RecordingPaymentGateway recordingPaymentGateway;
 
     @BeforeEach
     void resetGateway() {
-        gateway.calls.clear();
-        gateway.approve = true;
+        recordingPaymentGateway.calls.clear();
+        recordingPaymentGateway.approve = true;
     }
 
     @Test
     void authorizeAsksTheGateway() {
         payments.authorize("ord_gw_auth", "mem_a", AMOUNT, "any-token");
 
-        assertThat(gateway.calls).containsExactly("authorize:ord_gw_auth");
+        assertThat(recordingPaymentGateway.calls).containsExactly("authorize:ord_gw_auth");
     }
 
     /** 거래 식별자와 결제 수단은 대행사가 정한다. 도메인이 만들지 않는다. */
@@ -103,7 +103,7 @@ class PaymentGatewayInteractionTest {
     /** 거절 판정은 대행사가 한다. 응용 계층은 그 결과를 도메인 언어로 옮길 뿐이다. */
     @Test
     void declineComesFromTheGatewayNotFromTheApplication() {
-        gateway.approve = false;
+        recordingPaymentGateway.approve = false;
 
         assertThatThrownBy(() -> payments.authorize("ord_gw_declined", "mem_a", AMOUNT, "any-token"))
                 .hasMessageContaining("insufficient funds");
@@ -112,32 +112,32 @@ class PaymentGatewayInteractionTest {
     @Test
     void captureAsksTheGatewayWithTheTransactionId() {
         var authorized = payments.authorize("ord_gw_capture", "mem_a", AMOUNT, "any-token");
-        gateway.calls.clear();
+        recordingPaymentGateway.calls.clear();
 
         payments.capture(authorized.id());
 
-        assertThat(gateway.calls).containsExactly("capture:" + RecordingPaymentGateway.TRANSACTION_ID);
+        assertThat(recordingPaymentGateway.calls).containsExactly("capture:" + RecordingPaymentGateway.TRANSACTION_ID);
     }
 
     @Test
     void cancelAsksTheGatewayWithTheTransactionId() {
         var authorized = payments.authorize("ord_gw_cancel", "mem_a", AMOUNT, "any-token");
-        gateway.calls.clear();
+        recordingPaymentGateway.calls.clear();
 
         payments.cancel(authorized.id());
 
-        assertThat(gateway.calls).containsExactly("cancel:" + RecordingPaymentGateway.TRANSACTION_ID);
+        assertThat(recordingPaymentGateway.calls).containsExactly("cancel:" + RecordingPaymentGateway.TRANSACTION_ID);
     }
 
     @Test
     void refundAsksTheGatewayWithTheTransactionId() {
         var authorized = payments.authorize("ord_gw_refund", "mem_a", AMOUNT, "any-token");
         payments.capture(authorized.id());
-        gateway.calls.clear();
+        recordingPaymentGateway.calls.clear();
 
         payments.refund(authorized.id());
 
-        assertThat(gateway.calls).containsExactly("refund:" + RecordingPaymentGateway.TRANSACTION_ID);
+        assertThat(recordingPaymentGateway.calls).containsExactly("refund:" + RecordingPaymentGateway.TRANSACTION_ID);
     }
 
     /** PD-0011-R4: 이미 끝난 일은 대행사에 다시 요청하지 않는다. */
@@ -145,31 +145,31 @@ class PaymentGatewayInteractionTest {
     void repeatedCaptureDoesNotAskTheGatewayAgain() {
         var authorized = payments.authorize("ord_gw_idem", "mem_a", AMOUNT, "any-token");
         payments.capture(authorized.id());
-        gateway.calls.clear();
+        recordingPaymentGateway.calls.clear();
 
         payments.capture(authorized.id());
 
-        assertThat(gateway.calls).isEmpty();
+        assertThat(recordingPaymentGateway.calls).isEmpty();
     }
 
     /** PD-0011-R2: 승인 재요청은 대행사에도 다시 묻지 않는다. */
     @Test
     void reauthorizeDoesNotAskTheGatewayAgain() {
         payments.authorize("ord_gw_reauth", "mem_a", AMOUNT, "any-token");
-        gateway.calls.clear();
+        recordingPaymentGateway.calls.clear();
 
         payments.authorize("ord_gw_reauth", "mem_a", AMOUNT, "any-token");
 
-        assertThat(gateway.calls).isEmpty();
+        assertThat(recordingPaymentGateway.calls).isEmpty();
     }
 
     /** 대행사가 거절하면 결제가 남지 않는다. 남으면 그 주문은 영영 승인받지 못한다. */
     @Test
     void declinedAuthorizationLeavesNoPayment() {
-        gateway.approve = false;
+        recordingPaymentGateway.approve = false;
         assertThatThrownBy(() -> payments.authorize("ord_gw_retry", "mem_a", AMOUNT, "any-token"));
 
-        gateway.approve = true;
+        recordingPaymentGateway.approve = true;
         assertThat(payments.authorize("ord_gw_retry", "mem_a", AMOUNT, "any-token").status())
                 .isEqualTo("AUTHORIZED");
     }

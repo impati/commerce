@@ -24,20 +24,20 @@ import java.util.Map;
  */
 @Component
 public class InventoryExecutor implements InventoryUseCase {
-    private final InventoryRepository inventory;
+    private final InventoryRepository inventoryRepository;
 
-    public InventoryExecutor(InventoryRepository inventory) {
-        this.inventory = inventory;
+    public InventoryExecutor(InventoryRepository inventoryRepository) {
+        this.inventoryRepository = inventoryRepository;
     }
 
     @Transactional
     @Override
     public StockDetails addStock(String skuId, int quantity) {
-        var stock = inventory.lockStock(List.of(skuId)).stream()
+        var stock = inventoryRepository.lockStock(List.of(skuId)).stream()
                 .findFirst()
                 .orElseGet(() -> new StockItem(skuId));
         stock.add(quantity);
-        inventory.saveStock(stock);
+        inventoryRepository.saveStock(stock);
         return InventoryMapper.toDetails(stock);
     }
 
@@ -58,11 +58,11 @@ public class InventoryExecutor implements InventoryUseCase {
         for (var line : reservedLines) {
             var stock = requireStock(locked, line.skuId());
             stock.reserve(line.quantity());
-            inventory.saveStock(stock);
+            inventoryRepository.saveStock(stock);
         }
 
         var reservation = new Reservation(orderId, reservedLines);
-        inventory.saveReservation(reservation);
+        inventoryRepository.saveReservation(reservation);
         return InventoryMapper.toDetails(reservation);
     }
 
@@ -74,10 +74,10 @@ public class InventoryExecutor implements InventoryUseCase {
         for (var line : reservation.lines()) {
             var stock = requireStock(locked, line.skuId());
             stock.commit(line.quantity());
-            inventory.saveStock(stock);
+            inventoryRepository.saveStock(stock);
         }
         reservation.commit();
-        inventory.saveReservation(reservation);
+        inventoryRepository.saveReservation(reservation);
         return InventoryMapper.toDetails(reservation);
     }
 
@@ -89,30 +89,30 @@ public class InventoryExecutor implements InventoryUseCase {
         for (var line : reservation.lines()) {
             var stock = requireStock(locked, line.skuId());
             stock.release(line.quantity());
-            inventory.saveStock(stock);
+            inventoryRepository.saveStock(stock);
         }
         reservation.release();
-        inventory.saveReservation(reservation);
+        inventoryRepository.saveReservation(reservation);
         return InventoryMapper.toDetails(reservation);
     }
 
     @Transactional(readOnly = true)
     @Override
     public List<StockDetails> stock() {
-        return inventory.stock().stream().map(InventoryMapper::toDetails).toList();
+        return inventoryRepository.stock().stream().map(InventoryMapper::toDetails).toList();
     }
 
     /** 시드가 이미 들어가 있는지 확인한다. 파일 DB에서는 재시작마다 시드를 넣으면 재고가 늘어난다. */
     @Transactional(readOnly = true)
     @Override
     public boolean isEmpty() {
-        return inventory.stock().isEmpty();
+        return inventoryRepository.stock().isEmpty();
     }
 
     private Map<String, StockItem> lockFor(List<ReservedLine> lines) {
         var skuIds = lines.stream().map(ReservedLine::skuId).distinct().toList();
         Map<String, StockItem> locked = new LinkedHashMap<>();
-        inventory.lockStock(skuIds).forEach(stock -> locked.put(stock.skuId(), stock));
+        inventoryRepository.lockStock(skuIds).forEach(stock -> locked.put(stock.skuId(), stock));
         return locked;
     }
 
@@ -125,7 +125,7 @@ public class InventoryExecutor implements InventoryUseCase {
     }
 
     private Reservation getReservation(String reservationId) {
-        return inventory.findReservation(reservationId)
+        return inventoryRepository.findReservation(reservationId)
                 .orElseThrow(() -> DomainException.notFound("reservation not found"));
     }
 }

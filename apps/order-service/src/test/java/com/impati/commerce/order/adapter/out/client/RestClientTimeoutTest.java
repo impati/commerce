@@ -34,7 +34,7 @@ class RestClientTimeoutTest {
     private static ExecutorService acceptor;
 
     @Autowired
-    private MemberClient members;
+    private MemberClient memberClient;
 
     @BeforeAll
     static void startSilentServer() throws IOException {
@@ -67,7 +67,7 @@ class RestClientTimeoutTest {
     void failsFastWhenPeerNeverResponds() {
         var startedAt = System.nanoTime();
 
-        assertThatThrownBy(() -> members.member("mem_demo"))
+        assertThatThrownBy(() -> memberClient.member("mem_demo"))
                 .isInstanceOf(ResourceAccessException.class);
 
         var elapsedMillis = (System.nanoTime() - startedAt) / 1_000_000;

@@ -31,23 +31,23 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/internal/members")
 public class InternalMemberController {
-    private final MemberUseCase members;
-    private final SessionUseCase sessions;
+    private final MemberUseCase memberUseCase;
+    private final SessionUseCase sessionUseCase;
 
-    public InternalMemberController(MemberUseCase members, SessionUseCase sessions) {
-        this.members = members;
-        this.sessions = sessions;
+    public InternalMemberController(MemberUseCase memberUseCase, SessionUseCase sessionUseCase) {
+        this.memberUseCase = memberUseCase;
+        this.sessionUseCase = sessionUseCase;
     }
 
     /** 게이트웨이가 세션 토큰을 회원 식별자로 바꾼다. */
     @PostMapping("/sessions/resolve")
     SessionResponse resolveSession(@RequestBody SessionTokenRequest request) {
-        return MemberResponseMapper.from(sessions.resolveSession(request.token()));
+        return MemberResponseMapper.from(sessionUseCase.resolveSession(request.token()));
     }
 
     /** order-service가 배송지를 읽기 위한 경로. */
     @GetMapping("/{memberId}")
     MemberResponse get(@PathVariable String memberId) {
-        return MemberResponseMapper.from(members.get(memberId));
+        return MemberResponseMapper.from(memberUseCase.get(memberId));
     }
 }

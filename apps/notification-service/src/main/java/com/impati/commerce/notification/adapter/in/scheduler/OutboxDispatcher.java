@@ -15,14 +15,14 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class OutboxDispatcher {
-    private final NotificationUseCase notifications;
+    private final NotificationUseCase notificationUseCase;
 
-    public OutboxDispatcher(NotificationUseCase notifications) {
-        this.notifications = notifications;
+    public OutboxDispatcher(NotificationUseCase notificationUseCase) {
+        this.notificationUseCase = notificationUseCase;
     }
 
     @Scheduled(fixedDelayString = "${notifications.dispatch-interval:1000}")
     void dispatch() {
-        notifications.dispatchPending();
+        notificationUseCase.dispatchPending();
     }
 }

@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:order-repo;DB_CLOSE_DELAY=-1")
 class JdbcOrderRepositoryTest {
     @Autowired
-    private OrderRepository orders;
+    private OrderRepository orderRepository;
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -31,9 +31,9 @@ class JdbcOrderRepositoryTest {
     void roundTripsOrderWithLinesAndAddress() {
         var order = newOrder();
         order.attachReservation("rsv_round");
-        orders.save(order);
+        orderRepository.save(order);
 
-        var loaded = orders.findById(order.id()).orElseThrow();
+        var loaded = orderRepository.findById(order.id()).orElseThrow();
 
         assertThat(loaded.id()).isEqualTo(order.id());
         assertThat(loaded.memberId()).isEqualTo("mem_demo");
@@ -50,16 +50,16 @@ class JdbcOrderRepositoryTest {
     @Test
     void savesStatusTransitionsOnTheSameRow() {
         var order = newOrder();
-        orders.save(order);
+        orderRepository.save(order);
 
         order.attachPayment("pay_round");
 
         order.markPaid();
-        orders.save(order);
+        orderRepository.save(order);
         order.attachShipment("shp_round");
-        orders.save(order);
+        orderRepository.save(order);
 
-        var loaded = orders.findById(order.id()).orElseThrow();
+        var loaded = orderRepository.findById(order.id()).orElseThrow();
         assertThat(loaded.status()).isEqualTo("FULFILLING");
         assertThat(loaded.paymentId()).isEqualTo("pay_round");
         assertThat(loaded.shipmentId()).isEqualTo("shp_round");
@@ -70,18 +70,18 @@ class JdbcOrderRepositoryTest {
     @Test
     void discardsChangesThatWereNotSaved() {
         var order = newOrder();
-        orders.save(order);
+        orderRepository.save(order);
 
         order.attachPayment("pay_unsaved");
 
         order.markPaid();
 
-        assertThat(orders.findById(order.id()).orElseThrow().status()).isEqualTo("CREATED");
+        assertThat(orderRepository.findById(order.id()).orElseThrow().status()).isEqualTo("CREATED");
     }
 
     @Test
     void returnsEmptyForUnknownOrder() {
-        assertThat(orders.findById("ord_never_saved")).isEmpty();
+        assertThat(orderRepository.findById("ord_never_saved")).isEmpty();
     }
 
     /** PD-0012-R12: 매입 결과를 확인하지 못한 주문은 표시가 남고 다시 찾힌다. */
@@ -91,11 +91,11 @@ class JdbcOrderRepositoryTest {
         order.attachPayment("pay_unknown");
         order.cancel();
         order.markPaymentOutcomeUnknown();
-        orders.save(order);
+        orderRepository.save(order);
 
-        assertThat(orders.findById(order.id()).orElseThrow().paymentOutcomeUnknown()).isTrue();
+        assertThat(orderRepository.findById(order.id()).orElseThrow().paymentOutcomeUnknown()).isTrue();
         assertThat(flagColumn(order.id(), "payment_outcome_unknown")).isTrue();
-        assertThat(orders.findWithUnknownPaymentOutcome())
+        assertThat(orderRepository.findWithUnknownPaymentOutcome())
                 .extracting(loaded -> loaded.id())
                 .contains(order.id());
     }
@@ -107,13 +107,13 @@ class JdbcOrderRepositoryTest {
         order.attachPayment("pay_resolved");
         order.cancel();
         order.markPaymentOutcomeUnknown();
-        orders.save(order);
+        orderRepository.save(order);
 
         order.resolvePaymentOutcome();
-        orders.save(order);
+        orderRepository.save(order);
 
         assertThat(flagColumn(order.id(), "payment_outcome_unknown")).isFalse();
-        assertThat(orders.findWithUnknownPaymentOutcome())
+        assertThat(orderRepository.findWithUnknownPaymentOutcome())
                 .extracting(loaded -> loaded.id())
                 .doesNotContain(order.id());
     }
@@ -122,10 +122,10 @@ class JdbcOrderRepositoryTest {
     @Test
     void ordinaryOrderIsNotMarked() {
         var order = newOrder();
-        orders.save(order);
+        orderRepository.save(order);
 
         assertThat(flagColumn(order.id(), "payment_outcome_unknown")).isFalse();
-        assertThat(orders.findWithUnknownPaymentOutcome())
+        assertThat(orderRepository.findWithUnknownPaymentOutcome())
                 .extracting(loaded -> loaded.id())
                 .doesNotContain(order.id());
     }
@@ -142,7 +142,7 @@ class JdbcOrderRepositoryTest {
         var order = newOrder();
         order.attachPayment("pay_column");
         order.markPaid();
-        orders.save(order);
+        orderRepository.save(order);
 
         assertThat(column(order.id(), "ship_address_id")).isEqualTo("addr_demo");
         assertThat(column(order.id(), "ship_alias")).isEqualTo("home");
@@ -159,7 +159,7 @@ class JdbcOrderRepositoryTest {
     @Test
     void writesEachLineFieldToItsOwnColumn() {
         var order = newOrder();
-        orders.save(order);
+        orderRepository.save(order);
 
         var first = jdbc.queryForMap(
                 "select sku_id, product_id, product_name, sku_name, quantity, unit_amount, unit_currency"

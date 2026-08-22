@@ -10,16 +10,16 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class ShippingExecutor implements ShippingUseCase {
-    private final ShipmentRepository shipments;
+    private final ShipmentRepository shipmentRepository;
 
-    public ShippingExecutor(ShipmentRepository shipments) {
-        this.shipments = shipments;
+    public ShippingExecutor(ShipmentRepository shipmentRepository) {
+        this.shipmentRepository = shipmentRepository;
     }
 
     @Override
     public ShipmentDetails create(String orderId, String memberId, ShipmentAddress address) {
         var shipment = new Shipment(orderId, memberId, ShipmentMapper.toAddress(address));
-        shipments.save(shipment);
+        shipmentRepository.save(shipment);
         return ShipmentMapper.toDetails(shipment);
     }
 
@@ -32,7 +32,7 @@ public class ShippingExecutor implements ShippingUseCase {
     public ShipmentDetails ship(String shipmentId) {
         var shipment = getShipment(shipmentId);
         shipment.ship();
-        shipments.save(shipment);
+        shipmentRepository.save(shipment);
         return ShipmentMapper.toDetails(shipment);
     }
 
@@ -41,7 +41,7 @@ public class ShippingExecutor implements ShippingUseCase {
     public ShipmentDetails cancel(String shipmentId) {
         var shipment = getShipment(shipmentId);
         shipment.cancel();
-        shipments.save(shipment);
+        shipmentRepository.save(shipment);
         return ShipmentMapper.toDetails(shipment);
     }
 
@@ -49,12 +49,12 @@ public class ShippingExecutor implements ShippingUseCase {
     public ShipmentDetails deliver(String shipmentId) {
         var shipment = getShipment(shipmentId);
         shipment.deliver();
-        shipments.save(shipment);
+        shipmentRepository.save(shipment);
         return ShipmentMapper.toDetails(shipment);
     }
 
     private Shipment getShipment(String shipmentId) {
-        return shipments.findById(shipmentId)
+        return shipmentRepository.findById(shipmentId)
                 .orElseThrow(() -> DomainException.notFound("shipment not found"));
     }
 }

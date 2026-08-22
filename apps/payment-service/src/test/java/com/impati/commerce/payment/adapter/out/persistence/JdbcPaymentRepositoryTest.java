@@ -13,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:payment-repo;DB_CLOSE_DELAY=-1")
 class JdbcPaymentRepositoryTest {
     @Autowired
-    private PaymentRepository payments;
+    private PaymentRepository paymentRepository;
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -22,8 +22,8 @@ class JdbcPaymentRepositoryTest {
     void roundTripsPayment() {
         var payment = new Payment("ord_pay", "mem_demo", Money.krw(58_000), "txn_fixture", "CARD");
 
-        payments.insertIfAbsent(payment);
-        var loaded = payments.findById(payment.id()).orElseThrow();
+        paymentRepository.insertIfAbsent(payment);
+        var loaded = paymentRepository.findById(payment.id()).orElseThrow();
 
         assertThat(loaded.id()).isEqualTo(payment.id());
         assertThat(loaded.orderId()).isEqualTo("ord_pay");
@@ -39,7 +39,7 @@ class JdbcPaymentRepositoryTest {
     void writesEachFieldToItsOwnColumn() {
         var payment = new Payment("ord_column", "mem_column", Money.krw(91_000), "txn_fixture", "CARD");
 
-        payments.insertIfAbsent(payment);
+        paymentRepository.insertIfAbsent(payment);
 
         var row = jdbc.queryForMap(
                 "select order_id, member_id, amount, currency, method, status, transaction_id"
@@ -57,16 +57,16 @@ class JdbcPaymentRepositoryTest {
 
     @Test
     void returnsEmptyForUnknownPayment() {
-        assertThat(payments.findById("pay_never_saved")).isEmpty();
+        assertThat(paymentRepository.findById("pay_never_saved")).isEmpty();
     }
 
     @Test
     void findsPaymentByOrderId() {
         var payment = new Payment("ord_by_order", "mem_demo", Money.krw(12_000), "txn_fixture", "CARD");
 
-        payments.insertIfAbsent(payment);
+        paymentRepository.insertIfAbsent(payment);
 
-        assertThat(payments.findByOrderId("ord_by_order").orElseThrow().id()).isEqualTo(payment.id());
+        assertThat(paymentRepository.findByOrderId("ord_by_order").orElseThrow().id()).isEqualTo(payment.id());
     }
 
     /**
@@ -78,19 +78,19 @@ class JdbcPaymentRepositoryTest {
         var first = new Payment("ord_unique", "mem_demo", Money.krw(30_000), "txn_fixture", "CARD");
         var second = new Payment("ord_unique", "mem_demo", Money.krw(30_000), "txn_fixture", "CARD");
 
-        assertThat(payments.insertIfAbsent(first)).isTrue();
-        assertThat(payments.insertIfAbsent(second)).isFalse();
-        assertThat(payments.findByOrderId("ord_unique").orElseThrow().id()).isEqualTo(first.id());
+        assertThat(paymentRepository.insertIfAbsent(first)).isTrue();
+        assertThat(paymentRepository.insertIfAbsent(second)).isFalse();
+        assertThat(paymentRepository.findByOrderId("ord_unique").orElseThrow().id()).isEqualTo(first.id());
     }
 
     /** 상태만 바뀐다. 나머지 값은 승인 시점에 확정된다. */
     @Test
     void updateChangesOnlyTheStatusColumn() {
         var payment = new Payment("ord_update", "mem_demo", Money.krw(45_000), "txn_fixture", "CARD");
-        payments.insertIfAbsent(payment);
+        paymentRepository.insertIfAbsent(payment);
 
         payment.capture();
-        payments.update(payment);
+        paymentRepository.update(payment);
 
         var row = jdbc.queryForMap(
                 "select order_id, member_id, amount, status, transaction_id from payments where id = ?",

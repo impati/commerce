@@ -16,14 +16,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/internal/carts")
 public class InternalCartController {
-    private final CartUseCase carts;
+    private final CartUseCase cartUseCase;
 
-    public InternalCartController(CartUseCase carts) {
-        this.carts = carts;
+    public InternalCartController(CartUseCase cartUseCase) {
+        this.cartUseCase = cartUseCase;
     }
 
     @PostMapping("/clear")
     CartResponse clear(@RequestHeader("X-Member-Id") String memberId) {
-        return CartResponseMapper.from(carts.clear(memberId));
+        return CartResponseMapper.from(cartUseCase.clear(memberId));
     }
 }

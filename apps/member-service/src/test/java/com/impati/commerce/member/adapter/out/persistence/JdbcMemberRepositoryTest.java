@@ -16,7 +16,7 @@ class JdbcMemberRepositoryTest {
     private static final PasswordHash HASH = new PasswordHash("$2a$10$fakehashforpersistencetest");
 
     @Autowired
-    private MemberRepository members;
+    private MemberRepository memberRepository;
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -27,8 +27,8 @@ class JdbcMemberRepositoryTest {
         member.addAddress(address("home", "Seoul", false));
         member.addAddress(address("office", "Busan", true));
 
-        members.save(member);
-        var loaded = members.findById("mem_round").orElseThrow();
+        memberRepository.save(member);
+        var loaded = memberRepository.findById("mem_round").orElseThrow();
 
         assertThat(loaded.email()).isEqualTo("round@impati.dev");
         assertThat(loaded.name()).isEqualTo("Round Tester");
@@ -46,9 +46,9 @@ class JdbcMemberRepositoryTest {
         var member = new Member("mem_default", "default@impati.dev", "Default Tester", HASH);
         member.addAddress(address("home", "Seoul", false));
         member.addAddress(address("office", "Busan", true));
-        members.save(member);
+        memberRepository.save(member);
 
-        var loaded = members.findById("mem_default").orElseThrow();
+        var loaded = memberRepository.findById("mem_default").orElseThrow();
 
         assertThat(loaded.address(null).alias()).isEqualTo("office");
         assertThat(loaded.addresses().getFirst().defaultAddress()).isFalse();
@@ -63,21 +63,21 @@ class JdbcMemberRepositoryTest {
     @Test
     void distinguishesCaseInEmail() {
         var member = new Member("mem_email", "Mixed.Case@impati.dev", "Email Tester", HASH);
-        members.save(member);
+        memberRepository.save(member);
 
-        assertThat(members.findByEmail("Mixed.Case@impati.dev")).isPresent();
-        assertThat(members.findByEmail("mixed.case@impati.dev")).isEmpty();
-        assertThat(members.findByEmail("MIXED.CASE@IMPATI.DEV")).isEmpty();
+        assertThat(memberRepository.findByEmail("Mixed.Case@impati.dev")).isPresent();
+        assertThat(memberRepository.findByEmail("mixed.case@impati.dev")).isEmpty();
+        assertThat(memberRepository.findByEmail("MIXED.CASE@IMPATI.DEV")).isEmpty();
     }
 
     /** 대소문자가 다른 주소는 서로 다른 회원으로 가입할 수 있어야 한다. */
     @Test
     void allowsAddressesThatDifferOnlyByCase() {
-        members.save(new Member("mem_lower", "twin@impati.dev", "Lower Twin", HASH));
-        members.save(new Member("mem_upper", "Twin@impati.dev", "Upper Twin", HASH));
+        memberRepository.save(new Member("mem_lower", "twin@impati.dev", "Lower Twin", HASH));
+        memberRepository.save(new Member("mem_upper", "Twin@impati.dev", "Upper Twin", HASH));
 
-        assertThat(members.findByEmail("twin@impati.dev").orElseThrow().id()).isEqualTo("mem_lower");
-        assertThat(members.findByEmail("Twin@impati.dev").orElseThrow().id()).isEqualTo("mem_upper");
+        assertThat(memberRepository.findByEmail("twin@impati.dev").orElseThrow().id()).isEqualTo("mem_lower");
+        assertThat(memberRepository.findByEmail("Twin@impati.dev").orElseThrow().id()).isEqualTo("mem_upper");
     }
 
     /** 왕복 테스트는 쓰기와 읽기가 같은 방향으로 틀리면 통과한다. 컬럼을 직접 읽어 막는다. */
@@ -85,7 +85,7 @@ class JdbcMemberRepositoryTest {
     void writesEachAddressFieldToItsOwnColumn() {
         var member = new Member("mem_column", "column@impati.dev", "Column Tester", HASH);
         member.addAddress(address("home", "Seoul", true));
-        members.save(member);
+        memberRepository.save(member);
 
         var row = jdbc.queryForMap(
                 "select alias, recipient, phone, line1, city, postal_code, default_address, address_no"
@@ -106,13 +106,13 @@ class JdbcMemberRepositoryTest {
     @Test
     void savesActivationAndPasswordHash() {
         var member = new Member("mem_activate", "activate@impati.dev", "Activate Tester", HASH);
-        members.save(member);
-        assertThat(members.findById("mem_activate").orElseThrow().isActive()).isFalse();
+        memberRepository.save(member);
+        assertThat(memberRepository.findById("mem_activate").orElseThrow().isActive()).isFalse();
 
         member.activate();
-        members.save(member);
+        memberRepository.save(member);
 
-        var loaded = members.findById("mem_activate").orElseThrow();
+        var loaded = memberRepository.findById("mem_activate").orElseThrow();
         assertThat(loaded.isActive()).isTrue();
         assertThat(loaded.passwordHash().value()).isEqualTo(HASH.value());
         assertThat(jdbc.queryForObject(
@@ -125,7 +125,7 @@ class JdbcMemberRepositoryTest {
 
     @Test
     void returnsEmptyForUnknownMember() {
-        assertThat(members.findById("mem_never_saved")).isEmpty();
+        assertThat(memberRepository.findById("mem_never_saved")).isEmpty();
     }
 
     private Address address(String alias, String city, boolean defaultAddress) {

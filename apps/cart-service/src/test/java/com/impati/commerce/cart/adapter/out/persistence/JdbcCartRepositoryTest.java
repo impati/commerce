@@ -13,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:cart-repo;DB_CLOSE_DELAY=-1")
 class JdbcCartRepositoryTest {
     @Autowired
-    private CartRepository carts;
+    private CartRepository cartRepository;
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -25,8 +25,8 @@ class JdbcCartRepositoryTest {
         cart.add("sku_b", 2);
         cart.add("sku_c", 3);
 
-        carts.save(cart);
-        var loaded = carts.findByMemberId("mem_round").orElseThrow();
+        cartRepository.save(cart);
+        var loaded = cartRepository.findByMemberId("mem_round").orElseThrow();
 
         assertThat(loaded.lines().stream().map(CartLine::skuId)).containsExactly("sku_a", "sku_b", "sku_c");
         assertThat(loaded.lines().stream().map(CartLine::quantity)).containsExactly(1, 2, 3);
@@ -36,13 +36,13 @@ class JdbcCartRepositoryTest {
     void savingAgainReplacesLines() {
         var cart = new Cart("mem_replace");
         cart.add("sku_a", 1);
-        carts.save(cart);
+        cartRepository.save(cart);
 
         cart.clear();
         cart.add("sku_z", 9);
-        carts.save(cart);
+        cartRepository.save(cart);
 
-        var loaded = carts.findByMemberId("mem_replace").orElseThrow();
+        var loaded = cartRepository.findByMemberId("mem_replace").orElseThrow();
         assertThat(loaded.lines()).hasSize(1);
         assertThat(loaded.lines().getFirst().skuId()).isEqualTo("sku_z");
         assertThat(loaded.lines().getFirst().quantity()).isEqualTo(9);
@@ -52,11 +52,11 @@ class JdbcCartRepositoryTest {
     @Test
     void distinguishesEmptyCartFromMissingCart() {
         var cart = new Cart("mem_empty");
-        carts.save(cart);
+        cartRepository.save(cart);
 
-        assertThat(carts.findByMemberId("mem_empty")).isPresent();
-        assertThat(carts.findByMemberId("mem_empty").orElseThrow().lines()).isEmpty();
-        assertThat(carts.findByMemberId("mem_missing")).isEmpty();
+        assertThat(cartRepository.findByMemberId("mem_empty")).isPresent();
+        assertThat(cartRepository.findByMemberId("mem_empty").orElseThrow().lines()).isEmpty();
+        assertThat(cartRepository.findByMemberId("mem_missing")).isEmpty();
     }
 
     /** 왕복 테스트는 쓰기와 읽기가 같은 방향으로 틀리면 통과한다. 컬럼을 직접 읽어 막는다. */
@@ -66,7 +66,7 @@ class JdbcCartRepositoryTest {
         cart.add("sku_first", 4);
         cart.add("sku_second", 7);
 
-        carts.save(cart);
+        cartRepository.save(cart);
 
         var second = jdbc.queryForMap(
                 "select sku_id, line_no, quantity from cart_lines where member_id = ? and line_no = 1",

@@ -12,7 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:notification-repo;DB_CLOSE_DELAY=-1")
 class JdbcNotificationRepositoryTest {
     @Autowired
-    private NotificationRepository notifications;
+    private NotificationRepository notificationRepository;
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -24,11 +24,11 @@ class JdbcNotificationRepositoryTest {
         var second = new Notification("ShipmentCreated", "mem_order", "second", "body 2");
         var third = new Notification("OrderDelivered", "mem_order", "third", "body 3");
 
-        notifications.save(first);
-        notifications.save(second);
-        notifications.save(third);
+        notificationRepository.save(first);
+        notificationRepository.save(second);
+        notificationRepository.save(third);
 
-        var subjects = notifications.findAll().stream()
+        var subjects = notificationRepository.findAll().stream()
                 .filter(notification -> notification.memberId().equals("mem_order"))
                 .map(Notification::subject)
                 .toList();
@@ -39,7 +39,7 @@ class JdbcNotificationRepositoryTest {
     void writesEachFieldToItsOwnColumn() {
         var notification = new Notification("OrderCancelled", "mem_column", "subject text", "body text");
 
-        notifications.save(notification);
+        notificationRepository.save(notification);
 
         var row = jdbc.queryForMap(
                 "select event_type, member_id, subject, body from notifications where id = ?",

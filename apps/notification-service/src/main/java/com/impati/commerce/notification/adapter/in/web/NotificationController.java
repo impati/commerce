@@ -12,14 +12,14 @@ import java.util.List;
 @RestController
 @RequestMapping("/notifications")
 public class NotificationController {
-    private final NotificationUseCase notifications;
+    private final NotificationUseCase notificationUseCase;
 
-    public NotificationController(NotificationUseCase notifications) {
-        this.notifications = notifications;
+    public NotificationController(NotificationUseCase notificationUseCase) {
+        this.notificationUseCase = notificationUseCase;
     }
 
     @GetMapping
     List<NotificationResponse> list(@RequestParam String memberId) {
-        return notifications.listFor(memberId).stream().map(NotificationResponseMapper::from).toList();
+        return notificationUseCase.listFor(memberId).stream().map(NotificationResponseMapper::from).toList();
     }
 }

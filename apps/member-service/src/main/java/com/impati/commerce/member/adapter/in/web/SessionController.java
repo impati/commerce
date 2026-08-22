@@ -18,20 +18,20 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/members")
 public class SessionController {
-    private final SessionUseCase sessions;
+    private final SessionUseCase sessionUseCase;
 
-    public SessionController(SessionUseCase sessions) {
-        this.sessions = sessions;
+    public SessionController(SessionUseCase sessionUseCase) {
+        this.sessionUseCase = sessionUseCase;
     }
 
     @PostMapping("/login")
     LoginResponse login(@RequestBody LoginRequest request) {
-        return MemberResponseMapper.from(sessions.login(request.email(), request.password()));
+        return MemberResponseMapper.from(sessionUseCase.login(request.email(), request.password()));
     }
 
     /** 토큰을 가진 사람만 자기 세션을 폐기할 수 있으므로 별도 신원 확인이 필요하지 않다. */
     @PostMapping("/logout")
     void logout(@RequestBody SessionTokenRequest request) {
-        sessions.logout(request.token());
+        sessionUseCase.logout(request.token());
     }
 }

@@ -18,10 +18,10 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Component
 public class MemberExecutor implements MemberUseCase {
-    private final MemberRepository members;
+    private final MemberRepository memberRepository;
 
-    public MemberExecutor(MemberRepository members) {
-        this.members = members;
+    public MemberExecutor(MemberRepository memberRepository) {
+        this.memberRepository = memberRepository;
     }
 
     /**
@@ -34,18 +34,18 @@ public class MemberExecutor implements MemberUseCase {
     @Transactional
     @Override
     public MemberAddress addAddress(String memberId, NewAddress request) {
-        var member = members.findById(memberId)
+        var member = memberRepository.findById(memberId)
                 .orElseThrow(() -> DomainException.notFound("member not found"));
         var address = MemberMapper.toAddress(request);
         member.addAddress(address);
-        members.save(member);
+        memberRepository.save(member);
         return MemberMapper.toDetails(address);
     }
 
     @Transactional(readOnly = true)
     @Override
     public MemberDetails get(String memberId) {
-        return MemberMapper.toDetails(members.findById(memberId)
+        return MemberMapper.toDetails(memberRepository.findById(memberId)
                 .orElseThrow(() -> DomainException.notFound("member not found")));
     }
 }

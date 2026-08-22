@@ -100,7 +100,7 @@ class CheckoutSagaTest {
     private MockServerRestClientCustomizer customizer;
 
     @Autowired
-    private OrderRepository orders;
+    private OrderRepository orderRepository;
 
     private MockRestServiceServer server;
 
@@ -373,7 +373,7 @@ class CheckoutSagaTest {
     }
 
     private List<String> unresolvedOrderIds() {
-        return orders.findWithUnknownPaymentOutcome().stream().map(order -> order.id()).toList();
+        return orderRepository.findWithUnknownPaymentOutcome().stream().map(order -> order.id()).toList();
     }
 
     private MockHttpServletRequestBuilder checkout(String paymentToken) {

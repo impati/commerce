@@ -43,47 +43,47 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class OrderExecutor implements OrderUseCase {
     private static final Logger log = LoggerFactory.getLogger(OrderExecutor.class);
 
-    private final OrderRepository orders;
-    private final MemberClient members;
-    private final CartClient carts;
-    private final CatalogClient catalog;
-    private final InventoryClient inventory;
-    private final PaymentClient payments;
-    private final ShippingClient shipping;
-    private final NotificationClient notifications;
+    private final OrderRepository orderRepository;
+    private final MemberClient memberClient;
+    private final CartClient cartClient;
+    private final CatalogClient catalogClient;
+    private final InventoryClient inventoryClient;
+    private final PaymentClient paymentClient;
+    private final ShippingClient shippingClient;
+    private final NotificationClient notificationClient;
 
     public OrderExecutor(
-            OrderRepository orders,
-            MemberClient members,
-            CartClient carts,
-            CatalogClient catalog,
-            InventoryClient inventory,
-            PaymentClient payments,
-            ShippingClient shipping,
-            NotificationClient notifications
+            OrderRepository orderRepository,
+            MemberClient memberClient,
+            CartClient cartClient,
+            CatalogClient catalogClient,
+            InventoryClient inventoryClient,
+            PaymentClient paymentClient,
+            ShippingClient shippingClient,
+            NotificationClient notificationClient
     ) {
-        this.orders = orders;
-        this.members = members;
-        this.carts = carts;
-        this.catalog = catalog;
-        this.inventory = inventory;
-        this.payments = payments;
-        this.shipping = shipping;
-        this.notifications = notifications;
+        this.orderRepository = orderRepository;
+        this.memberClient = memberClient;
+        this.cartClient = cartClient;
+        this.catalogClient = catalogClient;
+        this.inventoryClient = inventoryClient;
+        this.paymentClient = paymentClient;
+        this.shippingClient = shippingClient;
+        this.notificationClient = notificationClient;
     }
 
     @Override
     public CheckoutResult checkout(String memberId, String paymentToken, String addressId) {
-        var member = members.member(memberId);
+        var member = memberClient.member(memberId);
         var address = OrderMapper.toAddress(selectAddress(member.addresses(), addressId));
-        var cart = carts.cart(memberId);
+        var cart = cartClient.cart(memberId);
         if (cart.lines().isEmpty()) {
             throw DomainException.validation("cart is empty");
         }
 
         var orderLines = cart.lines().stream().map(line -> {
-            var sku = catalog.sku(line.skuId());
-            var product = catalog.product(sku.productId());
+            var sku = catalogClient.sku(line.skuId());
+            var product = catalogClient.product(sku.productId());
             return new OrderLine(
                     sku.id(),
                     product.id(),
@@ -94,7 +94,7 @@ public class OrderExecutor implements OrderUseCase {
             );
         }).toList();
         var order = new Order(memberId, orderLines, address);
-        orders.save(order);
+        orderRepository.save(order);
 
         String reservationId = null;
         String paymentId = null;
@@ -102,25 +102,25 @@ public class OrderExecutor implements OrderUseCase {
         var captureAttempted = new AtomicBoolean(false);
         PaymentResponse payment;
         try {
-            reservationId = inventory.reserve(new ReserveInventoryRequest(
+            reservationId = inventoryClient.reserve(new ReserveInventoryRequest(
                     order.id(),
                     cart.lines().stream()
                             .map(line -> new ReservationLine(line.skuId(), line.quantity()))
                             .toList()
             )).id();
             order.attachReservation(reservationId);
-            orders.save(order);
+            orderRepository.save(order);
 
-            paymentId = payments.authorizePayment(new AuthorizePaymentRequest(
+            paymentId = paymentClient.authorizePayment(new AuthorizePaymentRequest(
                     order.id(),
                     memberId,
                     order.total(),
                     paymentToken
             )).id();
             order.attachPayment(paymentId);
-            orders.save(order);
+            orderRepository.save(order);
 
-            shipment = shipping.createShipment(new CreateShipmentRequest(
+            shipment = shippingClient.createShipment(new CreateShipmentRequest(
                     order.id(),
                     memberId,
                     OrderMapper.toResponse(address)
@@ -137,17 +137,17 @@ public class OrderExecutor implements OrderUseCase {
         // 매입이 끝났다. 여기부터는 아무것도 되돌리지 않는다 (PD-0012-R8).
         order.markPaid();
         order.attachShipment(shipment.id());
-        orders.save(order);
+        orderRepository.save(order);
 
         commitReservationQuietly(order, reservationId);
         clearCartQuietly(order, memberId);
-        notifications.notify(new NotificationEventRequest(
+        notificationClient.notify(new NotificationEventRequest(
                 "OrderPaid",
                 memberId,
                 "Order paid",
                 "Order " + order.id() + " has been paid."
         ));
-        notifications.notify(new NotificationEventRequest(
+        notificationClient.notify(new NotificationEventRequest(
                 "ShipmentCreated",
                 memberId,
                 "Shipment ready",
@@ -168,13 +168,13 @@ public class OrderExecutor implements OrderUseCase {
      */
     private PaymentResponse capture(String paymentId) {
         try {
-            return payments.capturePayment(paymentId);
+            return paymentClient.capturePayment(paymentId);
         } catch (DomainException exception) {
             if (!exception.code().equals("outcome_unknown")) {
                 throw exception;
             }
             log.warn("capture outcome unknown, retrying once payment={}", paymentId);
-            return payments.capturePayment(paymentId);
+            return paymentClient.capturePayment(paymentId);
         }
     }
 
@@ -198,15 +198,15 @@ public class OrderExecutor implements OrderUseCase {
             RuntimeException cause
     ) {
         if (shipment != null) {
-            compensate("cancel-shipment", shipment.id(), () -> shipping.cancelShipment(shipment.id()), cause);
+            compensate("cancel-shipment", shipment.id(), () -> shippingClient.cancelShipment(shipment.id()), cause);
         }
         if (paymentId != null) {
             var id = paymentId;
-            compensate("cancel-payment", id, () -> payments.cancelPayment(id), cause);
+            compensate("cancel-payment", id, () -> paymentClient.cancelPayment(id), cause);
         }
         if (reservationId != null) {
             var id = reservationId;
-            compensate("release-reservation", id, () -> inventory.releaseReservation(id), cause);
+            compensate("release-reservation", id, () -> inventoryClient.releaseReservation(id), cause);
         }
         // 매입을 시도했는데 결과를 못 받은 경우에만 표시한다. 그 앞 단계의 결과 불명은
         // 아직 대금이 움직이지 않았으므로 환불 대상이 아니다.
@@ -219,13 +219,13 @@ public class OrderExecutor implements OrderUseCase {
                 // 매입 여부를 모른 채 취소한다. 환불이 필요한지 나중에 결제에 물어야 한다.
                 order.markPaymentOutcomeUnknown();
             }
-            orders.save(order);
+            orderRepository.save(order);
         }, cause);
         if (!cancelled) {
             // 취소되지 않은 주문에 취소를 알리지 않는다 (PD-0012-R11).
             return;
         }
-        notifications.notify(new NotificationEventRequest(
+        notificationClient.notify(new NotificationEventRequest(
                 "OrderCancelled",
                 memberId,
                 "Order cancelled",
@@ -251,7 +251,7 @@ public class OrderExecutor implements OrderUseCase {
      */
     private void commitReservationQuietly(Order order, String reservationId) {
         try {
-            inventory.commitReservation(reservationId);
+            inventoryClient.commitReservation(reservationId);
         } catch (RuntimeException failure) {
             log.error("reservation not committed for paid order order={} reservation={}",
                     order.id(), reservationId, failure);
@@ -261,7 +261,7 @@ public class OrderExecutor implements OrderUseCase {
     /** 실패해도 되돌리지 않는다 (PD-0012-R8). 장바구니에 같은 물건이 남는다. */
     private void clearCartQuietly(Order order, String memberId) {
         try {
-            carts.clearCart(memberId);
+            cartClient.clearCart(memberId);
         } catch (RuntimeException failure) {
             log.error("cart not cleared for paid order order={}", order.id(), failure);
         }
@@ -286,8 +286,8 @@ public class OrderExecutor implements OrderUseCase {
     public OrderDetails markDelivered(String orderId) {
         var order = getOrder(orderId);
         order.markDelivered();
-        orders.save(order);
-        notifications.notify(new NotificationEventRequest(
+        orderRepository.save(order);
+        notificationClient.notify(new NotificationEventRequest(
                 "OrderDelivered",
                 order.memberId(),
                 "Order delivered",
@@ -313,7 +313,7 @@ public class OrderExecutor implements OrderUseCase {
     }
 
     private Order getOrder(String orderId) {
-        return orders.findById(orderId)
+        return orderRepository.findById(orderId)
                 .orElseThrow(() -> DomainException.notFound("order not found"));
     }
 }

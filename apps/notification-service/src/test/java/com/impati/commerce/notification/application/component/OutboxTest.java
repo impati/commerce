@@ -25,7 +25,7 @@ import static org.mockito.Mockito.doThrow;
 })
 class OutboxTest {
     @Autowired
-    private NotificationUseCase notifications;
+    private NotificationUseCase notificationUseCase;
 
     @MockBean
     private MailSender mailSender;
@@ -35,7 +35,7 @@ class OutboxTest {
     void recordsPendingWithoutSending() {
         doNothing().when(mailSender).send(anyString(), anyString(), anyString());
 
-        notifications.requestEmailVerification("mem_pending", "pending@impati.dev", "tok_pending");
+        notificationUseCase.requestEmailVerification("mem_pending", "pending@impati.dev", "tok_pending");
 
         var entry = outboxOf("pending@impati.dev");
         assertThat(entry.deliveryStatus()).isEqualTo("PENDING");
@@ -47,9 +47,9 @@ class OutboxTest {
     @Test
     void dispatchMarksSent() {
         doNothing().when(mailSender).send(anyString(), anyString(), anyString());
-        notifications.requestEmailVerification("mem_sent", "sent@impati.dev", "tok_sent");
+        notificationUseCase.requestEmailVerification("mem_sent", "sent@impati.dev", "tok_sent");
 
-        notifications.dispatchPending();
+        notificationUseCase.dispatchPending();
 
         var entry = outboxOf("sent@impati.dev");
         assertThat(entry.deliveryStatus()).isEqualTo("SENT");
@@ -61,14 +61,14 @@ class OutboxTest {
     void keepsFailureVisibleAndRetriesUntilLimit() {
         doThrow(new IllegalStateException("smtp down"))
                 .when(mailSender).send(anyString(), anyString(), anyString());
-        notifications.requestEmailVerification("mem_fail", "fail@impati.dev", "tok_fail");
+        notificationUseCase.requestEmailVerification("mem_fail", "fail@impati.dev", "tok_fail");
 
-        notifications.dispatchPending();
+        notificationUseCase.dispatchPending();
         assertThat(outboxOf("fail@impati.dev").deliveryStatus()).isEqualTo("PENDING");
         assertThat(outboxOf("fail@impati.dev").attempts()).isEqualTo(1);
 
-        notifications.dispatchPending();
-        notifications.dispatchPending();
+        notificationUseCase.dispatchPending();
+        notificationUseCase.dispatchPending();
 
         var exhausted = outboxOf("fail@impati.dev");
         assertThat(exhausted.deliveryStatus()).isEqualTo("FAILED");
@@ -78,9 +78,9 @@ class OutboxTest {
     /** [PD-0009-R2] 기록만 남기는 알림은 발송 대상이 아니다. */
     @Test
     void plainRecordIsNotQueuedForDelivery() {
-        notifications.record("OrderPaid", "mem_plain", "Order paid", "Order ord_plain has been paid.");
+        notificationUseCase.record("OrderPaid", "mem_plain", "Order paid", "Order ord_plain has been paid.");
 
-        var entry = notifications.outbox().stream()
+        var entry = notificationUseCase.outbox().stream()
                 .filter(candidate -> "Order paid".equals(candidate.subject()))
                 .findFirst()
                 .orElseThrow();
@@ -89,7 +89,7 @@ class OutboxTest {
     }
 
     private OutboxEntry outboxOf(String recipient) {
-        return notifications.outbox().stream()
+        return notificationUseCase.outbox().stream()
                 .filter(entry -> recipient.equals(entry.recipient()))
                 .findFirst()
                 .orElseThrow();

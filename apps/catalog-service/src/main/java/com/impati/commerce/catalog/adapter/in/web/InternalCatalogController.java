@@ -16,14 +16,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/internal")
 public class InternalCatalogController {
-    private final CatalogUseCase catalog;
+    private final CatalogUseCase catalogUseCase;
 
-    public InternalCatalogController(CatalogUseCase catalog) {
-        this.catalog = catalog;
+    public InternalCatalogController(CatalogUseCase catalogUseCase) {
+        this.catalogUseCase = catalogUseCase;
     }
 
     @GetMapping("/skus/{skuId}")
     SkuResponse sku(@PathVariable String skuId) {
-        return CatalogResponseMapper.from(catalog.getSku(skuId));
+        return CatalogResponseMapper.from(catalogUseCase.getSku(skuId));
     }
 }

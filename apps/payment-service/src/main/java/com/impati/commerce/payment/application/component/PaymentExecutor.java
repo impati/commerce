@@ -27,29 +27,29 @@ import java.util.Optional;
  */
 @Component
 public class PaymentExecutor implements PaymentUseCase {
-    private final PaymentRepository payments;
-    private final PaymentGateway gateway;
+    private final PaymentRepository paymentRepository;
+    private final PaymentGateway paymentGateway;
 
-    public PaymentExecutor(PaymentRepository payments, PaymentGateway gateway) {
-        this.payments = payments;
-        this.gateway = gateway;
+    public PaymentExecutor(PaymentRepository paymentRepository, PaymentGateway paymentGateway) {
+        this.paymentRepository = paymentRepository;
+        this.paymentGateway = paymentGateway;
     }
 
     @Override
     @Transactional
     public AuthorizedPayment authorize(String orderId, String memberId, Money amount, String paymentToken) {
-        Optional<Payment> existing = payments.findByOrderId(orderId);
+        Optional<Payment> existing = paymentRepository.findByOrderId(orderId);
         if (existing.isPresent()) {
             return PaymentMapper.toAuthorized(existing.get());
         }
 
-        var authorization = gateway.authorize(orderId, amount, paymentToken);
+        var authorization = paymentGateway.authorize(orderId, amount, paymentToken);
         if (!authorization.approved()) {
             throw DomainException.paymentDeclined("payment was declined by issuer: " + authorization.declineReason());
         }
 
         Payment payment = new Payment(orderId, memberId, amount, authorization.transactionId(), authorization.method());
-        if (!payments.insertIfAbsent(payment)) {
+        if (!paymentRepository.insertIfAbsent(payment)) {
             return PaymentMapper.toAuthorized(requireByOrder(orderId));
         }
         return PaymentMapper.toAuthorized(payment);
@@ -60,8 +60,8 @@ public class PaymentExecutor implements PaymentUseCase {
     public CapturedPayment capture(String paymentId) {
         var payment = require(paymentId);
         if (payment.capture()) {
-            gateway.capture(payment.transactionId());
-            payments.update(payment);
+            paymentGateway.capture(payment.transactionId());
+            paymentRepository.update(payment);
         }
         return PaymentMapper.toCaptured(payment);
     }
@@ -71,8 +71,8 @@ public class PaymentExecutor implements PaymentUseCase {
     public CancelledPayment cancel(String paymentId) {
         var payment = require(paymentId);
         if (payment.cancel()) {
-            gateway.cancel(payment.transactionId());
-            payments.update(payment);
+            paymentGateway.cancel(payment.transactionId());
+            paymentRepository.update(payment);
         }
         return PaymentMapper.toCancelled(payment);
     }
@@ -82,8 +82,8 @@ public class PaymentExecutor implements PaymentUseCase {
     public RefundedPayment refund(String paymentId) {
         var payment = require(paymentId);
         if (payment.refund()) {
-            gateway.refund(payment.transactionId());
-            payments.update(payment);
+            paymentGateway.refund(payment.transactionId());
+            paymentRepository.update(payment);
         }
         return PaymentMapper.toRefunded(payment);
     }
@@ -95,12 +95,12 @@ public class PaymentExecutor implements PaymentUseCase {
     }
 
     private Payment require(String paymentId) {
-        return payments.findById(paymentId)
+        return paymentRepository.findById(paymentId)
                 .orElseThrow(() -> DomainException.notFound("payment not found"));
     }
 
     private Payment requireByOrder(String orderId) {
-        return payments.findByOrderId(orderId)
+        return paymentRepository.findByOrderId(orderId)
                 .orElseThrow(() -> DomainException.conflict("payment for order disappeared: " + orderId));
     }
 }

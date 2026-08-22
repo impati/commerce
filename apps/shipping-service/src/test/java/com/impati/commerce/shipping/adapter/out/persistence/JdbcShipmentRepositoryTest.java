@@ -13,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:shipping-repo;DB_CLOSE_DELAY=-1")
 class JdbcShipmentRepositoryTest {
     @Autowired
-    private ShipmentRepository shipments;
+    private ShipmentRepository shipmentRepository;
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -22,8 +22,8 @@ class JdbcShipmentRepositoryTest {
     void roundTripsShipmentWithAddress() {
         var shipment = newShipment("ord_round");
 
-        shipments.save(shipment);
-        var loaded = shipments.findById(shipment.id()).orElseThrow();
+        shipmentRepository.save(shipment);
+        var loaded = shipmentRepository.findById(shipment.id()).orElseThrow();
 
         assertThat(loaded.id()).isEqualTo(shipment.id());
         assertThat(loaded.orderId()).isEqualTo("ord_round");
@@ -37,33 +37,33 @@ class JdbcShipmentRepositoryTest {
     @Test
     void savesStatusTransitions() {
         var shipment = newShipment("ord_transition");
-        shipments.save(shipment);
+        shipmentRepository.save(shipment);
 
         shipment.ship();
-        shipments.save(shipment);
-        assertThat(shipments.findById(shipment.id()).orElseThrow().status()).isEqualTo("IN_TRANSIT");
+        shipmentRepository.save(shipment);
+        assertThat(shipmentRepository.findById(shipment.id()).orElseThrow().status()).isEqualTo("IN_TRANSIT");
 
         shipment.deliver();
-        shipments.save(shipment);
-        assertThat(shipments.findById(shipment.id()).orElseThrow().status()).isEqualTo("DELIVERED");
+        shipmentRepository.save(shipment);
+        assertThat(shipmentRepository.findById(shipment.id()).orElseThrow().status()).isEqualTo("DELIVERED");
     }
 
     /** 저장하지 않은 변경은 반영되지 않는다. 인메모리 맵에서는 성립하지 않던 성질이다. */
     @Test
     void discardsChangesThatWereNotSaved() {
         var shipment = newShipment("ord_unsaved");
-        shipments.save(shipment);
+        shipmentRepository.save(shipment);
 
         shipment.ship();
 
-        assertThat(shipments.findById(shipment.id()).orElseThrow().status()).isEqualTo("READY");
+        assertThat(shipmentRepository.findById(shipment.id()).orElseThrow().status()).isEqualTo("READY");
     }
 
     /** 왕복 테스트는 쓰기와 읽기가 같은 방향으로 틀리면 통과한다. 컬럼을 직접 읽어 막는다. */
     @Test
     void writesEachAddressFieldToItsOwnColumn() {
         var shipment = newShipment("ord_column");
-        shipments.save(shipment);
+        shipmentRepository.save(shipment);
 
         var row = jdbc.queryForMap(
                 "select order_id, member_id, status, tracking_number, ship_address_id, ship_alias,"
@@ -86,7 +86,7 @@ class JdbcShipmentRepositoryTest {
 
     @Test
     void returnsEmptyForUnknownShipment() {
-        assertThat(shipments.findById("shp_never_saved")).isEmpty();
+        assertThat(shipmentRepository.findById("shp_never_saved")).isEmpty();
     }
 
     private Shipment newShipment(String orderId) {

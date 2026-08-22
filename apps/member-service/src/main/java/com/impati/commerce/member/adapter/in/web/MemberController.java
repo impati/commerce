@@ -23,15 +23,15 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/members")
 public class MemberController {
-    private final MemberUseCase members;
+    private final MemberUseCase memberUseCase;
 
-    public MemberController(MemberUseCase members) {
-        this.members = members;
+    public MemberController(MemberUseCase memberUseCase) {
+        this.memberUseCase = memberUseCase;
     }
 
     @GetMapping("/me")
     MemberResponse me(@RequestHeader("X-Member-Id") String memberId) {
-        return MemberResponseMapper.from(members.get(memberId));
+        return MemberResponseMapper.from(memberUseCase.get(memberId));
     }
 
     @PostMapping("/me/addresses")
@@ -40,6 +40,6 @@ public class MemberController {
             @RequestBody AddAddressRequest request
     ) {
         return MemberResponseMapper.from(
-                members.addAddress(memberId, MemberResponseMapper.toNewAddress(request)));
+                memberUseCase.addAddress(memberId, MemberResponseMapper.toNewAddress(request)));
     }
 }

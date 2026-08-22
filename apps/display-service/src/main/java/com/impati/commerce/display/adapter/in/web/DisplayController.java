@@ -9,15 +9,15 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/display")
 public class DisplayController {
-    private final DisplayUseCase display;
+    private final DisplayUseCase displayUseCase;
 
-    public DisplayController(DisplayUseCase display) {
-        this.display = display;
+    public DisplayController(DisplayUseCase displayUseCase) {
+        this.displayUseCase = displayUseCase;
     }
 
     @GetMapping("/home")
     DisplayHomeResponse home() {
-        return DisplayResponseMapper.from(display.home());
+        return DisplayResponseMapper.from(displayUseCase.home());
     }
 }
 

@@ -12,15 +12,15 @@ import java.util.List;
 
 @Component
 public class DisplayExecutor implements DisplayUseCase {
-    private final CatalogClient catalog;
+    private final CatalogClient catalogClient;
 
-    public DisplayExecutor(CatalogClient catalog) {
-        this.catalog = catalog;
+    public DisplayExecutor(CatalogClient catalogClient) {
+        this.catalogClient = catalogClient;
     }
 
     @Override
     public HomePage home() {
-        var products = catalog.products();
+        var products = catalogClient.products();
         return new HomePage(
                 "Impati Market",
                 "Curated products with reliable checkout and delivery.",

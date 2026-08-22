@@ -19,19 +19,19 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/carts")
 public class CartController {
-    private final CartUseCase carts;
+    private final CartUseCase cartUseCase;
 
-    public CartController(CartUseCase carts) {
-        this.carts = carts;
+    public CartController(CartUseCase cartUseCase) {
+        this.cartUseCase = cartUseCase;
     }
 
     @GetMapping
     CartResponse get(@RequestHeader("X-Member-Id") String memberId) {
-        return CartResponseMapper.from(carts.get(memberId));
+        return CartResponseMapper.from(cartUseCase.get(memberId));
     }
 
     @PostMapping("/items")
     CartResponse addItem(@RequestHeader("X-Member-Id") String memberId, @RequestBody CartItemRequest request) {
-        return CartResponseMapper.from(carts.addItem(memberId, request.skuId(), request.quantity()));
+        return CartResponseMapper.from(cartUseCase.addItem(memberId, request.skuId(), request.quantity()));
     }
 }

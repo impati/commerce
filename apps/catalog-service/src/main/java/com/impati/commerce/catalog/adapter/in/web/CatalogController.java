@@ -13,10 +13,10 @@ import java.util.List;
 @RestController
 @RequestMapping
 public class CatalogController {
-    private final CatalogUseCase catalog;
+    private final CatalogUseCase catalogUseCase;
 
-    public CatalogController(CatalogUseCase catalog) {
-        this.catalog = catalog;
+    public CatalogController(CatalogUseCase catalogUseCase) {
+        this.catalogUseCase = catalogUseCase;
     }
 
     @GetMapping("/products")
@@ -24,12 +24,12 @@ public class CatalogController {
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String query
     ) {
-        return catalog.list(category, query).stream().map(CatalogResponseMapper::from).toList();
+        return catalogUseCase.list(category, query).stream().map(CatalogResponseMapper::from).toList();
     }
 
     @GetMapping("/products/{productId}")
     ProductResponse product(@PathVariable String productId) {
-        return CatalogResponseMapper.from(catalog.getProduct(productId));
+        return CatalogResponseMapper.from(catalogUseCase.getProduct(productId));
     }
 }
 

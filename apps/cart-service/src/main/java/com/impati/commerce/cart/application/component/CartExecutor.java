@@ -9,20 +9,20 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class CartExecutor implements CartUseCase {
-    private final CartRepository carts;
-    private final CatalogClient catalog;
+    private final CartRepository cartRepository;
+    private final CatalogClient catalogClient;
 
-    public CartExecutor(CartRepository carts, CatalogClient catalog) {
-        this.carts = carts;
-        this.catalog = catalog;
+    public CartExecutor(CartRepository cartRepository, CatalogClient catalogClient) {
+        this.cartRepository = cartRepository;
+        this.catalogClient = catalogClient;
     }
 
     @Override
     public CartDetails addItem(String memberId, String skuId, int quantity) {
-        catalog.getSku(skuId);
+        catalogClient.getSku(skuId);
         var cart = loadOrNew(memberId);
         cart.add(skuId, quantity);
-        carts.save(cart);
+        cartRepository.save(cart);
         return CartMapper.toDetails(cart);
     }
 
@@ -35,11 +35,11 @@ public class CartExecutor implements CartUseCase {
     public CartDetails clear(String memberId) {
         var cart = loadOrNew(memberId);
         cart.clear();
-        carts.save(cart);
+        cartRepository.save(cart);
         return CartMapper.toDetails(cart);
     }
 
     private Cart loadOrNew(String memberId) {
-        return carts.findByMemberId(memberId).orElseGet(() -> new Cart(memberId));
+        return cartRepository.findByMemberId(memberId).orElseGet(() -> new Cart(memberId));
     }
 }

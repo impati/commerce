@@ -22,17 +22,17 @@ class CartExecutorTest {
     private static final String SKU_ID = "sku_tee_white_m";
 
     @Autowired
-    private CartUseCase carts;
+    private CartUseCase cartUseCase;
 
     @Autowired
-    private CartRepository storedCarts;
+    private CartRepository cartRepository;
 
     @MockBean
-    private CatalogClient catalog;
+    private CatalogClient catalogClient;
 
     @BeforeEach
     void stubCatalog() {
-        when(catalog.getSku(anyString())).thenReturn(new SkuResponse(
+        when(catalogClient.getSku(anyString())).thenReturn(new SkuResponse(
                 SKU_ID,
                 "prd_tee",
                 "White / M",
@@ -47,8 +47,8 @@ class CartExecutorTest {
     void addItemAccumulatesQuantityForSameSku() {
         var memberId = "mem_accumulate";
 
-        carts.addItem(memberId, SKU_ID, 2);
-        var cart = carts.addItem(memberId, SKU_ID, 3);
+        cartUseCase.addItem(memberId, SKU_ID, 2);
+        var cart = cartUseCase.addItem(memberId, SKU_ID, 3);
 
         assertThat(cart.lines()).hasSize(1);
         assertThat(cart.lines().getFirst().skuId()).isEqualTo(SKU_ID);
@@ -61,23 +61,23 @@ class CartExecutorTest {
      */
     @Test
     void getDoesNotCreateCart() {
-        var response = carts.get("mem_never_seen");
+        var response = cartUseCase.get("mem_never_seen");
 
         assertThat(response.memberId()).isEqualTo("mem_never_seen");
         assertThat(response.lines()).isEmpty();
-        assertThat(storedCarts.findByMemberId("mem_never_seen")).isEmpty();
+        assertThat(cartRepository.findByMemberId("mem_never_seen")).isEmpty();
     }
 
     /** [PD-0006-R7] 명시적으로 비운 장바구니는 저장된 채 비어 있다. 없는 장바구니와 다르다. */
     @Test
     void clearEmptiesStoredCart() {
         var memberId = "mem_clear";
-        carts.addItem(memberId, SKU_ID, 2);
+        cartUseCase.addItem(memberId, SKU_ID, 2);
 
-        var cleared = carts.clear(memberId);
+        var cleared = cartUseCase.clear(memberId);
 
         assertThat(cleared.lines()).isEmpty();
-        assertThat(storedCarts.findByMemberId(memberId)).isPresent();
-        assertThat(storedCarts.findByMemberId(memberId).orElseThrow().lines()).isEmpty();
+        assertThat(cartRepository.findByMemberId(memberId)).isPresent();
+        assertThat(cartRepository.findByMemberId(memberId).orElseThrow().lines()).isEmpty();
     }
 }

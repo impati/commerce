@@ -34,18 +34,18 @@ public class LocalDemoSeeder implements ApplicationRunner {
     private static final String DEMO_NAME = "Demo Customer";
     private static final String DEMO_PASSWORD = "demo-password";
 
-    private final MemberRepository members;
+    private final MemberRepository memberRepository;
     private final PasswordHasher passwordHasher;
 
-    LocalDemoSeeder(MemberRepository members, PasswordHasher passwordHasher) {
-        this.members = members;
+    LocalDemoSeeder(MemberRepository memberRepository, PasswordHasher passwordHasher) {
+        this.memberRepository = memberRepository;
         this.passwordHasher = passwordHasher;
     }
 
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
-        if (members.findByEmail(DEMO_EMAIL).isPresent()) {
+        if (memberRepository.findByEmail(DEMO_EMAIL).isPresent()) {
             return;
         }
 
@@ -60,7 +60,7 @@ public class LocalDemoSeeder implements ApplicationRunner {
                 "04524",
                 true
         ));
-        members.save(member);
+        memberRepository.save(member);
         log.info("seeded demo member memberId={}", DEMO_ID);
     }
 }

@@ -19,25 +19,25 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/members")
 public class RegistrationController {
-    private final RegistrationUseCase registrations;
+    private final RegistrationUseCase registrationUseCase;
 
-    public RegistrationController(RegistrationUseCase registrations) {
-        this.registrations = registrations;
+    public RegistrationController(RegistrationUseCase registrationUseCase) {
+        this.registrationUseCase = registrationUseCase;
     }
 
     @PostMapping
     MemberResponse register(@RequestBody RegisterMemberRequest request) {
         return MemberResponseMapper.from(
-                registrations.register(request.email(), request.name(), request.password()));
+                registrationUseCase.register(request.email(), request.name(), request.password()));
     }
 
     @PostMapping("/verifications")
     MemberResponse verifyEmail(@RequestBody VerifyEmailRequest request) {
-        return MemberResponseMapper.from(registrations.verifyEmail(request.token()));
+        return MemberResponseMapper.from(registrationUseCase.verifyEmail(request.token()));
     }
 
     @PostMapping("/verifications/resend")
     void resendVerification(@RequestHeader("X-Member-Id") String memberId) {
-        registrations.resendVerification(memberId);
+        registrationUseCase.resendVerification(memberId);
     }
 }

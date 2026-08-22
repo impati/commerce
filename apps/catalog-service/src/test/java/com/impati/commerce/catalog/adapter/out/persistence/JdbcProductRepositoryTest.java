@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:catalog-repo;DB_CLOSE_DELAY=-1")
 class JdbcProductRepositoryTest {
     @Autowired
-    private ProductRepository products;
+    private ProductRepository productRepository;
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -31,8 +31,8 @@ class JdbcProductRepositoryTest {
     void roundTripsProductWithTagsSkusAndAttributes() {
         var product = publishedProduct("round");
 
-        products.save(product);
-        var loaded = products.findById(product.id()).orElseThrow();
+        productRepository.save(product);
+        var loaded = productRepository.findById(product.id()).orElseThrow();
 
         assertThat(loaded.name()).isEqualTo("Round Tee");
         assertThat(loaded.brand()).isEqualTo("Namu");
@@ -49,24 +49,24 @@ class JdbcProductRepositoryTest {
 
     @Test
     void findsSkuAcrossProducts() {
-        products.save(publishedProduct("lookup"));
+        productRepository.save(publishedProduct("lookup"));
 
-        var sku = products.findSku("sku_lookup_black").orElseThrow();
+        var sku = productRepository.findSku("sku_lookup_black").orElseThrow();
 
         assertThat(sku.name()).isEqualTo("Black / L");
         assertThat(sku.price()).isEqualTo(Money.krw(31_000));
         assertThat(sku.attributes()).containsEntry("color", "black");
-        assertThat(products.findSku("sku_missing")).isEmpty();
+        assertThat(productRepository.findSku("sku_missing")).isEmpty();
     }
 
     /** 저장을 다시 하면 태그와 SKU가 중복되지 않고 교체돼야 한다. */
     @Test
     void savingAgainReplacesTagsAndSkus() {
         var product = publishedProduct("replace");
-        products.save(product);
-        products.save(product);
+        productRepository.save(product);
+        productRepository.save(product);
 
-        var loaded = products.findById(product.id()).orElseThrow();
+        var loaded = productRepository.findById(product.id()).orElseThrow();
         assertThat(loaded.tags()).containsExactly("daily", "new");
         assertThat(loaded.skus()).hasSize(2);
         assertThat(jdbc.queryForObject(
@@ -78,7 +78,7 @@ class JdbcProductRepositoryTest {
     @Test
     void writesEachSkuFieldToItsOwnColumn() {
         var product = publishedProduct("column");
-        products.save(product);
+        productRepository.save(product);
 
         var row = jdbc.queryForMap(
                 "select product_id, sku_no, name, price_amount, price_currency, status"

@@ -14,10 +14,10 @@ import java.util.List;
 
 @Component
 public class CatalogExecutor implements CatalogUseCase {
-    private final ProductRepository products;
+    private final ProductRepository productRepository;
 
-    public CatalogExecutor(ProductRepository products) {
-        this.products = products;
+    public CatalogExecutor(ProductRepository productRepository) {
+        this.productRepository = productRepository;
     }
 
     @Override
@@ -34,18 +34,18 @@ public class CatalogExecutor implements CatalogUseCase {
                 .map(sku -> new SkuSpec(sku.id(), sku.name(), sku.price(), sku.attributes()))
                 .forEach(product::addSku);
         product.publish();
-        products.save(product);
+        productRepository.save(product);
         return CatalogMapper.toDetails(product);
     }
 
     @Override
     public boolean isEmpty() {
-        return products.findAll().isEmpty();
+        return productRepository.findAll().isEmpty();
     }
 
     @Override
     public List<ProductDetails> list(String category, String query) {
-        return products.findAll().stream()
+        return productRepository.findAll().stream()
                 .filter(product -> product.matches(category, query))
                 .map(CatalogMapper::toDetails)
                 .toList();
@@ -53,7 +53,7 @@ public class CatalogExecutor implements CatalogUseCase {
 
     @Override
     public ProductDetails getProduct(String productId) {
-        return products.findById(productId)
+        return productRepository.findById(productId)
                 .filter(product -> product.status().equals("PUBLISHED"))
                 .map(CatalogMapper::toDetails)
                 .orElseThrow(() -> DomainException.notFound("product not found"));
@@ -61,7 +61,7 @@ public class CatalogExecutor implements CatalogUseCase {
 
     @Override
     public SkuDetails getSku(String skuId) {
-        return products.findSku(skuId)
+        return productRepository.findSku(skuId)
                 .map(CatalogMapper::toDetails)
                 .orElseThrow(() -> DomainException.notFound("sku not found"));
     }

@@ -23,21 +23,21 @@ import java.util.List;
 @RestController
 @RequestMapping("/internal/notifications")
 public class InternalNotificationController {
-    private final NotificationUseCase notifications;
+    private final NotificationUseCase notificationUseCase;
 
-    public InternalNotificationController(NotificationUseCase notifications) {
-        this.notifications = notifications;
+    public InternalNotificationController(NotificationUseCase notificationUseCase) {
+        this.notificationUseCase = notificationUseCase;
     }
 
     @PostMapping("/events")
     NotificationResponse record(@RequestBody NotificationEventRequest request) {
-        return NotificationResponseMapper.from(notifications.record(
+        return NotificationResponseMapper.from(notificationUseCase.record(
                 request.eventType(), request.memberId(), request.subject(), request.body()));
     }
 
     @PostMapping("/email-verifications")
     NotificationResponse requestEmailVerification(@RequestBody EmailVerificationMailRequest request) {
-        return NotificationResponseMapper.from(notifications.requestEmailVerification(
+        return NotificationResponseMapper.from(notificationUseCase.requestEmailVerification(
                 request.memberId(), request.email(), request.token()));
     }
 
@@ -52,15 +52,15 @@ public class InternalNotificationController {
     @RequestMapping("/internal/notifications/outbox")
     @Profile("local")
     static class OutboxController {
-        private final NotificationUseCase notifications;
+        private final NotificationUseCase notificationUseCase;
 
-        OutboxController(NotificationUseCase notifications) {
-            this.notifications = notifications;
+        OutboxController(NotificationUseCase notificationUseCase) {
+            this.notificationUseCase = notificationUseCase;
         }
 
         @GetMapping
         List<OutboxEntryResponse> outbox() {
-            return notifications.outbox().stream().map(NotificationResponseMapper::from).toList();
+            return notificationUseCase.outbox().stream().map(NotificationResponseMapper::from).toList();
         }
     }
 }

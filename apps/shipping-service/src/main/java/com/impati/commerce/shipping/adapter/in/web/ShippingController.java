@@ -16,19 +16,19 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/shipments")
 public class ShippingController {
-    private final ShippingUseCase shipping;
+    private final ShippingUseCase shippingUseCase;
 
-    public ShippingController(ShippingUseCase shipping) {
-        this.shipping = shipping;
+    public ShippingController(ShippingUseCase shippingUseCase) {
+        this.shippingUseCase = shippingUseCase;
     }
 
     @PostMapping("/{shipmentId}/ship")
     ShipmentResponse ship(@PathVariable String shipmentId) {
-        return ShipmentResponseMapper.from(shipping.ship(shipmentId));
+        return ShipmentResponseMapper.from(shippingUseCase.ship(shipmentId));
     }
 
     @PostMapping("/{shipmentId}/deliver")
     ShipmentResponse deliver(@PathVariable String shipmentId) {
-        return ShipmentResponseMapper.from(shipping.deliver(shipmentId));
+        return ShipmentResponseMapper.from(shippingUseCase.deliver(shipmentId));
     }
 }

@@ -20,25 +20,25 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/internal/shipments")
 public class InternalShippingController {
-    private final ShippingUseCase shipping;
+    private final ShippingUseCase shippingUseCase;
 
-    public InternalShippingController(ShippingUseCase shipping) {
-        this.shipping = shipping;
+    public InternalShippingController(ShippingUseCase shippingUseCase) {
+        this.shippingUseCase = shippingUseCase;
     }
 
     @PostMapping
     ShipmentResponse create(@RequestBody CreateShipmentRequest request) {
-        return ShipmentResponseMapper.from(shipping.create(
+        return ShipmentResponseMapper.from(shippingUseCase.create(
                 request.orderId(), request.memberId(), ShipmentResponseMapper.toAddress(request.address())));
     }
 
     @GetMapping("/{shipmentId}")
     ShipmentResponse get(@PathVariable String shipmentId) {
-        return ShipmentResponseMapper.from(shipping.get(shipmentId));
+        return ShipmentResponseMapper.from(shippingUseCase.get(shipmentId));
     }
 
     @PostMapping("/{shipmentId}/cancel")
     ShipmentResponse cancel(@PathVariable String shipmentId) {
-        return ShipmentResponseMapper.from(shipping.cancel(shipmentId));
+        return ShipmentResponseMapper.from(shippingUseCase.cancel(shipmentId));
     }
 }

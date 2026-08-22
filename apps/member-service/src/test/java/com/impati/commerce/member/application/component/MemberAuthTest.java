@@ -75,13 +75,13 @@ class MemberAuthTest {
     }
 
     @Autowired
-    private RegistrationUseCase registrations;
+    private RegistrationUseCase registrationUseCase;
 
     @Autowired
-    private SessionUseCase sessions;
+    private SessionUseCase sessionUseCase;
 
     @Autowired
-    private SecureTokens tokens;
+    private SecureTokens secureTokens;
 
     @Autowired
     private MutableClock clock;
@@ -90,26 +90,26 @@ class MemberAuthTest {
     private JdbcTemplate jdbc;
 
     @MockBean
-    private NotificationClient notifications;
+    private NotificationClient notificationClient;
 
     /** [PD-0001-R1] 가입 직후 상태가 미인증인 것을 잡는다. 그 상태로 로그인이 막히는지는 보지 않는다. */
     @Test
     void registerLeavesMemberUnverifiedAndRequestsMail() {
-        var member = registrations.register("flow@impati.dev", "Flow", "flow-password");
+        var member = registrationUseCase.register("flow@impati.dev", "Flow", "flow-password");
 
         assertThat(member.status()).isEqualTo("PENDING_VERIFICATION");
-        verify(notifications).requestEmailVerification(eq(member.id()), eq("flow@impati.dev"), anyString());
+        verify(notificationClient).requestEmailVerification(eq(member.id()), eq("flow@impati.dev"), anyString());
     }
 
     /** [PD-0001-R1] 확인을 마치면 로그인이 되는 것을 잡는다. 확인 없이 막히는 쪽은 아래 테스트가 본다. */
     @Test
     void verifiedMemberCanLoginAndSessionResolves() {
-        var member = registrations.register("login@impati.dev", "Login", "login-password");
-        registrations.verifyEmail(rawTokenOf(member.id()));
+        var member = registrationUseCase.register("login@impati.dev", "Login", "login-password");
+        registrationUseCase.verifyEmail(rawTokenOf(member.id()));
 
-        var login = sessions.login("login@impati.dev", "login-password");
+        var login = sessionUseCase.login("login@impati.dev", "login-password");
 
-        assertThat(sessions.resolveSession(login.token()).memberId()).isEqualTo(member.id());
+        assertThat(sessionUseCase.resolveSession(login.token()).memberId()).isEqualTo(member.id());
     }
 
     /**
@@ -120,9 +120,9 @@ class MemberAuthTest {
      */
     @Test
     void unverifiedMemberCannotLogin() {
-        registrations.register("unverified@impati.dev", "Unverified", "unverified-pw");
+        registrationUseCase.register("unverified@impati.dev", "Unverified", "unverified-pw");
 
-        assertThatThrownBy(() -> sessions.login("unverified@impati.dev", "unverified-pw"))
+        assertThatThrownBy(() -> sessionUseCase.login("unverified@impati.dev", "unverified-pw"))
                 .isInstanceOf(DomainException.class)
                 .hasMessageContaining("not verified");
     }
@@ -130,11 +130,11 @@ class MemberAuthTest {
     /** [PD-0001-R6][PD-0001-R7] 단일 사용을 잡는다. 만료와 같은 응답인지는 두 테스트를 견줘야 알 수 있다. */
     @Test
     void verificationTokenCannotBeReused() {
-        var member = registrations.register("reuse@impati.dev", "Reuse", "reuse-password");
+        var member = registrationUseCase.register("reuse@impati.dev", "Reuse", "reuse-password");
         var raw = rawTokenOf(member.id());
-        registrations.verifyEmail(raw);
+        registrationUseCase.verifyEmail(raw);
 
-        assertThatThrownBy(() -> registrations.verifyEmail(raw))
+        assertThatThrownBy(() -> registrationUseCase.verifyEmail(raw))
                 .isInstanceOf(DomainException.class)
                 .hasMessageContaining("not usable");
     }
@@ -146,12 +146,12 @@ class MemberAuthTest {
      */
     @Test
     void expiredVerificationTokenIsRejected() {
-        var member = registrations.register("expired@impati.dev", "Expired", "expired-pw");
+        var member = registrationUseCase.register("expired@impati.dev", "Expired", "expired-pw");
         var raw = rawTokenOf(member.id());
 
         clock.advance(Duration.ofDays(2));
 
-        assertThatThrownBy(() -> registrations.verifyEmail(raw))
+        assertThatThrownBy(() -> registrationUseCase.verifyEmail(raw))
                 .isInstanceOf(DomainException.class)
                 .hasMessageContaining("not usable");
     }
@@ -163,11 +163,11 @@ class MemberAuthTest {
      */
     @Test
     void wrongPasswordAndUnknownEmailFailIdentically() {
-        var member = registrations.register("same@impati.dev", "Same", "same-password");
-        registrations.verifyEmail(rawTokenOf(member.id()));
+        var member = registrationUseCase.register("same@impati.dev", "Same", "same-password");
+        registrationUseCase.verifyEmail(rawTokenOf(member.id()));
 
-        var wrongPassword = catchMessage(() -> sessions.login("same@impati.dev", "not-the-password"));
-        var unknownEmail = catchMessage(() -> sessions.login("absent@impati.dev", "not-the-password"));
+        var wrongPassword = catchMessage(() -> sessionUseCase.login("same@impati.dev", "not-the-password"));
+        var unknownEmail = catchMessage(() -> sessionUseCase.login("absent@impati.dev", "not-the-password"));
 
         assertThat(wrongPassword).isEqualTo(unknownEmail);
     }
@@ -175,46 +175,46 @@ class MemberAuthTest {
     /** [PD-0002-R4] 만료된 세션은 확인되지 않는다. 사용해도 만료가 연장되지 않는지는 보지 않는다. */
     @Test
     void expiredSessionDoesNotResolve() {
-        var member = registrations.register("session@impati.dev", "Session", "session-pw12");
-        registrations.verifyEmail(rawTokenOf(member.id()));
-        var login = sessions.login("session@impati.dev", "session-pw12");
+        var member = registrationUseCase.register("session@impati.dev", "Session", "session-pw12");
+        registrationUseCase.verifyEmail(rawTokenOf(member.id()));
+        var login = sessionUseCase.login("session@impati.dev", "session-pw12");
 
         clock.advance(Duration.ofDays(15));
 
-        assertThatThrownBy(() -> sessions.resolveSession(login.token()))
+        assertThatThrownBy(() -> sessionUseCase.resolveSession(login.token()))
                 .isInstanceOf(DomainException.class);
     }
 
     /** [PD-0002-R5] 로그아웃이 만료 전 세션을 즉시 끊는 것을 잡는다. 다른 기기의 세션은 보지 않는다. */
     @Test
     void logoutRevokesSessionImmediately() {
-        var member = registrations.register("logout@impati.dev", "Logout", "logout-pw123");
-        registrations.verifyEmail(rawTokenOf(member.id()));
-        var login = sessions.login("logout@impati.dev", "logout-pw123");
+        var member = registrationUseCase.register("logout@impati.dev", "Logout", "logout-pw123");
+        registrationUseCase.verifyEmail(rawTokenOf(member.id()));
+        var login = sessionUseCase.login("logout@impati.dev", "logout-pw123");
 
-        sessions.logout(login.token());
+        sessionUseCase.logout(login.token());
 
-        assertThatThrownBy(() -> sessions.resolveSession(login.token()))
+        assertThatThrownBy(() -> sessionUseCase.resolveSession(login.token()))
                 .isInstanceOf(DomainException.class);
     }
 
     /** 원문 토큰은 저장되지 않는다. DB에는 해시만 있어야 한다. */
     @Test
     void storesOnlyHashedTokens() {
-        var member = registrations.register("hash@impati.dev", "Hash", "hash-password");
+        var member = registrationUseCase.register("hash@impati.dev", "Hash", "hash-password");
         var raw = rawTokenOf(member.id());
-        registrations.verifyEmail(raw);
-        var login = sessions.login("hash@impati.dev", "hash-password");
+        registrationUseCase.verifyEmail(raw);
+        var login = sessionUseCase.login("hash@impati.dev", "hash-password");
 
         assertThat(countVerifications(raw)).isZero();
-        assertThat(countVerifications(tokens.hash(raw))).isEqualTo(1);
+        assertThat(countVerifications(secureTokens.hash(raw))).isEqualTo(1);
         assertThat(jdbc.queryForObject(
                 "select count(*) from member_sessions where token_hash = ?", Integer.class, login.token()))
                 .isZero();
         assertThat(jdbc.queryForObject(
                 "select count(*) from member_sessions where token_hash = ?",
                 Integer.class,
-                tokens.hash(login.token())))
+                secureTokens.hash(login.token())))
                 .isEqualTo(1);
     }
 
@@ -231,7 +231,7 @@ class MemberAuthTest {
      */
     private String rawTokenOf(String memberId) {
         var captor = ArgumentCaptor.forClass(String.class);
-        verify(notifications, atLeastOnce())
+        verify(notificationClient, atLeastOnce())
                 .requestEmailVerification(eq(memberId), anyString(), captor.capture());
         return captor.getValue();
     }

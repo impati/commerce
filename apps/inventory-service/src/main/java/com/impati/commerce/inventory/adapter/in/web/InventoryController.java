@@ -11,14 +11,14 @@ import java.util.List;
 @RestController
 @RequestMapping
 public class InventoryController {
-    private final InventoryUseCase inventory;
+    private final InventoryUseCase inventoryUseCase;
 
-    public InventoryController(InventoryUseCase inventory) {
-        this.inventory = inventory;
+    public InventoryController(InventoryUseCase inventoryUseCase) {
+        this.inventoryUseCase = inventoryUseCase;
     }
 
     @GetMapping("/stock")
     List<StockResponse> stock() {
-        return inventory.stock().stream().map(InventoryResponseMapper::from).toList();
+        return inventoryUseCase.stock().stream().map(InventoryResponseMapper::from).toList();
     }
 }

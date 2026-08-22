@@ -21,35 +21,35 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/internal/payments")
 public class InternalPaymentController {
-    private final PaymentUseCase payments;
+    private final PaymentUseCase paymentUseCase;
 
-    public InternalPaymentController(PaymentUseCase payments) {
-        this.payments = payments;
+    public InternalPaymentController(PaymentUseCase paymentUseCase) {
+        this.paymentUseCase = paymentUseCase;
     }
 
     @PostMapping("/authorize")
     PaymentResponse authorize(@RequestBody AuthorizePaymentRequest request) {
-        return PaymentResponseMapper.from(payments.authorize(
+        return PaymentResponseMapper.from(paymentUseCase.authorize(
                 request.orderId(), request.memberId(), request.amount(), request.paymentToken()));
     }
 
     @PostMapping("/{paymentId}/capture")
     PaymentResponse capture(@PathVariable String paymentId) {
-        return PaymentResponseMapper.from(payments.capture(paymentId));
+        return PaymentResponseMapper.from(paymentUseCase.capture(paymentId));
     }
 
     @PostMapping("/{paymentId}/cancel")
     PaymentResponse cancel(@PathVariable String paymentId) {
-        return PaymentResponseMapper.from(payments.cancel(paymentId));
+        return PaymentResponseMapper.from(paymentUseCase.cancel(paymentId));
     }
 
     @PostMapping("/{paymentId}/refund")
     PaymentResponse refund(@PathVariable String paymentId) {
-        return PaymentResponseMapper.from(payments.refund(paymentId));
+        return PaymentResponseMapper.from(paymentUseCase.refund(paymentId));
     }
 
     @GetMapping("/{paymentId}")
     PaymentResponse get(@PathVariable String paymentId) {
-        return PaymentResponseMapper.from(payments.get(paymentId));
+        return PaymentResponseMapper.from(paymentUseCase.get(paymentId));
     }
 }

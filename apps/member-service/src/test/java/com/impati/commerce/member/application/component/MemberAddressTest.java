@@ -26,19 +26,19 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:member-address;DB_CLOSE_DELAY=-1")
 class MemberAddressTest {
     @Autowired
-    private MemberUseCase members;
+    private MemberUseCase memberUseCase;
 
     @Autowired
-    private RegistrationUseCase registrations;
+    private RegistrationUseCase registrationUseCase;
 
     @MockBean
-    private NotificationClient notifications;
+    private NotificationClient notificationClient;
 
     @Test
     void mapsEachRequestFieldToItsOwnField() {
-        var member = registrations.register("address@impati.dev", "Address", "address-pw12");
+        var member = registrationUseCase.register("address@impati.dev", "Address", "address-pw12");
 
-        var address = members.addAddress(member.id(), new NewAddress(
+        var address = memberUseCase.addAddress(member.id(), new NewAddress(
                 "alias-value",
                 "recipient-value",
                 "phone-value",
@@ -60,12 +60,12 @@ class MemberAddressTest {
     /** 추가한 배송지는 회원 조회에도 보인다. */
     @Test
     void addedAddressIsVisibleOnTheMember() {
-        var member = registrations.register("visible@impati.dev", "Visible", "visible-pw12");
+        var member = registrationUseCase.register("visible@impati.dev", "Visible", "visible-pw12");
 
-        members.addAddress(member.id(), request("home"));
-        members.addAddress(member.id(), request("office"));
+        memberUseCase.addAddress(member.id(), request("home"));
+        memberUseCase.addAddress(member.id(), request("office"));
 
-        assertThat(members.get(member.id()).addresses())
+        assertThat(memberUseCase.get(member.id()).addresses())
                 .extracting(MemberAddress::alias)
                 .containsExactly("home", "office");
     }
@@ -73,7 +73,7 @@ class MemberAddressTest {
     /** 없는 회원에게는 배송지를 붙일 수 없다. */
     @Test
     void rejectsUnknownMember() {
-        assertThatThrownBy(() -> members.addAddress("mem_never_saved", request("home")))
+        assertThatThrownBy(() -> memberUseCase.addAddress("mem_never_saved", request("home")))
                 .isInstanceOf(DomainException.class)
                 .hasMessageContaining("member not found");
     }
