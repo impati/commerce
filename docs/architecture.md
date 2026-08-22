@@ -95,6 +95,7 @@ apps/<service>/
     adapter/out/client/     # downstream HTTP client
     adapter/out/persistence/# repository adapter
     adapter/out/mail/       # 메일 발송 구현
+    adapter/out/gateway/    # 결제 대행사 구현
     adapter/out/security/   # 해싱, 토큰 생성
     support/                # exception handler 등
 ```
@@ -118,7 +119,7 @@ apps/<service>/
 
 - `XxxRepository` — 우리가 소유한 상태. 같은 서비스의 데이터입니다
 - `XxxClient` — 다른 서비스. 프로토콜 오류를 도메인 언어로 옮기는 것도 어댑터의 일입니다 (402 → `paymentDeclined`)
-- 능력 이름 (`PasswordHasher`, `SecureTokens`, `MailSender`) — 기술 수단. **이름에 수단을 넣지 않습니다.** `BCryptHasher`가 아니라 `PasswordHasher`입니다. 구현이 Argon2로 바뀌어도 포트 이름은 그대로여야 하고, 수단이 이름에 박히면 갈아끼울 때 호출하는 쪽이 전부 바뀝니다
+- 능력 이름 (`PasswordHasher`, `SecureTokens`, `MailSender`, `PaymentGateway`) — 기술 수단. **이름에 수단을 넣지 않습니다.** `BCryptHasher`가 아니라 `PasswordHasher`입니다. 구현이 Argon2로 바뀌어도 포트 이름은 그대로여야 하고, 수단이 이름에 박히면 갈아끼울 때 호출하는 쪽이 전부 바뀝니다
 
 **구동자는 `application`에 있어서는 안 됩니다.** `OutboxDispatcher`는 `notifications.dispatchPending()`만 부르고 로직이 없습니다. `LocalDemoSeeder`는 앱 시작이 트리거입니다. 둘 다 애플리케이션을 바깥에서 호출하는 진입점이며 HTTP 컨트롤러와 역할이 같습니다. 컨트롤러가 `adapter/in/web`에 있으므로 이들도 `adapter/in` 아래 있어야 합니다.
 
