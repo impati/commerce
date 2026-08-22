@@ -1,6 +1,6 @@
 package com.impati.commerce.catalog.adapter.in.web;
 
-import com.impati.commerce.catalog.application.CatalogService;
+import com.impati.commerce.catalog.application.port.in.CatalogUseCase;
 import com.impati.commerce.common.ApiContracts.SkuResponse;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -16,14 +16,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/internal")
 public class InternalCatalogController {
-    private final CatalogService catalog;
+    private final CatalogUseCase catalog;
 
-    public InternalCatalogController(CatalogService catalog) {
+    public InternalCatalogController(CatalogUseCase catalog) {
         this.catalog = catalog;
     }
 
     @GetMapping("/skus/{skuId}")
     SkuResponse sku(@PathVariable String skuId) {
-        return catalog.getSku(skuId);
+        return CatalogResponseMapper.from(catalog.getSku(skuId));
     }
 }

@@ -1,6 +1,6 @@
 package com.impati.commerce.catalog.adapter.out.persistence;
 
-import com.impati.commerce.catalog.application.ProductRepository;
+import com.impati.commerce.catalog.application.port.out.ProductRepository;
 import com.impati.commerce.catalog.domain.CatalogModels.Product;
 import com.impati.commerce.catalog.domain.CatalogModels.Sku;
 import com.impati.commerce.catalog.domain.CatalogModels.SkuSpec;

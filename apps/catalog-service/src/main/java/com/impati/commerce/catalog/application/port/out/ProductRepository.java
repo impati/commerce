@@ -1,4 +1,4 @@
-package com.impati.commerce.catalog.application;
+package com.impati.commerce.catalog.application.port.out;
 
 import com.impati.commerce.catalog.domain.CatalogModels.Product;
 import com.impati.commerce.catalog.domain.CatalogModels.Sku;

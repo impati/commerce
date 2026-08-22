@@ -1,6 +1,6 @@
 package com.impati.commerce.catalog.adapter.in.web;
 
-import com.impati.commerce.catalog.application.CatalogService;
+import com.impati.commerce.catalog.application.port.in.CatalogUseCase;
 import com.impati.commerce.common.ApiContracts.ProductResponse;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -13,9 +13,9 @@ import java.util.List;
 @RestController
 @RequestMapping
 public class CatalogController {
-    private final CatalogService catalog;
+    private final CatalogUseCase catalog;
 
-    public CatalogController(CatalogService catalog) {
+    public CatalogController(CatalogUseCase catalog) {
         this.catalog = catalog;
     }
 
@@ -24,12 +24,12 @@ public class CatalogController {
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String query
     ) {
-        return catalog.list(category, query);
+        return catalog.list(category, query).stream().map(CatalogResponseMapper::from).toList();
     }
 
     @GetMapping("/products/{productId}")
     ProductResponse product(@PathVariable String productId) {
-        return catalog.getProduct(productId);
+        return CatalogResponseMapper.from(catalog.getProduct(productId));
     }
 }
 
