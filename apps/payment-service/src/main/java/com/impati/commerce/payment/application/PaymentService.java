@@ -7,20 +7,14 @@ import com.impati.commerce.payment.domain.PaymentModels.Payment;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Set;
-
 @Service
 public class PaymentService {
-    /**
-     * 로컬 대역이 거절로 판정하는 토큰. 실제 대행사를 붙이면 이 판정은 어댑터로 옮겨진다
-     * (BL-0032). 응용 계층이 이걸 아는 것은 지금의 한계이며 목표 상태가 아니다.
-     */
-    private static final Set<String> DECLINE_TOKENS = Set.of("card_test_decline", "decline", "fail");
-
     private final PaymentRepository payments;
+    private final PaymentGateway gateway;
 
-    public PaymentService(PaymentRepository payments) {
+    public PaymentService(PaymentRepository payments, PaymentGateway gateway) {
         this.payments = payments;
+        this.gateway = gateway;
     }
 
     /**
@@ -35,10 +29,12 @@ public class PaymentService {
         if (existing.isPresent()) {
             return PaymentMapper.toResponse(existing.get());
         }
-        if (DECLINE_TOKENS.contains(paymentToken)) {
-            throw DomainException.paymentDeclined("payment was declined by issuer");
+        var authorization = gateway.authorize(orderId, amount, paymentToken);
+        if (!authorization.approved()) {
+            // 판정은 대행사가 한다. 여기서는 그 결과를 도메인 언어로 옮길 뿐이다 (PD-0011-R6).
+            throw DomainException.paymentDeclined("payment was declined by issuer: " + authorization.declineReason());
         }
-        var payment = new Payment(orderId, memberId, amount);
+        var payment = new Payment(orderId, memberId, amount, authorization.transactionId(), authorization.method());
         if (!payments.insertIfAbsent(payment)) {
             // 동시에 도착한 다른 요청이 먼저 만들었다. 결제는 주문당 하나다 (PD-0011-R2).
             return PaymentMapper.toResponse(requireByOrder(orderId));
@@ -50,8 +46,10 @@ public class PaymentService {
     @Transactional
     public PaymentResponse capture(String paymentId) {
         var payment = require(paymentId);
-        payment.capture();
-        payments.update(payment);
+        if (payment.capture()) {
+            gateway.capture(payment.transactionId());
+            payments.update(payment);
+        }
         return PaymentMapper.toResponse(payment);
     }
 
@@ -59,8 +57,10 @@ public class PaymentService {
     @Transactional
     public PaymentResponse cancel(String paymentId) {
         var payment = require(paymentId);
-        payment.cancel();
-        payments.update(payment);
+        if (payment.cancel()) {
+            gateway.cancel(payment.transactionId());
+            payments.update(payment);
+        }
         return PaymentMapper.toResponse(payment);
     }
 
@@ -73,8 +73,10 @@ public class PaymentService {
     @Transactional
     public PaymentResponse refund(String paymentId) {
         var payment = require(paymentId);
-        payment.refund();
-        payments.update(payment);
+        if (payment.refund()) {
+            gateway.refund(payment.transactionId());
+            payments.update(payment);
+        }
         return PaymentMapper.toResponse(payment);
     }
 

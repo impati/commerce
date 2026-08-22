@@ -20,7 +20,7 @@ class JdbcPaymentRepositoryTest {
 
     @Test
     void roundTripsPayment() {
-        var payment = new Payment("ord_pay", "mem_demo", Money.krw(58_000));
+        var payment = new Payment("ord_pay", "mem_demo", Money.krw(58_000), "txn_fixture", "CARD");
 
         payments.insertIfAbsent(payment);
         var loaded = payments.findById(payment.id()).orElseThrow();
@@ -31,13 +31,13 @@ class JdbcPaymentRepositoryTest {
         assertThat(loaded.amount()).isEqualTo(Money.krw(58_000));
         assertThat(loaded.method()).isEqualTo("CARD");
         assertThat(loaded.status()).isEqualTo("AUTHORIZED");
-        assertThat(loaded.transactionId()).isEqualTo(payment.transactionId());
+        assertThat(loaded.transactionId()).isEqualTo("txn_fixture");
     }
 
     /** 왕복 테스트는 쓰기와 읽기가 같은 방향으로 틀리면 통과한다. 컬럼을 직접 읽어 막는다. */
     @Test
     void writesEachFieldToItsOwnColumn() {
-        var payment = new Payment("ord_column", "mem_column", Money.krw(91_000));
+        var payment = new Payment("ord_column", "mem_column", Money.krw(91_000), "txn_fixture", "CARD");
 
         payments.insertIfAbsent(payment);
 
@@ -52,7 +52,7 @@ class JdbcPaymentRepositoryTest {
         assertThat(row.get("CURRENCY")).isEqualTo("KRW");
         assertThat(row.get("METHOD")).isEqualTo("CARD");
         assertThat(row.get("STATUS")).isEqualTo("AUTHORIZED");
-        assertThat(row.get("TRANSACTION_ID")).isEqualTo(payment.transactionId());
+        assertThat(row.get("TRANSACTION_ID")).isEqualTo("txn_fixture");
     }
 
     @Test
@@ -62,7 +62,7 @@ class JdbcPaymentRepositoryTest {
 
     @Test
     void findsPaymentByOrderId() {
-        var payment = new Payment("ord_by_order", "mem_demo", Money.krw(12_000));
+        var payment = new Payment("ord_by_order", "mem_demo", Money.krw(12_000), "txn_fixture", "CARD");
 
         payments.insertIfAbsent(payment);
 
@@ -75,8 +75,8 @@ class JdbcPaymentRepositoryTest {
      */
     @Test
     void refusesASecondPaymentForTheSameOrder() {
-        var first = new Payment("ord_unique", "mem_demo", Money.krw(30_000));
-        var second = new Payment("ord_unique", "mem_demo", Money.krw(30_000));
+        var first = new Payment("ord_unique", "mem_demo", Money.krw(30_000), "txn_fixture", "CARD");
+        var second = new Payment("ord_unique", "mem_demo", Money.krw(30_000), "txn_fixture", "CARD");
 
         assertThat(payments.insertIfAbsent(first)).isTrue();
         assertThat(payments.insertIfAbsent(second)).isFalse();
@@ -86,7 +86,7 @@ class JdbcPaymentRepositoryTest {
     /** 상태만 바뀐다. 나머지 값은 승인 시점에 확정된다. */
     @Test
     void updateChangesOnlyTheStatusColumn() {
-        var payment = new Payment("ord_update", "mem_demo", Money.krw(45_000));
+        var payment = new Payment("ord_update", "mem_demo", Money.krw(45_000), "txn_fixture", "CARD");
         payments.insertIfAbsent(payment);
 
         payment.capture();
@@ -100,6 +100,6 @@ class JdbcPaymentRepositoryTest {
         assertThat(row.get("ORDER_ID")).isEqualTo("ord_update");
         assertThat(row.get("MEMBER_ID")).isEqualTo("mem_demo");
         assertThat(row.get("AMOUNT")).isEqualTo(45_000L);
-        assertThat(row.get("TRANSACTION_ID")).isEqualTo(payment.transactionId());
+        assertThat(row.get("TRANSACTION_ID")).isEqualTo("txn_fixture");
     }
 }
