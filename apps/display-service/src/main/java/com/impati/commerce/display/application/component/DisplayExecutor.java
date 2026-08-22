@@ -1,24 +1,27 @@
-package com.impati.commerce.display.application;
+package com.impati.commerce.display.application.component;
 
-import com.impati.commerce.common.ApiContracts.DisplayHomeResponse;
-import com.impati.commerce.common.ApiContracts.DisplaySection;
-import com.impati.commerce.common.ApiContracts.ProductCard;
 import com.impati.commerce.common.ApiContracts.ProductResponse;
-import org.springframework.stereotype.Service;
+import com.impati.commerce.display.application.port.in.DisplayUseCase;
+import com.impati.commerce.display.application.port.in.HomePage;
+import com.impati.commerce.display.application.port.in.HomeProductCard;
+import com.impati.commerce.display.application.port.in.HomeSection;
+import com.impati.commerce.display.application.port.out.CatalogClient;
+import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-@Service
-public class DisplayService {
+@Component
+public class DisplayExecutor implements DisplayUseCase {
     private final CatalogClient catalog;
 
-    public DisplayService(CatalogClient catalog) {
+    public DisplayExecutor(CatalogClient catalog) {
         this.catalog = catalog;
     }
 
-    public DisplayHomeResponse home() {
+    @Override
+    public HomePage home() {
         var products = catalog.products();
-        return new DisplayHomeResponse(
+        return new HomePage(
                 "Impati Market",
                 "Curated products with reliable checkout and delivery.",
                 List.of(
@@ -29,18 +32,18 @@ public class DisplayService {
         );
     }
 
-    private DisplaySection section(String key, String title, String tag, List<ProductResponse> products) {
+    private HomeSection section(String key, String title, String tag, List<ProductResponse> products) {
         var cards = products.stream()
                 .filter(product -> product.tags().contains(tag))
                 .map(this::card)
                 .limit(8)
                 .toList();
-        return new DisplaySection(key, title, cards);
+        return new HomeSection(key, title, cards);
     }
 
-    private ProductCard card(ProductResponse product) {
+    private HomeProductCard card(ProductResponse product) {
         var firstSku = product.skus().isEmpty() ? null : product.skus().getFirst();
-        return new ProductCard(
+        return new HomeProductCard(
                 product.id(),
                 product.name(),
                 product.brand(),
@@ -50,4 +53,3 @@ public class DisplayService {
         );
     }
 }
-

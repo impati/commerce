@@ -1,4 +1,4 @@
-package com.impati.commerce.display.application;
+package com.impati.commerce.display.application.port.out;
 
 import com.impati.commerce.common.ApiContracts.ProductResponse;
 

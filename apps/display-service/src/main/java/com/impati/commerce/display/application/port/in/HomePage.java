@@ -1,0 +1,12 @@
+package com.impati.commerce.display.application.port.in;
+
+import java.util.List;
+
+/**
+ * 지면 구성 결과.
+ *
+ * <p>서비스 간 계약({@code ApiContracts})을 돌려주지 않는다. 유스케이스의 반환값은 서비스
+ * 사이에서 오가는 것이 아니므로 인바운드 어댑터가 각자 자기 표현으로 옮긴다.
+ */
+public record HomePage(String title, String subtitle, List<HomeSection> sections) {
+}

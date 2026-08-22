@@ -1,7 +1,7 @@
 package com.impati.commerce.display.adapter.out.client;
 
 import com.impati.commerce.common.ApiContracts.ProductResponse;
-import com.impati.commerce.display.application.CatalogClient;
+import com.impati.commerce.display.application.port.out.CatalogClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
