@@ -118,14 +118,19 @@ public final class ApiContracts {
     public record AuthorizePaymentRequest(String orderId, String memberId, Money amount, String paymentToken) {
     }
 
+    /**
+     * payment-service → order-service → 게이트웨이 → 브라우저.
+     *
+     * <p>대행사 거래 식별자는 담지 않는다. 대사에 쓰는 내부 값이라 형제 서비스도 브라우저도
+     * 쓸 일이 없다. payment-service 안에서는 유스케이스 결과 타입이 그것을 들고 있다.
+     */
     public record PaymentResponse(
             String id,
             String orderId,
             String memberId,
             Money amount,
             String method,
-            String status,
-            String transactionId
+            String status
     ) {
     }
 

@@ -429,8 +429,7 @@ class CheckoutSagaTest {
                 MEMBER_ID,
                 Money.krw(UNIT_PRICE * QUANTITY),
                 "CARD",
-                status,
-                "txn_seed"
+                status
         );
     }
 

@@ -1,7 +1,6 @@
 package com.impati.commerce.payment.application.port.in;
 
 import com.impati.commerce.common.ApiContracts.Money;
-import com.impati.commerce.common.ApiContracts.PaymentResponse;
 
 /**
  * 결제로 할 수 있는 일 전부.
@@ -11,6 +10,10 @@ import com.impati.commerce.common.ApiContracts.PaymentResponse;
  * 컨트롤러 하나가 다섯을 전부 쓰므로 쪼개면 같은 빈이 다섯 번 주입될 뿐이다.
  *
  * <p>계약은 여기 적고 구현 사정은 구현 클래스에 적는다.
+ *
+ * <p>동작마다 결과 타입이 다르다. 서비스 간 HTTP 계약({@code ApiContracts})을 돌려주지 않는
+ * 이유는 유스케이스의 반환값이 서비스 간에 주고받는 것이 아니기 때문이다 — 인바운드 어댑터가
+ * 늘어나면 각자 자기 표현으로 옮긴다.
  */
 public interface PaymentUseCase {
     /**
@@ -22,7 +25,7 @@ public interface PaymentUseCase {
      * <p>발급사가 거절하면 {@code DomainException.paymentDeclined}가 올라온다. 거절은 시스템
      * 오류와 구분되는 결과다 (PD-0011-R6).
      */
-    PaymentResponse authorize(String orderId, String memberId, Money amount, String paymentToken);
+    AuthorizedPayment authorize(String orderId, String memberId, Money amount, String paymentToken);
 
     /**
      * 확보한 대금을 청구로 확정한다 (PD-0011-R1).
@@ -30,14 +33,14 @@ public interface PaymentUseCase {
      * <p>여러 번 도착해도 첫 결과를 유지한다 (PD-0011-R4). 되돌리는 경로에서 호출되고 그
      * 경로가 재시도될 수 있으므로 같은 요청이 두 번 오는 것이 정상이다.
      */
-    PaymentResponse capture(String paymentId);
+    CapturedPayment capture(String paymentId);
 
     /**
      * 승인을 취소한다. 사용자에게 흔적이 남지 않는다 (PD-0011-R3).
      *
      * <p>매입된 결제에는 통하지 않는다. 그때 되돌리는 수단은 {@link #refund}다.
      */
-    PaymentResponse cancel(String paymentId);
+    CancelledPayment cancel(String paymentId);
 
     /**
      * 매입된 대금을 되돌린다 (PD-0011-R8).
@@ -46,7 +49,7 @@ public interface PaymentUseCase {
      * 그것이다 (PD-0012-R12). 사용자 명세서에 청구와 환불 두 줄이 남으므로 정상 흐름에는
      * 쓰지 않는다.
      */
-    PaymentResponse refund(String paymentId);
+    RefundedPayment refund(String paymentId);
 
     /**
      * 결제의 현재 상태를 돌려준다 (PD-0011-R9).
@@ -54,5 +57,5 @@ public interface PaymentUseCase {
      * <p>응답을 받지 못한 호출자가 결과를 확정하는 경로다. 이것이 없으면 모르는 상태를
      * 영원히 확정할 수 없다.
      */
-    PaymentResponse get(String paymentId);
+    PaymentDetails get(String paymentId);
 }

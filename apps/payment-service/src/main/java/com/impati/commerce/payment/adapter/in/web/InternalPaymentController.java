@@ -29,27 +29,27 @@ public class InternalPaymentController {
 
     @PostMapping("/authorize")
     PaymentResponse authorize(@RequestBody AuthorizePaymentRequest request) {
-        return payments.authorize(
-                request.orderId(), request.memberId(), request.amount(), request.paymentToken());
+        return PaymentResponseMapper.from(payments.authorize(
+                request.orderId(), request.memberId(), request.amount(), request.paymentToken()));
     }
 
     @PostMapping("/{paymentId}/capture")
     PaymentResponse capture(@PathVariable String paymentId) {
-        return payments.capture(paymentId);
+        return PaymentResponseMapper.from(payments.capture(paymentId));
     }
 
     @PostMapping("/{paymentId}/cancel")
     PaymentResponse cancel(@PathVariable String paymentId) {
-        return payments.cancel(paymentId);
+        return PaymentResponseMapper.from(payments.cancel(paymentId));
     }
 
     @PostMapping("/{paymentId}/refund")
     PaymentResponse refund(@PathVariable String paymentId) {
-        return payments.refund(paymentId);
+        return PaymentResponseMapper.from(payments.refund(paymentId));
     }
 
     @GetMapping("/{paymentId}")
     PaymentResponse get(@PathVariable String paymentId) {
-        return payments.get(paymentId);
+        return PaymentResponseMapper.from(payments.get(paymentId));
     }
 }

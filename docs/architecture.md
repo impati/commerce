@@ -127,7 +127,7 @@ apps/<service>/
 
 ```text
 application/
-  port/in/    유스케이스 (PaymentUseCase)
+  port/in/    유스케이스와 그 결과 타입 (PaymentUseCase, AuthorizedPayment, ...)
   port/out/   출력 포트 (PaymentRepository, PaymentGateway)
   component/  구현과 매퍼 (PaymentExecutor, PaymentMapper)
 ```
@@ -137,6 +137,14 @@ application/
 `port/in`은 의존 방향 때문에 있는 것이 아닙니다 — 들어오는 쪽은 어댑터가 응용을 부르므로 방향이 이미 맞습니다. **결제로 무엇을 할 수 있는지를 한 타입이 알려주고, 컨트롤러가 구현이 아니라 계약에 의존하게 하려는 것**입니다. 그래서 계약 문서는 포트에, 구현 사정은 구현 클래스에 적습니다.
 
 같은 기준이 출력 포트에도 적용됩니다. 유스케이스마다 필요한 것만 선언하면(consumer-owned) 요구가 정확히 드러나지만, 같은 시그니처가 여러 곳에 중복 선언되고 저장소가 제공하는 능력 전체를 볼 곳이 없어집니다. 능력 단위로 두고 압력이 올 때 쪼갭니다.
+
+**유스케이스는 서비스 간 계약을 돌려주지 않습니다.** `ApiContracts`의 타입은 서비스 사이에서 주고받는 것인데, 유스케이스의 반환값은 그렇지 않습니다. 인바운드 어댑터가 늘어나면 스케줄러나 메시지 소비자가 HTTP 계약을 받게 되는데 보낼 데가 없습니다. 그래서 유스케이스가 자기 결과 타입을 갖고, 각 어댑터가 자기 표현으로 옮깁니다.
+
+동작마다 결과 타입이 다릅니다 — `AuthorizedPayment`, `CapturedPayment`, `CancelledPayment`, `RefundedPayment`, `PaymentDetails`. 지금은 필드가 같지만 갈릴 이유가 서로 다릅니다. 하나로 묶으면 한 동작에만 필요한 필드가 나머지에도 따라다니고, 그렇게 몇 번 반복되면 nullable 투성이 타입이 됩니다.
+
+**그 덕에 안팎이 다른 것을 담을 수 있습니다.** 대행사 거래 식별자는 결과 타입에는 있고 HTTP 계약에는 없습니다. 대사에 쓰는 내부 값이라 형제 서비스도 브라우저도 쓸 일이 없습니다 — 예전에는 `PaymentResponse`에 담겨 브라우저까지 나갔습니다.
+
+매퍼가 둘로 갈리는 것도 같은 이유입니다. **매퍼는 자기가 변환하는 두 타입을 모두 알아도 되는 계층에 삽니다.** 도메인 → 결과는 응용이(`PaymentMapper`, package-private), 결과 → HTTP는 웹 어댑터가(`PaymentResponseMapper`) 맡습니다. 응용의 매퍼가 HTTP를 알면 결과 타입을 따로 둔 의미가 사라집니다.
 
 **이름도 함께 시험 중입니다.** 구현은 `PaymentExecutor`이고 `@Component`를 씁니다. `Service`라는 이름이 무엇을 하는 클래스인지 알려주지 않기 때문입니다 — 이 저장소에서 `Service`는 유스케이스, 도메인 서비스, 그냥 스프링 빈 셋 중 무엇이든 될 수 있습니다. `port/in`이 계약이고 `component`가 그것을 실행하는 것이라는 대비가 이름에 드러나게 했습니다. 나머지 아홉은 `XxxService`(`@Service`) 그대로입니다.
 

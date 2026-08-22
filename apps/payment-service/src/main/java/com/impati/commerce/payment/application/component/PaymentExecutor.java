@@ -1,9 +1,13 @@
 package com.impati.commerce.payment.application.component;
 
 import com.impati.commerce.common.ApiContracts.Money;
-import com.impati.commerce.common.ApiContracts.PaymentResponse;
 import com.impati.commerce.common.DomainException;
+import com.impati.commerce.payment.application.port.in.AuthorizedPayment;
+import com.impati.commerce.payment.application.port.in.CancelledPayment;
+import com.impati.commerce.payment.application.port.in.CapturedPayment;
+import com.impati.commerce.payment.application.port.in.PaymentDetails;
 import com.impati.commerce.payment.application.port.in.PaymentUseCase;
+import com.impati.commerce.payment.application.port.in.RefundedPayment;
 import com.impati.commerce.payment.application.port.out.PaymentGateway;
 import com.impati.commerce.payment.application.port.out.PaymentRepository;
 import com.impati.commerce.payment.domain.PaymentModels.Payment;
@@ -33,10 +37,10 @@ public class PaymentExecutor implements PaymentUseCase {
 
     @Override
     @Transactional
-    public PaymentResponse authorize(String orderId, String memberId, Money amount, String paymentToken) {
+    public AuthorizedPayment authorize(String orderId, String memberId, Money amount, String paymentToken) {
         Optional<Payment> existing = payments.findByOrderId(orderId);
         if (existing.isPresent()) {
-            return PaymentMapper.toResponse(existing.get());
+            return PaymentMapper.toAuthorized(existing.get());
         }
 
         var authorization = gateway.authorize(orderId, amount, paymentToken);
@@ -46,48 +50,48 @@ public class PaymentExecutor implements PaymentUseCase {
 
         Payment payment = new Payment(orderId, memberId, amount, authorization.transactionId(), authorization.method());
         if (!payments.insertIfAbsent(payment)) {
-            return PaymentMapper.toResponse(requireByOrder(orderId));
+            return PaymentMapper.toAuthorized(requireByOrder(orderId));
         }
-        return PaymentMapper.toResponse(payment);
+        return PaymentMapper.toAuthorized(payment);
     }
 
     @Override
     @Transactional
-    public PaymentResponse capture(String paymentId) {
+    public CapturedPayment capture(String paymentId) {
         var payment = require(paymentId);
         if (payment.capture()) {
             gateway.capture(payment.transactionId());
             payments.update(payment);
         }
-        return PaymentMapper.toResponse(payment);
+        return PaymentMapper.toCaptured(payment);
     }
 
     @Override
     @Transactional
-    public PaymentResponse cancel(String paymentId) {
+    public CancelledPayment cancel(String paymentId) {
         var payment = require(paymentId);
         if (payment.cancel()) {
             gateway.cancel(payment.transactionId());
             payments.update(payment);
         }
-        return PaymentMapper.toResponse(payment);
+        return PaymentMapper.toCancelled(payment);
     }
 
     @Override
     @Transactional
-    public PaymentResponse refund(String paymentId) {
+    public RefundedPayment refund(String paymentId) {
         var payment = require(paymentId);
         if (payment.refund()) {
             gateway.refund(payment.transactionId());
             payments.update(payment);
         }
-        return PaymentMapper.toResponse(payment);
+        return PaymentMapper.toRefunded(payment);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public PaymentResponse get(String paymentId) {
-        return PaymentMapper.toResponse(require(paymentId));
+    public PaymentDetails get(String paymentId) {
+        return PaymentMapper.toDetails(require(paymentId));
     }
 
     private Payment require(String paymentId) {
