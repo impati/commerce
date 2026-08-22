@@ -1,13 +1,19 @@
-package com.impati.commerce.member.application;
+package com.impati.commerce.member.application.component;
 
-import com.impati.commerce.common.ApiContracts.MemberResponse;
 import com.impati.commerce.common.DomainException;
+import com.impati.commerce.member.application.port.in.MemberDetails;
+import com.impati.commerce.member.application.port.in.RegistrationUseCase;
+import com.impati.commerce.member.application.port.out.EmailVerificationRepository;
+import com.impati.commerce.member.application.port.out.MemberRepository;
+import com.impati.commerce.member.application.port.out.NotificationClient;
+import com.impati.commerce.member.application.port.out.PasswordHasher;
+import com.impati.commerce.member.application.port.out.SecureTokens;
 import com.impati.commerce.member.domain.MemberModels.EmailVerification;
 import com.impati.commerce.member.domain.MemberModels.Member;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
@@ -19,9 +25,9 @@ import java.time.Duration;
  * <p>세션은 다루지 않는다. 가입이 로그인시켜주지 않으므로 {@link SessionService}와 의존성이
  * 겹치지 않는다.
  */
-@Service
-public class RegistrationService {
-    private static final Logger log = LoggerFactory.getLogger(RegistrationService.class);
+@Component
+public class RegistrationExecutor implements RegistrationUseCase {
+    private static final Logger log = LoggerFactory.getLogger(RegistrationExecutor.class);
 
     private final MemberRepository members;
     private final EmailVerificationRepository verifications;
@@ -31,7 +37,7 @@ public class RegistrationService {
     private final Clock clock;
     private final Duration verificationTtl;
 
-    public RegistrationService(
+    public RegistrationExecutor(
             MemberRepository members,
             EmailVerificationRepository verifications,
             PasswordHasher passwordHasher,
@@ -59,7 +65,8 @@ public class RegistrationService {
      * notification-service에 만든 것과 같은 아웃박스가 필요하다. BL-0004.
      */
     @Transactional
-    public MemberResponse register(String email, String name, String rawPassword) {
+    @Override
+    public MemberDetails register(String email, String name, String rawPassword) {
         members.findByEmail(email).ifPresent(existing -> {
             throw DomainException.conflict("member email already exists");
         });
@@ -68,11 +75,12 @@ public class RegistrationService {
         var member = new Member(email, name, passwordHasher.hash(rawPassword));
         members.save(member);
         issueVerification(member);
-        return MemberMapper.toResponse(member);
+        return MemberMapper.toDetails(member);
     }
 
     /** 인증 메일을 다시 보낸다. 이전 토큰은 그대로 두고 새 토큰을 발급한다. */
     @Transactional
+    @Override
     public void resendVerification(String memberId) {
         var member = getMember(memberId);
         if (member.isActive()) {
@@ -87,7 +95,8 @@ public class RegistrationService {
      * <p>토큰은 단일 사용이며 만료가 있다. 이미 쓴 토큰과 만료된 토큰을 같은 메시지로 거절한다.
      */
     @Transactional
-    public MemberResponse verifyEmail(String rawToken) {
+    @Override
+    public MemberDetails verifyEmail(String rawToken) {
         var verification = verifications.findByTokenHash(tokens.hash(rawToken))
                 .orElseThrow(() -> DomainException.validation("verification token is not usable"));
         verification.use(clock.instant());
@@ -96,7 +105,7 @@ public class RegistrationService {
         var member = getMember(verification.memberId());
         member.activate();
         members.save(member);
-        return MemberMapper.toResponse(member);
+        return MemberMapper.toDetails(member);
     }
 
     private void issueVerification(Member member) {

@@ -3,7 +3,7 @@ package com.impati.commerce.member.adapter.in.web;
 import com.impati.commerce.common.ApiContracts.AddAddressRequest;
 import com.impati.commerce.common.ApiContracts.AddressResponse;
 import com.impati.commerce.common.ApiContracts.MemberResponse;
-import com.impati.commerce.member.application.MemberService;
+import com.impati.commerce.member.application.port.in.MemberUseCase;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -23,15 +23,15 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/members")
 public class MemberController {
-    private final MemberService members;
+    private final MemberUseCase members;
 
-    public MemberController(MemberService members) {
+    public MemberController(MemberUseCase members) {
         this.members = members;
     }
 
     @GetMapping("/me")
     MemberResponse me(@RequestHeader("X-Member-Id") String memberId) {
-        return members.get(memberId);
+        return MemberResponseMapper.from(members.get(memberId));
     }
 
     @PostMapping("/me/addresses")
@@ -39,6 +39,7 @@ public class MemberController {
             @RequestHeader("X-Member-Id") String memberId,
             @RequestBody AddAddressRequest request
     ) {
-        return members.addAddress(memberId, request);
+        return MemberResponseMapper.from(
+                members.addAddress(memberId, MemberResponseMapper.toNewAddress(request)));
     }
 }

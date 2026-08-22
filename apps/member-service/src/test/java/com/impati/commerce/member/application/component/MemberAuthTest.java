@@ -1,6 +1,10 @@
-package com.impati.commerce.member.application;
+package com.impati.commerce.member.application.component;
 
 import com.impati.commerce.common.DomainException;
+import com.impati.commerce.member.application.port.in.RegistrationUseCase;
+import com.impati.commerce.member.application.port.in.SessionUseCase;
+import com.impati.commerce.member.application.port.out.NotificationClient;
+import com.impati.commerce.member.application.port.out.SecureTokens;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,7 +31,7 @@ import static org.mockito.Mockito.verify;
 /**
  * 가입 → 이메일 인증 → 로그인 경로를 검증한다.
  *
- * <p>흐름이 {@link RegistrationService}와 {@link SessionService} 두 클래스에 걸쳐 있으므로 둘을 함께
+ * <p>흐름이 {@link RegistrationUseCase}와 {@link SessionUseCase} 두 클래스에 걸쳐 있으므로 둘을 함께
  * 주입한다. 클래스가 나뉘어도 사용자가 겪는 경로는 하나이며, 그 경로가 이 테스트의 대상이다.
  *
  * <p>만료를 확인하려면 시간을 앞으로 돌릴 수 있어야 하므로 {@link Clock}을 테스트가 조작하는
@@ -71,10 +75,10 @@ class MemberAuthTest {
     }
 
     @Autowired
-    private RegistrationService registrations;
+    private RegistrationUseCase registrations;
 
     @Autowired
-    private SessionService sessions;
+    private SessionUseCase sessions;
 
     @Autowired
     private SecureTokens tokens;

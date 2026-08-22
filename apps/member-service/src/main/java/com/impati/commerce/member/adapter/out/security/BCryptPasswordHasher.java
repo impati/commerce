@@ -1,6 +1,6 @@
 package com.impati.commerce.member.adapter.out.security;
 
-import com.impati.commerce.member.application.PasswordHasher;
+import com.impati.commerce.member.application.port.out.PasswordHasher;
 import com.impati.commerce.member.domain.MemberModels.PasswordHash;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Component;

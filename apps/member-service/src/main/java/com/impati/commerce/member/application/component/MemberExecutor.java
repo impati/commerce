@@ -1,24 +1,26 @@
-package com.impati.commerce.member.application;
+package com.impati.commerce.member.application.component;
 
-import com.impati.commerce.common.ApiContracts.AddAddressRequest;
-import com.impati.commerce.common.ApiContracts.AddressResponse;
-import com.impati.commerce.common.ApiContracts.MemberResponse;
 import com.impati.commerce.common.DomainException;
-import org.springframework.stereotype.Service;
+import com.impati.commerce.member.application.port.in.MemberAddress;
+import com.impati.commerce.member.application.port.in.MemberDetails;
+import com.impati.commerce.member.application.port.in.MemberUseCase;
+import com.impati.commerce.member.application.port.in.NewAddress;
+import com.impati.commerce.member.application.port.out.MemberRepository;
+import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 회원 프로필과 배송지.
  *
- * <p>인증은 여기 없다. 가입·이메일 소유 확인은 {@link RegistrationService}, 로그인·세션은
- * {@link SessionService}가 맡는다. 저장소 하나만 쓰는 이 클래스와 달리 그쪽은 토큰·해시·시계·TTL을
+ * <p>인증은 여기 없다. 가입·이메일 소유 확인은 {@link RegistrationExecutor}, 로그인·세션은
+ * {@link SessionExecutor}가 맡는다. 저장소 하나만 쓰는 이 클래스와 달리 그쪽은 토큰·해시·시계·TTL을
  * 필요로 하며, 바뀌는 이유도 다르다 — 이쪽은 배송 요구로, 그쪽은 보안 요구로 바뀐다.
  */
-@Service
-public class MemberService {
+@Component
+public class MemberExecutor implements MemberUseCase {
     private final MemberRepository members;
 
-    public MemberService(MemberRepository members) {
+    public MemberExecutor(MemberRepository members) {
         this.members = members;
     }
 
@@ -30,18 +32,20 @@ public class MemberService {
      * 같은 종류의 실수를 JDBC 위치 바인딩에서 이미 겪었다.
      */
     @Transactional
-    public AddressResponse addAddress(String memberId, AddAddressRequest request) {
+    @Override
+    public MemberAddress addAddress(String memberId, NewAddress request) {
         var member = members.findById(memberId)
                 .orElseThrow(() -> DomainException.notFound("member not found"));
         var address = MemberMapper.toAddress(request);
         member.addAddress(address);
         members.save(member);
-        return MemberMapper.toResponse(address);
+        return MemberMapper.toDetails(address);
     }
 
     @Transactional(readOnly = true)
-    public MemberResponse get(String memberId) {
-        return MemberMapper.toResponse(members.findById(memberId)
+    @Override
+    public MemberDetails get(String memberId) {
+        return MemberMapper.toDetails(members.findById(memberId)
                 .orElseThrow(() -> DomainException.notFound("member not found")));
     }
 }

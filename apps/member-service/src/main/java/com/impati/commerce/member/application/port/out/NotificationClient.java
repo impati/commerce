@@ -1,4 +1,4 @@
-package com.impati.commerce.member.application;
+package com.impati.commerce.member.application.port.out;
 
 /**
  * notification-service 호출 포트. 구현은 {@code adapter/out/client}에 둔다.

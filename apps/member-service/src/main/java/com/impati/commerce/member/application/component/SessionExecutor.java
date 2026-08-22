@@ -1,11 +1,16 @@
-package com.impati.commerce.member.application;
+package com.impati.commerce.member.application.component;
 
-import com.impati.commerce.common.ApiContracts.LoginResponse;
-import com.impati.commerce.common.ApiContracts.SessionResponse;
 import com.impati.commerce.common.DomainException;
+import com.impati.commerce.member.application.port.in.IssuedSession;
+import com.impati.commerce.member.application.port.in.SessionOwner;
+import com.impati.commerce.member.application.port.in.SessionUseCase;
+import com.impati.commerce.member.application.port.out.MemberRepository;
+import com.impati.commerce.member.application.port.out.PasswordHasher;
+import com.impati.commerce.member.application.port.out.SecureTokens;
+import com.impati.commerce.member.application.port.out.SessionRepository;
 import com.impati.commerce.member.domain.MemberModels.Session;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
@@ -18,8 +23,8 @@ import java.time.Duration;
  * 게이트웨이를 지나며 한 번씩 부른다. 캐시·서킷브레이커·지표를 붙일 대상이 이 클래스이므로
  * 배송지 수정 같은 저빈도 기능과 같은 클래스에 두지 않는다.
  */
-@Service
-public class SessionService {
+@Component
+public class SessionExecutor implements SessionUseCase {
     private final MemberRepository members;
     private final SessionRepository sessions;
     private final PasswordHasher passwordHasher;
@@ -27,7 +32,7 @@ public class SessionService {
     private final Clock clock;
     private final Duration sessionTtl;
 
-    public SessionService(
+    public SessionExecutor(
             MemberRepository members,
             SessionRepository sessions,
             PasswordHasher passwordHasher,
@@ -50,7 +55,8 @@ public class SessionService {
      * 어떤 이메일이 가입돼 있는지 열거할 수 있다.
      */
     @Transactional
-    public LoginResponse login(String email, String rawPassword) {
+    @Override
+    public IssuedSession login(String email, String rawPassword) {
         var member = members.findByEmail(email)
                 .orElseThrow(() -> DomainException.validation("email or password is incorrect"));
         if (!passwordHasher.matches(rawPassword, member.passwordHash())) {
@@ -63,19 +69,21 @@ public class SessionService {
         var rawToken = tokens.newToken();
         var expiresAt = clock.instant().plus(sessionTtl);
         sessions.save(new Session(tokens.hash(rawToken), member.id(), expiresAt));
-        return new LoginResponse(rawToken, expiresAt.toString());
+        return new IssuedSession(rawToken, expiresAt.toString());
     }
 
     /** 세션이 가리키는 회원을 돌려준다. 게이트웨이가 신원을 확인할 때 쓴다. */
     @Transactional(readOnly = true)
-    public SessionResponse resolveSession(String rawToken) {
+    @Override
+    public SessionOwner resolveSession(String rawToken) {
         var session = sessions.findByTokenHash(tokens.hash(rawToken))
                 .filter(candidate -> candidate.isUsable(clock.instant()))
                 .orElseThrow(() -> DomainException.notFound("session is not valid"));
-        return new SessionResponse(session.memberId());
+        return new SessionOwner(session.memberId());
     }
 
     @Transactional
+    @Override
     public void logout(String rawToken) {
         sessions.findByTokenHash(tokens.hash(rawToken)).ifPresent(session -> {
             session.revoke(clock.instant());

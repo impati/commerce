@@ -1,7 +1,13 @@
-package com.impati.commerce.member.application;
+package com.impati.commerce.member.application.component;
 
-import com.impati.commerce.common.ApiContracts.AddAddressRequest;
+import com.impati.commerce.member.application.port.in.MemberAddress;
+import com.impati.commerce.member.application.port.in.MemberUseCase;
+import com.impati.commerce.member.application.port.in.NewAddress;
+import com.impati.commerce.member.application.port.in.RegistrationUseCase;
+import com.impati.commerce.member.application.port.in.SessionUseCase;
 import com.impati.commerce.common.DomainException;
+import com.impati.commerce.member.application.port.out.NotificationClient;
+import com.impati.commerce.member.application.port.out.SecureTokens;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -20,10 +26,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:member-address;DB_CLOSE_DELAY=-1")
 class MemberAddressTest {
     @Autowired
-    private MemberService members;
+    private MemberUseCase members;
 
     @Autowired
-    private RegistrationService registrations;
+    private RegistrationUseCase registrations;
 
     @MockBean
     private NotificationClient notifications;
@@ -32,7 +38,7 @@ class MemberAddressTest {
     void mapsEachRequestFieldToItsOwnField() {
         var member = registrations.register("address@impati.dev", "Address", "address-pw12");
 
-        var address = members.addAddress(member.id(), new AddAddressRequest(
+        var address = members.addAddress(member.id(), new NewAddress(
                 "alias-value",
                 "recipient-value",
                 "phone-value",
@@ -60,7 +66,7 @@ class MemberAddressTest {
         members.addAddress(member.id(), request("office"));
 
         assertThat(members.get(member.id()).addresses())
-                .extracting(com.impati.commerce.common.ApiContracts.AddressResponse::alias)
+                .extracting(MemberAddress::alias)
                 .containsExactly("home", "office");
     }
 
@@ -72,8 +78,8 @@ class MemberAddressTest {
                 .hasMessageContaining("member not found");
     }
 
-    private static AddAddressRequest request(String alias) {
-        return new AddAddressRequest(
+    private static NewAddress request(String alias) {
+        return new NewAddress(
                 alias, "Recipient", "010-0000-0000", "123 Commerce Road", "Seoul", "04524", false);
     }
 }

@@ -1,6 +1,6 @@
 package com.impati.commerce.member.adapter.out.persistence;
 
-import com.impati.commerce.member.application.SessionRepository;
+import com.impati.commerce.member.application.port.out.SessionRepository;
 import com.impati.commerce.member.domain.MemberModels.Session;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;

@@ -1,4 +1,4 @@
-package com.impati.commerce.member.application;
+package com.impati.commerce.member.application.port.out;
 
 import com.impati.commerce.member.domain.MemberModels.PasswordHash;
 

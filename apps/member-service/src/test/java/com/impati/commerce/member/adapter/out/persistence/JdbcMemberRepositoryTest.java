@@ -1,6 +1,6 @@
 package com.impati.commerce.member.adapter.out.persistence;
 
-import com.impati.commerce.member.application.MemberRepository;
+import com.impati.commerce.member.application.port.out.MemberRepository;
 import com.impati.commerce.member.domain.MemberModels.Address;
 import com.impati.commerce.member.domain.MemberModels.Member;
 import com.impati.commerce.member.domain.MemberModels.PasswordHash;

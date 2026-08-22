@@ -1,6 +1,6 @@
 package com.impati.commerce.member.adapter.out.security;
 
-import com.impati.commerce.member.application.SecureTokens;
+import com.impati.commerce.member.application.port.out.SecureTokens;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;

@@ -3,7 +3,7 @@ package com.impati.commerce.member.adapter.in.web;
 import com.impati.commerce.common.ApiContracts.MemberResponse;
 import com.impati.commerce.common.ApiContracts.RegisterMemberRequest;
 import com.impati.commerce.common.ApiContracts.VerifyEmailRequest;
-import com.impati.commerce.member.application.RegistrationService;
+import com.impati.commerce.member.application.port.in.RegistrationUseCase;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -19,20 +19,21 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/members")
 public class RegistrationController {
-    private final RegistrationService registrations;
+    private final RegistrationUseCase registrations;
 
-    public RegistrationController(RegistrationService registrations) {
+    public RegistrationController(RegistrationUseCase registrations) {
         this.registrations = registrations;
     }
 
     @PostMapping
     MemberResponse register(@RequestBody RegisterMemberRequest request) {
-        return registrations.register(request.email(), request.name(), request.password());
+        return MemberResponseMapper.from(
+                registrations.register(request.email(), request.name(), request.password()));
     }
 
     @PostMapping("/verifications")
     MemberResponse verifyEmail(@RequestBody VerifyEmailRequest request) {
-        return registrations.verifyEmail(request.token());
+        return MemberResponseMapper.from(registrations.verifyEmail(request.token()));
     }
 
     @PostMapping("/verifications/resend")

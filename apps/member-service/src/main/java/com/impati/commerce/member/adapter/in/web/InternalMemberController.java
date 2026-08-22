@@ -3,8 +3,8 @@ package com.impati.commerce.member.adapter.in.web;
 import com.impati.commerce.common.ApiContracts.MemberResponse;
 import com.impati.commerce.common.ApiContracts.SessionResponse;
 import com.impati.commerce.common.ApiContracts.SessionTokenRequest;
-import com.impati.commerce.member.application.MemberService;
-import com.impati.commerce.member.application.SessionService;
+import com.impati.commerce.member.application.port.in.MemberUseCase;
+import com.impati.commerce.member.application.port.in.SessionUseCase;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -31,10 +31,10 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/internal/members")
 public class InternalMemberController {
-    private final MemberService members;
-    private final SessionService sessions;
+    private final MemberUseCase members;
+    private final SessionUseCase sessions;
 
-    public InternalMemberController(MemberService members, SessionService sessions) {
+    public InternalMemberController(MemberUseCase members, SessionUseCase sessions) {
         this.members = members;
         this.sessions = sessions;
     }
@@ -42,12 +42,12 @@ public class InternalMemberController {
     /** 게이트웨이가 세션 토큰을 회원 식별자로 바꾼다. */
     @PostMapping("/sessions/resolve")
     SessionResponse resolveSession(@RequestBody SessionTokenRequest request) {
-        return sessions.resolveSession(request.token());
+        return MemberResponseMapper.from(sessions.resolveSession(request.token()));
     }
 
     /** order-service가 배송지를 읽기 위한 경로. */
     @GetMapping("/{memberId}")
     MemberResponse get(@PathVariable String memberId) {
-        return members.get(memberId);
+        return MemberResponseMapper.from(members.get(memberId));
     }
 }

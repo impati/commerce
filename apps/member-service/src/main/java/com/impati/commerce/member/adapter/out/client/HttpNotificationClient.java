@@ -1,7 +1,7 @@
 package com.impati.commerce.member.adapter.out.client;
 
 import com.impati.commerce.common.ApiContracts.EmailVerificationMailRequest;
-import com.impati.commerce.member.application.NotificationClient;
+import com.impati.commerce.member.application.port.out.NotificationClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;

@@ -1,4 +1,4 @@
-package com.impati.commerce.member.application;
+package com.impati.commerce.member.application.port.out;
 
 /**
  * 토큰 생성과 해싱 포트. 구현은 {@code adapter/out/security}에 둔다.

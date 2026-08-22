@@ -3,7 +3,7 @@ package com.impati.commerce.member.adapter.in.web;
 import com.impati.commerce.common.ApiContracts.LoginRequest;
 import com.impati.commerce.common.ApiContracts.LoginResponse;
 import com.impati.commerce.common.ApiContracts.SessionTokenRequest;
-import com.impati.commerce.member.application.SessionService;
+import com.impati.commerce.member.application.port.in.SessionUseCase;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -18,15 +18,15 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/members")
 public class SessionController {
-    private final SessionService sessions;
+    private final SessionUseCase sessions;
 
-    public SessionController(SessionService sessions) {
+    public SessionController(SessionUseCase sessions) {
         this.sessions = sessions;
     }
 
     @PostMapping("/login")
     LoginResponse login(@RequestBody LoginRequest request) {
-        return sessions.login(request.email(), request.password());
+        return MemberResponseMapper.from(sessions.login(request.email(), request.password()));
     }
 
     /** 토큰을 가진 사람만 자기 세션을 폐기할 수 있으므로 별도 신원 확인이 필요하지 않다. */

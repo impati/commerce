@@ -1,5 +1,7 @@
-package com.impati.commerce.member.application;
+package com.impati.commerce.member.adapter.in.seed;
 
+import com.impati.commerce.member.application.port.out.MemberRepository;
+import com.impati.commerce.member.application.port.out.PasswordHasher;
 import com.impati.commerce.member.domain.MemberModels.Address;
 import com.impati.commerce.member.domain.MemberModels.Member;
 import org.slf4j.Logger;
@@ -19,10 +21,12 @@ import org.springframework.transaction.annotation.Transactional;
  * 호출자만 프로파일로 막혀 있었다 — 같은 앱의 다른 코드가 부르는 것을 막을 수 없는 상태였다.
  *
  * <p>파일 DB는 데이터가 남으므로 이미 있으면 아무것도 하지 않는다.
+ *
+ * <p>앱 시작이 트리거인 진입점이므로 컨트롤러와 같은 등급이고 {@code adapter/in}에 산다.
  */
 @Component
 @Profile("local")
-class LocalDemoSeeder implements ApplicationRunner {
+public class LocalDemoSeeder implements ApplicationRunner {
     private static final Logger log = LoggerFactory.getLogger(LocalDemoSeeder.class);
 
     private static final String DEMO_ID = "mem_demo";

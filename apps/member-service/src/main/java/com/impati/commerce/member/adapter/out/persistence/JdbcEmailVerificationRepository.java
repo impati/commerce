@@ -1,6 +1,6 @@
 package com.impati.commerce.member.adapter.out.persistence;
 
-import com.impati.commerce.member.application.EmailVerificationRepository;
+import com.impati.commerce.member.application.port.out.EmailVerificationRepository;
 import com.impati.commerce.member.domain.MemberModels.EmailVerification;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
