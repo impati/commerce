@@ -1,4 +1,4 @@
-package com.impati.commerce.shipping.application;
+package com.impati.commerce.shipping.application.port.out;
 
 import com.impati.commerce.shipping.domain.ShippingModels.Shipment;
 

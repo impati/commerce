@@ -1,6 +1,6 @@
 package com.impati.commerce.shipping.adapter.out.persistence;
 
-import com.impati.commerce.shipping.application.ShipmentRepository;
+import com.impati.commerce.shipping.application.port.out.ShipmentRepository;
 import com.impati.commerce.shipping.domain.ShippingModels.Address;
 import com.impati.commerce.shipping.domain.ShippingModels.Shipment;
 import org.springframework.jdbc.core.RowMapper;

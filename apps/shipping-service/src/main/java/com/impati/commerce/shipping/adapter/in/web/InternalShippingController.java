@@ -2,7 +2,7 @@ package com.impati.commerce.shipping.adapter.in.web;
 
 import com.impati.commerce.common.ApiContracts.CreateShipmentRequest;
 import com.impati.commerce.common.ApiContracts.ShipmentResponse;
-import com.impati.commerce.shipping.application.ShippingService;
+import com.impati.commerce.shipping.application.port.in.ShippingUseCase;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -20,24 +20,25 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/internal/shipments")
 public class InternalShippingController {
-    private final ShippingService shipping;
+    private final ShippingUseCase shipping;
 
-    public InternalShippingController(ShippingService shipping) {
+    public InternalShippingController(ShippingUseCase shipping) {
         this.shipping = shipping;
     }
 
     @PostMapping
     ShipmentResponse create(@RequestBody CreateShipmentRequest request) {
-        return shipping.create(request.orderId(), request.memberId(), request.address());
+        return ShipmentResponseMapper.from(shipping.create(
+                request.orderId(), request.memberId(), ShipmentResponseMapper.toAddress(request.address())));
     }
 
     @GetMapping("/{shipmentId}")
     ShipmentResponse get(@PathVariable String shipmentId) {
-        return shipping.get(shipmentId);
+        return ShipmentResponseMapper.from(shipping.get(shipmentId));
     }
 
     @PostMapping("/{shipmentId}/cancel")
     ShipmentResponse cancel(@PathVariable String shipmentId) {
-        return shipping.cancel(shipmentId);
+        return ShipmentResponseMapper.from(shipping.cancel(shipmentId));
     }
 }

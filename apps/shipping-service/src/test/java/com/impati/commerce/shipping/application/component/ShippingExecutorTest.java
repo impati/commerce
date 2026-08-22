@@ -1,7 +1,9 @@
-package com.impati.commerce.shipping.application;
+package com.impati.commerce.shipping.application.component;
 
-import com.impati.commerce.common.ApiContracts.AddressResponse;
-import com.impati.commerce.common.ApiContracts.ShipmentResponse;
+import com.impati.commerce.shipping.application.port.in.ShipmentAddress;
+import com.impati.commerce.shipping.application.port.in.ShipmentDetails;
+import com.impati.commerce.shipping.application.port.in.ShippingUseCase;
+
 import com.impati.commerce.common.DomainException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,9 +19,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * 무엇을 거절해야 하는지는 드러나지 않는다.
  */
 @SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:shipping-service;DB_CLOSE_DELAY=-1")
-class ShippingServiceTest {
+class ShippingExecutorTest {
     @Autowired
-    private ShippingService shipping;
+    private ShippingUseCase shipping;
 
     /** PD-0013-R1: 배송은 준비 상태로 만들어지고 운송장 번호가 이때 발급된다. */
     @Test
@@ -115,8 +117,8 @@ class ShippingServiceTest {
         assertThat(shipping.deliver(shipment.id()).status()).isEqualTo("DELIVERED");
     }
 
-    private ShipmentResponse create(String orderId) {
-        return shipping.create(orderId, "mem_demo", new AddressResponse(
+    private ShipmentDetails create(String orderId) {
+        return shipping.create(orderId, "mem_demo", new ShipmentAddress(
                 "adr_1", "home", "받는이", "010-0000-0000", "서울 어딘가 1", "서울", "01234", true
         ));
     }
