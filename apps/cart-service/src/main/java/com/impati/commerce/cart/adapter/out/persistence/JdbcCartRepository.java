@@ -1,6 +1,6 @@
 package com.impati.commerce.cart.adapter.out.persistence;
 
-import com.impati.commerce.cart.application.CartRepository;
+import com.impati.commerce.cart.application.port.out.CartRepository;
 import com.impati.commerce.cart.domain.CartModels.Cart;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;

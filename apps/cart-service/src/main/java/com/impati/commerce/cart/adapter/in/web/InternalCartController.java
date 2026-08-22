@@ -1,6 +1,6 @@
 package com.impati.commerce.cart.adapter.in.web;
 
-import com.impati.commerce.cart.application.CartService;
+import com.impati.commerce.cart.application.port.in.CartUseCase;
 import com.impati.commerce.common.ApiContracts.CartResponse;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -16,14 +16,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/internal/carts")
 public class InternalCartController {
-    private final CartService carts;
+    private final CartUseCase carts;
 
-    public InternalCartController(CartService carts) {
+    public InternalCartController(CartUseCase carts) {
         this.carts = carts;
     }
 
     @PostMapping("/clear")
     CartResponse clear(@RequestHeader("X-Member-Id") String memberId) {
-        return carts.clear(memberId);
+        return CartResponseMapper.from(carts.clear(memberId));
     }
 }

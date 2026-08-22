@@ -1,6 +1,6 @@
 package com.impati.commerce.cart.adapter.in.web;
 
-import com.impati.commerce.cart.application.CartService;
+import com.impati.commerce.cart.application.port.in.CartUseCase;
 import com.impati.commerce.common.ApiContracts.CartItemRequest;
 import com.impati.commerce.common.ApiContracts.CartResponse;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,19 +19,19 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/carts")
 public class CartController {
-    private final CartService carts;
+    private final CartUseCase carts;
 
-    public CartController(CartService carts) {
+    public CartController(CartUseCase carts) {
         this.carts = carts;
     }
 
     @GetMapping
     CartResponse get(@RequestHeader("X-Member-Id") String memberId) {
-        return carts.get(memberId);
+        return CartResponseMapper.from(carts.get(memberId));
     }
 
     @PostMapping("/items")
     CartResponse addItem(@RequestHeader("X-Member-Id") String memberId, @RequestBody CartItemRequest request) {
-        return carts.addItem(memberId, request.skuId(), request.quantity());
+        return CartResponseMapper.from(carts.addItem(memberId, request.skuId(), request.quantity()));
     }
 }

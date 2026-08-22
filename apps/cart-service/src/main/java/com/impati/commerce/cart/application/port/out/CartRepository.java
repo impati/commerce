@@ -1,4 +1,4 @@
-package com.impati.commerce.cart.application;
+package com.impati.commerce.cart.application.port.out;
 
 import com.impati.commerce.cart.domain.CartModels.Cart;
 

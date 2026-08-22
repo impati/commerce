@@ -1,5 +1,8 @@
-package com.impati.commerce.cart.application;
+package com.impati.commerce.cart.application.component;
 
+import com.impati.commerce.cart.application.port.in.CartUseCase;
+import com.impati.commerce.cart.application.port.out.CartRepository;
+import com.impati.commerce.cart.application.port.out.CatalogClient;
 import com.impati.commerce.common.ApiContracts.Money;
 import com.impati.commerce.common.ApiContracts.SkuResponse;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,14 +18,14 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 @SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:cart-app;DB_CLOSE_DELAY=-1")
-class CartServiceTest {
+class CartExecutorTest {
     private static final String SKU_ID = "sku_tee_white_m";
 
     @Autowired
-    private CartService cartService;
+    private CartUseCase carts;
 
     @Autowired
-    private CartRepository carts;
+    private CartRepository storedCarts;
 
     @MockBean
     private CatalogClient catalog;
@@ -44,8 +47,8 @@ class CartServiceTest {
     void addItemAccumulatesQuantityForSameSku() {
         var memberId = "mem_accumulate";
 
-        cartService.addItem(memberId, SKU_ID, 2);
-        var cart = cartService.addItem(memberId, SKU_ID, 3);
+        carts.addItem(memberId, SKU_ID, 2);
+        var cart = carts.addItem(memberId, SKU_ID, 3);
 
         assertThat(cart.lines()).hasSize(1);
         assertThat(cart.lines().getFirst().skuId()).isEqualTo(SKU_ID);
@@ -58,23 +61,23 @@ class CartServiceTest {
      */
     @Test
     void getDoesNotCreateCart() {
-        var response = cartService.get("mem_never_seen");
+        var response = carts.get("mem_never_seen");
 
         assertThat(response.memberId()).isEqualTo("mem_never_seen");
         assertThat(response.lines()).isEmpty();
-        assertThat(carts.findByMemberId("mem_never_seen")).isEmpty();
+        assertThat(storedCarts.findByMemberId("mem_never_seen")).isEmpty();
     }
 
     /** [PD-0006-R7] 명시적으로 비운 장바구니는 저장된 채 비어 있다. 없는 장바구니와 다르다. */
     @Test
     void clearEmptiesStoredCart() {
         var memberId = "mem_clear";
-        cartService.addItem(memberId, SKU_ID, 2);
+        carts.addItem(memberId, SKU_ID, 2);
 
-        var cleared = cartService.clear(memberId);
+        var cleared = carts.clear(memberId);
 
         assertThat(cleared.lines()).isEmpty();
-        assertThat(carts.findByMemberId(memberId)).isPresent();
-        assertThat(carts.findByMemberId(memberId).orElseThrow().lines()).isEmpty();
+        assertThat(storedCarts.findByMemberId(memberId)).isPresent();
+        assertThat(storedCarts.findByMemberId(memberId).orElseThrow().lines()).isEmpty();
     }
 }

@@ -1,6 +1,6 @@
 package com.impati.commerce.cart.adapter.out.client;
 
-import com.impati.commerce.cart.application.CatalogClient;
+import com.impati.commerce.cart.application.port.out.CatalogClient;
 import com.impati.commerce.common.ApiContracts.SkuResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
