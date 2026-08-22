@@ -27,6 +27,8 @@ make todo
 
 위에서부터 먼저 한다. 이 순서는 항목 파일에 적지 않는다 — 순서는 바뀌고 항목은 남는다.
 
+1~7은 이전에 정한 순서이고 그대로 두었다. 8~10은 결제 정합성 작업(BL-0034·0032·0041·0042)에서 나온 것들이다.
+
 | 순서 | 항목 | 왜 이 순서인가 |
 | --- | --- | --- |
 | 1 | [BL-0002](bl-0002-verification-token-referer-leak.md) 인증 링크 토큰의 Referer 유출 | 토큰이 정적 호스트 로그·히스토리에 남는다 |
@@ -36,6 +38,9 @@ make todo
 | 5 | [BL-0006](bl-0006-local-profile-smoke.md) local 프로파일 스모크 | 하네스가 못 보는 구간이다. 급하지 않다 |
 | 6 | [BL-0007](bl-0007-password-policy-to-domain.md) 비밀번호 정책을 도메인으로 | 클래스 리뷰에서 나왔다. 지금 동작에는 문제가 없다 |
 | 7 | [BL-0008](bl-0008-duplicate-signup-conflict-response.md) 동시 가입 경합 응답 | 위와 같다 |
+| 8 | [BL-0039](bl-0039-resolve-unknown-payment-outcome.md) 결제 미확인 주문 정리 | **BL-0034가 만든 부채다.** [PD-0012-R12](../policy/pd-0012-checkout-and-compensation.md)가 "표시하고 나중에 환불한다"고 정했는데 그 나중을 담당하는 것이 없다. 표시된 주문은 고객 대금이 나간 채로 쌓인다 |
+| 9 | [BL-0036](bl-0036-clients-leak-protocol-errors.md) + [BL-0037](bl-0037-downstream-failure-reported-as-conflict.md) 오류 변환과 상태 코드 | 원인이 하나다 — `DomainException`에 하위 장애를 담을 종류가 없어 `conflict`가 대신 쓰이고, 전송 실패는 아예 변환되지 않는다. **한 작업으로 묶어 새 번호를 딴다** |
+| 10 | [BL-0030](bl-0030-policy-verification-gaps.md) 정책 규칙 검증 공백 | 상품 노출 전체와 체크아웃 R1~R4. 크지만 기계적이라 앞의 것들이 끝난 뒤가 낫다 |
 
 ## 순서를 정하지 않은 항목
 
@@ -61,11 +66,7 @@ make todo
 | [BL-0026](bl-0026-unpublished-sku-is-readable.md) 발행 전 판매 단위 노출 | 상품은 숨기는데 하위 단위가 샌다 |
 | [BL-0028](bl-0028-order-total-forces-krw.md) 주문 총액 통화 고정 | 지금 맞는 이유가 계산이 옳아서가 아니다 |
 | [BL-0029](bl-0029-order-and-shipment-status-diverge.md) 주문·배송 상태 불일치 | 어느 쪽이 진실인지 정해져 있지 않다 |
-| [BL-0030](bl-0030-policy-verification-gaps.md) 정책 규칙 검증 공백 | 결제·배송은 메워졌다. 상품 노출과 체크아웃 R1~R4가 남았다 |
 | [BL-0031](bl-0031-check-policy-rule-coverage.md) 규칙·테스트 대응 검사 | 규율에 의존하는 것은 반드시 샌다 |
 | [BL-0033](bl-0033-checkout-compensation-can-fail-silently.md) 보상 실패 시 원인 소실 | 정책이 보상 성공을 전제한다 ([PD-0004](../policy/pd-0004-checkout-and-compensation.md)) |
 | [BL-0035](bl-0035-checkout-request-idempotency.md) 체크아웃 요청 멱등성 | 결제 멱등 키로는 막히지 않는 경로다 |
-| [BL-0036](bl-0036-clients-leak-protocol-errors.md) 클라이언트가 프로토콜 오류를 흘린다 | 7개 중 5개가 ErrorResponse 계약을 깬다 |
-| [BL-0037](bl-0037-downstream-failure-reported-as-conflict.md) 하위 장애가 409로 나간다 | 재시도 판단이 반대가 된다 |
 | [BL-0038](bl-0038-captured-order-leaves-uncommitted-reservation.md) 매입 후 미확정 예약 | BL-0025와 반대 방향으로 처리해야 한다 ([PD-0012-R9](../policy/pd-0012-checkout-and-compensation.md)) |
-| [BL-0039](bl-0039-resolve-unknown-payment-outcome.md) 결제 미확인 주문 정리 | 찾을 수단과 되돌릴 수단은 있고 잇는 절차가 없다 ([PD-0012-R12](../policy/pd-0012-checkout-and-compensation.md)) |
