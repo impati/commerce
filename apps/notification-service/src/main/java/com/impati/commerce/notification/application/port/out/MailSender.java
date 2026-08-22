@@ -1,4 +1,4 @@
-package com.impati.commerce.notification.application;
+package com.impati.commerce.notification.application.port.out;
 
 /**
  * 메일 발송 포트. 구현은 {@code adapter/out/mail}에 둔다.

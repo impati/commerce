@@ -1,6 +1,6 @@
 package com.impati.commerce.notification.adapter.out.persistence;
 
-import com.impati.commerce.notification.application.NotificationRepository;
+import com.impati.commerce.notification.application.port.out.NotificationRepository;
 import com.impati.commerce.notification.domain.NotificationModels.Channel;
 import com.impati.commerce.notification.domain.NotificationModels.DeliveryStatus;
 import com.impati.commerce.notification.domain.NotificationModels.Notification;

@@ -1,6 +1,6 @@
 package com.impati.commerce.notification.adapter.out.mail;
 
-import com.impati.commerce.notification.application.MailSender;
+import com.impati.commerce.notification.application.port.out.MailSender;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;

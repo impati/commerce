@@ -1,4 +1,4 @@
-package com.impati.commerce.notification.application;
+package com.impati.commerce.notification.application.port.out;
 
 import com.impati.commerce.notification.domain.NotificationModels.Notification;
 

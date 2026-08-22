@@ -1,19 +1,22 @@
-package com.impati.commerce.notification.application;
+package com.impati.commerce.notification.application.component;
 
-import com.impati.commerce.common.ApiContracts.NotificationResponse;
-import com.impati.commerce.common.ApiContracts.OutboxEntryResponse;
+import com.impati.commerce.notification.application.port.in.NotificationDetails;
+import com.impati.commerce.notification.application.port.in.NotificationUseCase;
+import com.impati.commerce.notification.application.port.in.OutboxEntry;
+import com.impati.commerce.notification.application.port.out.MailSender;
+import com.impati.commerce.notification.application.port.out.NotificationRepository;
 import com.impati.commerce.notification.domain.NotificationModels.Notification;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
-@Service
-public class NotificationService {
-    private static final Logger log = LoggerFactory.getLogger(NotificationService.class);
+@Component
+public class NotificationExecutor implements NotificationUseCase {
+    private static final Logger log = LoggerFactory.getLogger(NotificationExecutor.class);
     private static final int MAX_ATTEMPTS = 3;
     private static final int DISPATCH_BATCH = 20;
 
@@ -21,7 +24,7 @@ public class NotificationService {
     private final MailSender mailSender;
     private final String verificationBaseUrl;
 
-    public NotificationService(
+    public NotificationExecutor(
             NotificationRepository notifications,
             MailSender mailSender,
             @Value("${notifications.verification-base-url}") String verificationBaseUrl
@@ -32,10 +35,11 @@ public class NotificationService {
     }
 
     @Transactional
-    public NotificationResponse record(String eventType, String memberId, String subject, String body) {
+    @Override
+    public NotificationDetails record(String eventType, String memberId, String subject, String body) {
         var notification = new Notification(eventType, memberId, subject, body);
         notifications.save(notification);
-        return NotificationMapper.toResponse(notification);
+        return NotificationMapper.toDetails(notification);
     }
 
     /**
@@ -45,7 +49,8 @@ public class NotificationService {
      * {@link #dispatchPending()}이 별도로 가져간다.
      */
     @Transactional
-    public NotificationResponse requestEmailVerification(String memberId, String email, String token) {
+    @Override
+    public NotificationDetails requestEmailVerification(String memberId, String email, String token) {
         var notification = Notification.mail(
                 "EmailVerificationRequested",
                 memberId,
@@ -54,7 +59,7 @@ public class NotificationService {
                 "아래 링크로 이메일 소유를 확인해주세요.\n" + verificationBaseUrl + "?token=" + token
         );
         notifications.save(notification);
-        return NotificationMapper.toResponse(notification);
+        return NotificationMapper.toDetails(notification);
     }
 
     /**
@@ -63,6 +68,7 @@ public class NotificationService {
      * <p>한 건의 실패가 다음 건을 막지 않게 건별로 처리한다. 실패는 attempts와 last_error로
      * 남고, 한도를 넘으면 FAILED가 되어 조회로 드러난다. 예외를 삼켜 사라지게 하지 않는다.
      */
+    @Override
     public int dispatchPending() {
         var pending = notifications.findPendingMail(DISPATCH_BATCH);
         var sent = 0;
@@ -81,13 +87,15 @@ public class NotificationService {
     }
 
     @Transactional(readOnly = true)
-    public List<NotificationResponse> listFor(String memberId) {
-        return notifications.findByMemberId(memberId).stream().map(NotificationMapper::toResponse).toList();
+    @Override
+    public List<NotificationDetails> listFor(String memberId) {
+        return notifications.findByMemberId(memberId).stream().map(NotificationMapper::toDetails).toList();
     }
 
     /** 로컬 데모에서 발송함을 들여다본다. 인증 토큰을 확인할 유일한 경로다. */
     @Transactional(readOnly = true)
-    public List<OutboxEntryResponse> outbox() {
+    @Override
+    public List<OutboxEntry> outbox() {
         return notifications.findAll().stream().map(NotificationMapper::toOutboxEntry).toList();
     }
 }

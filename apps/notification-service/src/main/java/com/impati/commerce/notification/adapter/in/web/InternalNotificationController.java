@@ -4,7 +4,7 @@ import com.impati.commerce.common.ApiContracts.EmailVerificationMailRequest;
 import com.impati.commerce.common.ApiContracts.NotificationEventRequest;
 import com.impati.commerce.common.ApiContracts.NotificationResponse;
 import com.impati.commerce.common.ApiContracts.OutboxEntryResponse;
-import com.impati.commerce.notification.application.NotificationService;
+import com.impati.commerce.notification.application.port.in.NotificationUseCase;
 import org.springframework.context.annotation.Profile;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -23,20 +23,22 @@ import java.util.List;
 @RestController
 @RequestMapping("/internal/notifications")
 public class InternalNotificationController {
-    private final NotificationService notifications;
+    private final NotificationUseCase notifications;
 
-    public InternalNotificationController(NotificationService notifications) {
+    public InternalNotificationController(NotificationUseCase notifications) {
         this.notifications = notifications;
     }
 
     @PostMapping("/events")
     NotificationResponse record(@RequestBody NotificationEventRequest request) {
-        return notifications.record(request.eventType(), request.memberId(), request.subject(), request.body());
+        return NotificationResponseMapper.from(notifications.record(
+                request.eventType(), request.memberId(), request.subject(), request.body()));
     }
 
     @PostMapping("/email-verifications")
     NotificationResponse requestEmailVerification(@RequestBody EmailVerificationMailRequest request) {
-        return notifications.requestEmailVerification(request.memberId(), request.email(), request.token());
+        return NotificationResponseMapper.from(notifications.requestEmailVerification(
+                request.memberId(), request.email(), request.token()));
     }
 
     /**
@@ -50,15 +52,15 @@ public class InternalNotificationController {
     @RequestMapping("/internal/notifications/outbox")
     @Profile("local")
     static class OutboxController {
-        private final NotificationService notifications;
+        private final NotificationUseCase notifications;
 
-        OutboxController(NotificationService notifications) {
+        OutboxController(NotificationUseCase notifications) {
             this.notifications = notifications;
         }
 
         @GetMapping
         List<OutboxEntryResponse> outbox() {
-            return notifications.outbox();
+            return notifications.outbox().stream().map(NotificationResponseMapper::from).toList();
         }
     }
 }

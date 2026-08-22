@@ -1,5 +1,8 @@
-package com.impati.commerce.notification.application;
+package com.impati.commerce.notification.application.component;
 
+import com.impati.commerce.notification.application.port.in.NotificationUseCase;
+import com.impati.commerce.notification.application.port.in.OutboxEntry;
+import com.impati.commerce.notification.application.port.out.MailSender;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -22,7 +25,7 @@ import static org.mockito.Mockito.doThrow;
 })
 class OutboxTest {
     @Autowired
-    private NotificationService notifications;
+    private NotificationUseCase notifications;
 
     @MockBean
     private MailSender mailSender;
@@ -85,7 +88,7 @@ class OutboxTest {
         assertThat(entry.deliveryStatus()).isEqualTo("SKIPPED");
     }
 
-    private com.impati.commerce.common.ApiContracts.OutboxEntryResponse outboxOf(String recipient) {
+    private OutboxEntry outboxOf(String recipient) {
         return notifications.outbox().stream()
                 .filter(entry -> recipient.equals(entry.recipient()))
                 .findFirst()
