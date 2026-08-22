@@ -19,4 +19,4 @@ CLAUDE.md는 보상과 롤백 경로를 성공 경로와 같은 비중으로 테
 
 우선순위는 거절 규칙이다. 무엇을 허용하는지는 사용 중에 드러나지만 무엇을 거절해야 하는지는 드러나지 않는다.
 
-규칙 자체를 바꾸는 항목([BL-0024](bl-0024-checkout-leaks-stock-and-payment.md)~[BL-0029](bl-0029-order-and-shipment-status-diverge.md))을 먼저 처리하면 여기서 만들 테스트가 달라진다.
+규칙 자체를 바꾸는 항목([BL-0025](bl-0025-inventory-reservation-never-expires.md), [BL-0026](bl-0026-unpublished-sku-is-readable.md), [BL-0028](bl-0028-order-total-forces-krw.md), [BL-0029](bl-0029-order-and-shipment-status-diverge.md), [BL-0034](bl-0034-checkout-payment-integrity.md))을 먼저 처리하면 여기서 만들 테스트가 달라진다.

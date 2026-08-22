@@ -57,13 +57,13 @@ make todo
 | [BL-0021](bl-0021-pd-0001-verification-gaps.md) PD-0001 검증 공백 | 규칙 10개 중 5개를 아무것도 고정하지 않는다 |
 | [BL-0022](bl-0022-unverified-login-leaks-account-existence.md) 미인증 로그인 응답의 계정 열거 | 한 문서 안에서 R1과 R2가 어긋난다 ([PD-0002](../policy/pd-0002-login-rejection-and-session-lifetime.md)) |
 | [BL-0023](bl-0023-pd-0002-verification-gaps.md) PD-0002 검증 공백 | 규칙 7개 중 3개를 아무것도 고정하지 않는다 |
-| [BL-0024](bl-0024-checkout-leaks-stock-and-payment.md) 체크아웃의 재고·결제 누수 | 재고는 차감되고 결제는 승인된 채 주문만 취소된다 |
 | [BL-0025](bl-0025-inventory-reservation-never-expires.md) 재고 예약 만료 부재 | 방치된 예약이 재고를 무기한 묶는다 |
 | [BL-0026](bl-0026-unpublished-sku-is-readable.md) 발행 전 판매 단위 노출 | 상품은 숨기는데 하위 단위가 샌다 |
-| [BL-0027](bl-0027-payment-request-is-not-idempotent.md) 결제 요청 비멱등 | 타임아웃 후 재시도가 이중 청구가 된다 |
 | [BL-0028](bl-0028-order-total-forces-krw.md) 주문 총액 통화 고정 | 지금 맞는 이유가 계산이 옳아서가 아니다 |
 | [BL-0029](bl-0029-order-and-shipment-status-diverge.md) 주문·배송 상태 불일치 | 어느 쪽이 진실인지 정해져 있지 않다 |
 | [BL-0030](bl-0030-policy-verification-gaps.md) PD-0003~0010 검증 공백 | 세 서비스는 정책 규칙 테스트가 하나도 없다 |
 | [BL-0031](bl-0031-check-policy-rule-coverage.md) 규칙·테스트 대응 검사 | 규율에 의존하는 것은 반드시 샌다 |
 | [BL-0032](bl-0032-payment-gateway-port-not-separated.md) 결제 대행사 포트 미분리 | 어댑터 교체로 운영에 나갈 수 없다 |
 | [BL-0033](bl-0033-checkout-compensation-can-fail-silently.md) 보상 실패 시 원인 소실 | 정책이 보상 성공을 전제한다 ([PD-0004](../policy/pd-0004-checkout-and-compensation.md)) |
+| [BL-0034](bl-0034-checkout-payment-integrity.md) 체크아웃의 결제·재고 정합성 | BL-0024와 BL-0027을 합쳤다. 원인이 하나였다 |
+| [BL-0035](bl-0035-checkout-request-idempotency.md) 체크아웃 요청 멱등성 | 결제 멱등 키로는 막히지 않는 경로다 |
