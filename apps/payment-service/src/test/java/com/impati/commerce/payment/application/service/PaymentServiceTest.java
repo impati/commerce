@@ -1,4 +1,4 @@
-package com.impati.commerce.payment.application;
+package com.impati.commerce.payment.application.service;
 
 import com.impati.commerce.common.ApiContracts.Money;
 import com.impati.commerce.common.DomainException;

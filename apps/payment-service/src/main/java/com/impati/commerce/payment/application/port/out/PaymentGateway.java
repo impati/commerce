@@ -1,4 +1,4 @@
-package com.impati.commerce.payment.application;
+package com.impati.commerce.payment.application.port.out;
 
 import com.impati.commerce.common.ApiContracts.Money;
 

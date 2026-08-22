@@ -1,7 +1,7 @@
 package com.impati.commerce.payment.adapter.out.persistence;
 
 import com.impati.commerce.common.ApiContracts.Money;
-import com.impati.commerce.payment.application.PaymentRepository;
+import com.impati.commerce.payment.application.port.out.PaymentRepository;
 import com.impati.commerce.payment.domain.PaymentModels.Payment;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

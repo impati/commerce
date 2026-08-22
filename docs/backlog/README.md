@@ -70,5 +70,4 @@ make todo
 | [BL-0038](bl-0038-captured-order-leaves-uncommitted-reservation.md) 매입 후 미확정 예약 | BL-0025와 반대 방향으로 처리해야 한다 ([PD-0012-R9](../policy/pd-0012-checkout-and-compensation.md)) |
 | [BL-0039](bl-0039-resolve-unknown-payment-outcome.md) 결제 미확인 주문 정리 | 찾을 수단과 되돌릴 수단은 있고 잇는 절차가 없다 ([PD-0012-R12](../policy/pd-0012-checkout-and-compensation.md)) |
 | [BL-0040](bl-0040-port-field-naming-hides-boundary.md) 포트 필드 이름이 경계를 감춘다 | 저장소와 클라이언트가 같은 이름을 쓴다 |
-| [BL-0041](bl-0041-expose-application-structure.md) 응용 계층 구조가 안 드러난다 | payment-service 선행 적용 |
 | [BL-0042](bl-0042-apply-application-structure-to-all-services.md) 나머지 서비스에 적용 | 두 관행이 공존하는 상태를 끝낸다 |

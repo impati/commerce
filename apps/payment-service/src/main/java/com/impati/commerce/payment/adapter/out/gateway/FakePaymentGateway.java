@@ -2,7 +2,7 @@ package com.impati.commerce.payment.adapter.out.gateway;
 
 import com.impati.commerce.common.ApiContracts.Money;
 import com.impati.commerce.common.Ids;
-import com.impati.commerce.payment.application.PaymentGateway;
+import com.impati.commerce.payment.application.port.out.PaymentGateway;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -40,6 +40,7 @@ public class FakePaymentGateway implements PaymentGateway {
             log.info("gateway declined order={} amount={}", orderId, amount.amount());
             return Authorization.declined("issuer declined the card");
         }
+
         var transactionId = Ids.newId("txn");
         transactions.put(transactionId, "AUTHORIZED");
         log.info("gateway authorized order={} amount={} transaction={}", orderId, amount.amount(), transactionId);

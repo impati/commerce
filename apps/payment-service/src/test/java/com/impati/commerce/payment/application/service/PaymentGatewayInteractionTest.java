@@ -1,6 +1,7 @@
-package com.impati.commerce.payment.application;
+package com.impati.commerce.payment.application.service;
 
 import com.impati.commerce.common.ApiContracts.Money;
+import com.impati.commerce.payment.application.port.out.PaymentGateway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

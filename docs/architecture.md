@@ -121,6 +121,23 @@ apps/<service>/
 - `XxxClient` — 다른 서비스. 프로토콜 오류를 도메인 언어로 옮기는 것도 어댑터의 일입니다 (402 → `paymentDeclined`)
 - 능력 이름 (`PasswordHasher`, `SecureTokens`, `MailSender`, `PaymentGateway`) — 기술 수단. **이름에 수단을 넣지 않습니다.** `BCryptHasher`가 아니라 `PasswordHasher`입니다. 구현이 Argon2로 바뀌어도 포트 이름은 그대로여야 하고, 수단이 이름에 박히면 갈아끼울 때 호출하는 쪽이 전부 바뀝니다
 
+### payment-service는 이 구조를 하위 패키지로 나눠 시험 중입니다
+
+위 네 종류가 한 패키지에 평평하게 놓이면 접미사로만 구분됩니다. `Service`로 끝나지 않는 파일이 유스케이스인지 포트인지 매퍼인지는 열어봐야 압니다. payment-service만 이렇게 나눠 두었습니다.
+
+```text
+application/
+  port/in/    유스케이스 인터페이스 (AuthorizePaymentUseCase 등)
+  port/out/   출력 포트 (PaymentRepository, PaymentGateway)
+  service/    구현과 매퍼
+```
+
+`port/in`은 의존 방향을 뒤집기 위한 것이 아닙니다 — 들어오는 쪽은 이미 어댑터가 응용을 부르므로 방향이 맞습니다. **유스케이스 목록을 드러내고 컨트롤러가 자기가 쓰는 것만 알게 하려는 것**입니다. 그래서 출력 포트와 달리 필수가 아니며, 두지 않는 서비스도 틀리지 않습니다.
+
+유스케이스 인터페이스는 동작별로 나누되 **구현은 한 클래스**입니다. 다섯 동작이 같은 협력자를 쓰므로 응집 기준으로는 갈리지 않습니다 (아래 SRP 규칙). 나뉘어야 하는 것은 계약이고 구현이 아닙니다.
+
+**나머지 아홉 서비스는 아직 평평한 구조입니다.** 두 관행이 공존하는 상태이며 [BL-0042](backlog/bl-0042-apply-application-structure-to-all-services.md)가 그것을 끝냅니다. 새 서비스를 만든다면 파일럿 결과가 나올 때까지 평평한 쪽을 따르세요.
+
 **구동자는 `application`에 있어서는 안 됩니다.** `OutboxDispatcher`는 `notifications.dispatchPending()`만 부르고 로직이 없습니다. `LocalDemoSeeder`는 앱 시작이 트리거입니다. 둘 다 애플리케이션을 바깥에서 호출하는 진입점이며 HTTP 컨트롤러와 역할이 같습니다. 컨트롤러가 `adapter/in/web`에 있으므로 이들도 `adapter/in` 아래 있어야 합니다.
 
 ### 커지면 어떤 순서로 나누는가
