@@ -52,7 +52,9 @@ class JdbcOrderRepositoryTest {
         var order = newOrder();
         orders.save(order);
 
-        order.markPaid("pay_round");
+        order.attachPayment("pay_round");
+
+        order.markPaid();
         orders.save(order);
         order.attachShipment("shp_round");
         orders.save(order);
@@ -70,7 +72,9 @@ class JdbcOrderRepositoryTest {
         var order = newOrder();
         orders.save(order);
 
-        order.markPaid("pay_unsaved");
+        order.attachPayment("pay_unsaved");
+
+        order.markPaid();
 
         assertThat(orders.findById(order.id()).orElseThrow().status()).isEqualTo("CREATED");
     }
@@ -90,7 +94,8 @@ class JdbcOrderRepositoryTest {
     @Test
     void writesEachAddressFieldToItsOwnColumn() {
         var order = newOrder();
-        order.markPaid("pay_column");
+        order.attachPayment("pay_column");
+        order.markPaid();
         orders.save(order);
 
         assertThat(column(order.id(), "ship_address_id")).isEqualTo("addr_demo");

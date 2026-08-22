@@ -65,5 +65,4 @@ make todo
 | [BL-0031](bl-0031-check-policy-rule-coverage.md) 규칙·테스트 대응 검사 | 규율에 의존하는 것은 반드시 샌다 |
 | [BL-0032](bl-0032-payment-gateway-port-not-separated.md) 결제 대행사 포트 미분리 | 어댑터 교체로 운영에 나갈 수 없다 |
 | [BL-0033](bl-0033-checkout-compensation-can-fail-silently.md) 보상 실패 시 원인 소실 | 정책이 보상 성공을 전제한다 ([PD-0004](../policy/pd-0004-checkout-and-compensation.md)) |
-| [BL-0034](bl-0034-checkout-payment-integrity.md) 체크아웃의 결제·재고 정합성 | BL-0024와 BL-0027을 합쳤다. 원인이 하나였다 |
 | [BL-0035](bl-0035-checkout-request-idempotency.md) 체크아웃 요청 멱등성 | 결제 멱등 키로는 막히지 않는 경로다 |

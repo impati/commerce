@@ -1,17 +1,20 @@
 package com.impati.commerce.order.application;
 
 import com.impati.commerce.common.ApiContracts.AddressResponse;
-import com.impati.commerce.common.ApiContracts.CapturePaymentRequest;
+import com.impati.commerce.common.ApiContracts.AuthorizePaymentRequest;
 import com.impati.commerce.common.ApiContracts.CheckoutResponse;
 import com.impati.commerce.common.ApiContracts.CreateShipmentRequest;
 import com.impati.commerce.common.ApiContracts.NotificationEventRequest;
 import com.impati.commerce.common.ApiContracts.OrderResponse;
+import com.impati.commerce.common.ApiContracts.PaymentResponse;
 import com.impati.commerce.common.ApiContracts.ReservationLine;
-import com.impati.commerce.common.ApiContracts.ReservationResponse;
 import com.impati.commerce.common.ApiContracts.ReserveInventoryRequest;
+import com.impati.commerce.common.ApiContracts.ShipmentResponse;
 import com.impati.commerce.common.DomainException;
 import com.impati.commerce.order.domain.OrderModels.Order;
 import com.impati.commerce.order.domain.OrderModels.OrderLine;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -19,11 +22,17 @@ import java.util.List;
 /**
  * checkout saga를 조율한다.
  *
- * <p>협력자가 일곱인 것은 이 서비스가 saga 조율자이기 때문이다. 각 협력자를 별도 포트로 두어
+ * <p>협력자가 여덟인 것은 이 서비스가 saga 조율자이기 때문이다. 각 협력자를 별도 포트로 두어
  * 어떤 서비스에 의존하는지가 생성자에 그대로 드러나게 한다.
+ *
+ * <p>순서의 핵심은 <b>매입이 마지막 되돌릴 수 있는 단계보다 뒤에 있다</b>는 것이다
+ * (PD-0012-R5). 매입 전의 실패는 배송 취소·승인 취소·예약 해제로 흔적 없이 정리되고,
+ * 매입 후에는 되돌리지 않는다 (PD-0012-R6, PD-0012-R8).
  */
 @Service
 public class OrderService {
+    private static final Logger log = LoggerFactory.getLogger(OrderService.class);
+
     private final OrderRepository orders;
     private final MemberClient members;
     private final CartClient carts;
@@ -76,64 +85,132 @@ public class OrderService {
         var order = new Order(memberId, orderLines, address);
         orders.save(order);
 
-        ReservationResponse reservation = null;
-        boolean reservationCommitted = false;
+        String reservationId = null;
+        String paymentId = null;
+        ShipmentResponse shipment = null;
+        PaymentResponse payment;
         try {
-            reservation = inventory.reserve(new ReserveInventoryRequest(
+            reservationId = inventory.reserve(new ReserveInventoryRequest(
                     order.id(),
                     cart.lines().stream()
                             .map(line -> new ReservationLine(line.skuId(), line.quantity()))
                             .toList()
-            ));
-            order.attachReservation(reservation.id());
+            )).id();
+            order.attachReservation(reservationId);
             orders.save(order);
 
-            var payment = payments.capturePayment(new CapturePaymentRequest(
+            paymentId = payments.authorizePayment(new AuthorizePaymentRequest(
                     order.id(),
                     memberId,
                     order.total(),
                     paymentToken
-            ));
-            inventory.commitReservation(reservation.id());
-            reservationCommitted = true;
-            order.markPaid(payment.id());
+            )).id();
+            order.attachPayment(paymentId);
             orders.save(order);
 
-            var shipment = shipping.createShipment(new CreateShipmentRequest(
+            shipment = shipping.createShipment(new CreateShipmentRequest(
                     order.id(),
                     memberId,
                     OrderMapper.toResponse(address)
             ));
-            order.attachShipment(shipment.id());
-            orders.save(order);
-            carts.clearCart(memberId);
 
-            notifications.notify(new NotificationEventRequest(
-                    "OrderPaid",
-                    memberId,
-                    "Order paid",
-                    "Order " + order.id() + " has been paid."
-            ));
-            notifications.notify(new NotificationEventRequest(
-                    "ShipmentCreated",
-                    memberId,
-                    "Shipment ready",
-                    "Tracking number: " + shipment.trackingNumber()
-            ));
-            return new CheckoutResponse(OrderMapper.toResponse(order), payment, shipment);
+            payment = payments.capturePayment(paymentId);
         } catch (RuntimeException exception) {
-            if (reservation != null && reservation.status().equals("RESERVED") && !reservationCommitted) {
-                inventory.releaseReservation(reservation.id());
-            }
+            rollbackBeforeCapture(order, reservationId, paymentId, shipment, memberId, exception);
+            throw exception;
+        }
+
+        // 매입이 끝났다. 여기부터는 아무것도 되돌리지 않는다 (PD-0012-R8).
+        order.markPaid();
+        order.attachShipment(shipment.id());
+        orders.save(order);
+
+        commitReservationQuietly(order, reservationId);
+        clearCartQuietly(order, memberId);
+        notifications.notify(new NotificationEventRequest(
+                "OrderPaid",
+                memberId,
+                "Order paid",
+                "Order " + order.id() + " has been paid."
+        ));
+        notifications.notify(new NotificationEventRequest(
+                "ShipmentCreated",
+                memberId,
+                "Shipment ready",
+                "Tracking number: " + shipment.trackingNumber()
+        ));
+        return new CheckoutResponse(OrderMapper.toResponse(order), payment, shipment);
+    }
+
+    /**
+     * 매입 전 실패를 되돌린다 (PD-0012-R6). 장바구니는 그대로 둔다 (PD-0012-R7).
+     *
+     * <p>각 단계를 독립적으로 시도한다. 하나가 실패해도 나머지를 시도하며, 원래 실패 원인이
+     * 그대로 올라간다 — 되돌리는 도중에 새 예외를 던지면 왜 실패했는지가 사라지고 남은
+     * 단계도 실행되지 않는다.
+     *
+     * <p>예약 해제에 조건이 없는 것은 매입 전에는 예약이 확정된 적이 없기 때문이다. 확정은
+     * 매입 뒤에 일어난다 (PD-0012-R5).
+     */
+    private void rollbackBeforeCapture(
+            Order order,
+            String reservationId,
+            String paymentId,
+            ShipmentResponse shipment,
+            String memberId,
+            RuntimeException cause
+    ) {
+        if (shipment != null) {
+            compensate("cancel-shipment", shipment.id(), () -> shipping.cancelShipment(shipment.id()), cause);
+        }
+        if (paymentId != null) {
+            var id = paymentId;
+            compensate("cancel-payment", id, () -> payments.cancelPayment(id), cause);
+        }
+        if (reservationId != null) {
+            var id = reservationId;
+            compensate("release-reservation", id, () -> inventory.releaseReservation(id), cause);
+        }
+        compensate("cancel-order", order.id(), () -> {
             order.cancel();
             orders.save(order);
-            notifications.notify(new NotificationEventRequest(
-                    "OrderCancelled",
-                    memberId,
-                    "Order cancelled",
-                    "Order " + order.id() + " was cancelled: " + exception.getMessage()
-            ));
-            throw exception;
+        }, cause);
+        notifications.notify(new NotificationEventRequest(
+                "OrderCancelled",
+                memberId,
+                "Order cancelled",
+                "Order " + order.id() + " was cancelled: " + cause.getMessage()
+        ));
+    }
+
+    private void compensate(String step, String id, Runnable action, RuntimeException cause) {
+        try {
+            action.run();
+        } catch (RuntimeException failure) {
+            cause.addSuppressed(failure);
+            log.error("checkout compensation failed step={} id={} order={}", step, id, cause.getMessage(), failure);
+        }
+    }
+
+    /**
+     * 실패해도 되돌리지 않는다 (PD-0012-R9). 예약된 재고는 예약 시점에 이미 가용 수량에서
+     * 빠져 있으므로 초과 판매가 생기지 않는다. 남는 것은 보유 수량이 줄지 않은 상태다.
+     */
+    private void commitReservationQuietly(Order order, String reservationId) {
+        try {
+            inventory.commitReservation(reservationId);
+        } catch (RuntimeException failure) {
+            log.error("reservation not committed for paid order order={} reservation={}",
+                    order.id(), reservationId, failure);
+        }
+    }
+
+    /** 실패해도 되돌리지 않는다 (PD-0012-R8). 장바구니에 같은 물건이 남는다. */
+    private void clearCartQuietly(Order order, String memberId) {
+        try {
+            carts.clearCart(memberId);
+        } catch (RuntimeException failure) {
+            log.error("cart not cleared for paid order order={}", order.id(), failure);
         }
     }
 

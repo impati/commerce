@@ -36,6 +36,8 @@ flowchart LR
 
 ## Checkout Saga
 
+매입이 배송 생성 뒤에 있는 것이 이 순서의 핵심이다. 매입 전의 실패는 배송 취소·승인 취소·예약 해제로 흔적 없이 정리되고, 매입 후에는 되돌리지 않는다 (PD-0012, [ADR-0004](adr/0004-split-authorization-and-capture.md)).
+
 ```mermaid
 sequenceDiagram
     participant C as Client
@@ -57,19 +59,22 @@ sequenceDiagram
     O->>Cat: GET /products/{productId}
     O->>O: Create Order
     O->>Inv: POST /internal/reservations
-    O->>Pay: POST /internal/payments/capture
-    alt Payment success
+    O->>Pay: POST /internal/payments/authorize
+    O->>Ship: POST /internal/shipments
+    O->>Pay: POST /internal/payments/{id}/capture
+    alt 매입 성공
         O->>Inv: POST /internal/reservations/{id}/commit
-        O->>Ship: POST /internal/shipments
         O->>Cart: POST /internal/carts/clear
         O->>N: POST /internal/notifications/events
         O-->>G: CheckoutResponse
         G-->>C: Order + Payment + Shipment
-    else Payment declined
+    else 매입 전 실패
+        O->>Ship: POST /internal/shipments/{id}/cancel
+        O->>Pay: POST /internal/payments/{id}/cancel
         O->>Inv: POST /internal/reservations/{id}/release
         O->>O: Cancel Order
         O->>N: POST /internal/notifications/events
-        O-->>G: 402 payment_declined
+        O-->>G: 402 payment_declined 또는 409 conflict
         G-->>C: error
     end
 ```

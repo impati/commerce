@@ -43,7 +43,8 @@ class OrderModelsTest {
         );
 
         order.attachReservation("rsv_demo");
-        order.markPaid("pay_demo");
+        order.attachPayment("pay_demo");
+        order.markPaid();
         order.attachShipment("shp_demo");
         order.markDelivered();
 

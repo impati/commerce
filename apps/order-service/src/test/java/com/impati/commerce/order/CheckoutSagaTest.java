@@ -31,12 +31,12 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.test.web.client.UnorderedRequestExpectationManager;
 import org.springframework.test.web.client.match.MockRestRequestMatchers;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.client.ExpectedCount.times;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
@@ -53,6 +53,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <p>order-service만 실제로 띄우고, 나머지 서비스 호출은 {@link MockRestServiceServer}로 stub한다.
  * 즉 컨트롤러 - OrderService - CommerceClients - JSON 직렬화까지는 실제 코드가 돌고,
  * 네트워크 경계만 대체된다. saga 보상 로직이 깨지면 여기서 잡힌다.
+ *
+ * <p>되돌리지 <b>않아야</b> 하는 경로는 그 호출을 stub하지 않는 방식으로 검증한다. 호출되면
+ * 예상하지 않은 요청이 되어 테스트가 깨진다.
  */
 @SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:order-saga;DB_CLOSE_DELAY=-1")
 @AutoConfigureMockMvc
@@ -69,6 +72,8 @@ class CheckoutSagaTest {
     private static final String SKU_ID = "sku_tee_white_m";
     private static final String PRODUCT_ID = "prd_tee";
     private static final String RESERVATION_ID = "rsv_seed";
+    private static final String PAYMENT_ID = "pay_seed";
+    private static final String SHIPMENT_ID = "shp_seed";
     private static final int QUANTITY = 2;
     private static final long UNIT_PRICE = 29_000L;
 
@@ -110,40 +115,23 @@ class CheckoutSagaTest {
     }
 
     /**
-     * [PD-0004-R5][PD-0004-R8][PD-0006-R6] 성공 경로의 호출 순서와 알림, 장바구니 비움을 잡는다.
+     * [PD-0012-R5][PD-0012-R10][PD-0012-R11][PD-0006-R6] 성공 경로의 호출과 순서를 잡는다.
      *
-     * <p>예약이 확정된 뒤에 실패하는 경로는 보지 않는다. BL-0024.
+     * <p>순서의 핵심은 매입이 배송 생성 뒤에 있다는 것이다. 배송이 먼저 만들어지므로 배송
+     * 생성 실패는 아직 돈이 움직이지 않은 시점에 드러난다.
      */
     @Test
     void capturedPaymentCommitsReservationAndClearsCart() throws Exception {
         stubMemberCartAndCatalog();
         stubReservation();
-        server.expect(times(1), requestTo(PAYMENT_URL + "/internal/payments/capture"))
+        stubAuthorize("card_test_success");
+        stubCreateShipment();
+        server.expect(times(1), requestTo(PAYMENT_URL + "/internal/payments/" + PAYMENT_ID + "/capture"))
                 .andExpect(method(HttpMethod.POST))
-                .andExpect(MockRestRequestMatchers.jsonPath("$.paymentToken").value("card_test_success"))
-                .andExpect(MockRestRequestMatchers.jsonPath("$.amount.amount").value(UNIT_PRICE * QUANTITY))
-                .andRespond(withSuccess(json(new PaymentResponse(
-                        "pay_seed",
-                        "ord_ignored",
-                        MEMBER_ID,
-                        Money.krw(UNIT_PRICE * QUANTITY),
-                        "CARD",
-                        "CAPTURED",
-                        "txn_seed"
-                )), MediaType.APPLICATION_JSON));
+                .andRespond(withSuccess(json(payment("CAPTURED")), MediaType.APPLICATION_JSON));
         server.expect(times(1), requestTo(INVENTORY_URL + "/internal/reservations/" + RESERVATION_ID + "/commit"))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withSuccess());
-        server.expect(times(1), requestTo(SHIPPING_URL + "/internal/shipments"))
-                .andExpect(method(HttpMethod.POST))
-                .andRespond(withSuccess(json(new ShipmentResponse(
-                        "shp_seed",
-                        "ord_ignored",
-                        MEMBER_ID,
-                        address(),
-                        "READY",
-                        "TRK-SEED-0001"
-                )), MediaType.APPLICATION_JSON));
         server.expect(times(1), requestTo(CART_URL + "/internal/carts/clear"))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withSuccess());
@@ -152,54 +140,201 @@ class CheckoutSagaTest {
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withSuccess());
 
-        mockMvc.perform(post("/checkouts")
-                        .header("X-Member-Id", MEMBER_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(new CheckoutRequest("card_test_success", null))))
+        mockMvc.perform(checkout("card_test_success"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.order.status").value("FULFILLING"))
-                .andExpect(jsonPath("$.order.paymentId").value("pay_seed"))
-                .andExpect(jsonPath("$.order.shipmentId").value("shp_seed"))
+                .andExpect(jsonPath("$.order.paymentId").value(PAYMENT_ID))
+                .andExpect(jsonPath("$.order.shipmentId").value(SHIPMENT_ID))
                 .andExpect(jsonPath("$.order.inventoryReservationId").value(RESERVATION_ID))
-                .andExpect(jsonPath("$.order.total.amount").value(UNIT_PRICE * QUANTITY));
+                .andExpect(jsonPath("$.order.total.amount").value(UNIT_PRICE * QUANTITY))
+                .andExpect(jsonPath("$.payment.status").value("CAPTURED"));
     }
 
     /**
-     * [PD-0004-R6][PD-0008-R3] 결제 확정 전 실패의 보상을 잡는다. 거절이 시스템 오류와 다른
-     * 결과로 전달되는 것도 함께 확인한다 — 402가 도메인 언어로 옮겨지지 않으면 여기서 깨진다.
+     * [PD-0012-R6][PD-0012-R7][PD-0011-R6] 승인이 거절되면 예약만 풀고 끝난다.
+     *
+     * <p>거절이 시스템 오류와 다른 결과로 전달되는 것도 함께 확인한다 — 402가 도메인 언어로
+     * 옮겨지지 않으면 여기서 깨진다. 배송과 매입은 시작되지 않았으므로 되돌릴 것이 없다.
      */
     @Test
-    void declinedPaymentCancelsOrderReleasesReservationAndKeepsCart() throws Exception {
+    void declinedAuthorizationCancelsOrderReleasesReservationAndKeepsCart() throws Exception {
         stubMemberCartAndCatalog();
         stubReservation();
-        server.expect(times(1), requestTo(PAYMENT_URL + "/internal/payments/capture"))
+        server.expect(times(1), requestTo(PAYMENT_URL + "/internal/payments/authorize"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(MockRestRequestMatchers.jsonPath("$.paymentToken").value("card_test_decline"))
                 .andRespond(withStatus(HttpStatus.PAYMENT_REQUIRED)
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(json(new ErrorResponse("payment_declined", "card was declined"))));
-        server.expect(times(1), requestTo(INVENTORY_URL + "/internal/reservations/" + RESERVATION_ID + "/release"))
-                .andExpect(method(HttpMethod.POST))
-                .andRespond(withSuccess());
-        // OrderCancelled
-        server.expect(times(1), requestTo(NOTIFICATION_URL + "/internal/notifications/events"))
-                .andExpect(method(HttpMethod.POST))
-                .andRespond(withSuccess());
-        // 장바구니 clear는 stub하지 않는다. 보상 경로에서 호출되면 예상하지 않은 요청으로 테스트가 깨진다.
-        // commit도 같은 이유로 stub하지 않는다.
+        stubReleaseReservation();
+        stubCancelledNotification();
+        // 배송 생성·취소, 승인 취소, 매입, 예약 확정, 장바구니 비움은 stub하지 않는다.
+        // 호출되면 예상하지 않은 요청으로 테스트가 깨진다.
 
-        mockMvc.perform(post("/checkouts")
-                        .header("X-Member-Id", MEMBER_ID)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(new CheckoutRequest("card_test_decline", null))))
+        mockMvc.perform(checkout("card_test_decline"))
                 .andExpect(status().isPaymentRequired())
                 .andExpect(jsonPath("$.code").value("payment_declined"));
 
+        assertOrderCancelledWithoutPayment();
+    }
+
+    /**
+     * [PD-0012-R5][PD-0012-R6] 배송을 만들 수 없으면 승인을 취소한다.
+     *
+     * <p>이 시점에는 아직 매입하지 않았으므로 승인 취소로 흔적 없이 정리된다. 이전 순서에서는
+     * 이미 매입이 끝난 뒤라 되돌릴 수 없었다.
+     */
+    @Test
+    void failedShipmentCreationCancelsAuthorization() throws Exception {
+        stubMemberCartAndCatalog();
+        stubReservation();
+        stubAuthorize("card_test_success");
+        server.expect(times(1), requestTo(SHIPPING_URL + "/internal/shipments"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
+        stubCancelPayment();
+        stubReleaseReservation();
+        stubCancelledNotification();
+        // 매입과 배송 취소는 stub하지 않는다. 배송은 만들어지지 않았으므로 취소할 것이 없다.
+
+        // 어댑터가 프로토콜 오류를 도메인 언어로 옮기므로 409다. 옮기지 않으면 raw 예외가 올라온다.
+        mockMvc.perform(checkout("card_test_success"))
+                .andExpect(status().isConflict());
+
+        assertOrderCancelledWithoutPayment();
+    }
+
+    /**
+     * [PD-0012-R6][PD-0013-R5] 매입이 실패하면 배송까지 되돌린다.
+     *
+     * <p>이 경로가 BL-0034의 핵심이다. 매입 전이므로 되돌릴 수 있고, 되돌리지 않으면 배송만
+     * 살아 있는 주문이 남는다. 되돌리는 순서는 만든 순서의 역순이다.
+     */
+    @Test
+    void failedCaptureCancelsShipmentAndAuthorization() throws Exception {
+        stubMemberCartAndCatalog();
+        stubReservation();
+        stubAuthorize("card_test_success");
+        stubCreateShipment();
+        server.expect(times(1), requestTo(PAYMENT_URL + "/internal/payments/" + PAYMENT_ID + "/capture"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
+        server.expect(times(1), requestTo(SHIPPING_URL + "/internal/shipments/" + SHIPMENT_ID + "/cancel"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess(json(shipment("CANCELLED")), MediaType.APPLICATION_JSON));
+        stubCancelPayment();
+        stubReleaseReservation();
+        stubCancelledNotification();
+
+        mockMvc.perform(checkout("card_test_success"))
+                .andExpect(status().isConflict());
+
+        assertOrderCancelledWithoutPayment();
+    }
+
+    /**
+     * [PD-0012-R8][PD-0012-R9] 매입 이후의 실패는 주문을 되돌리지 않는다.
+     *
+     * <p>예약 확정이 실패해도 체크아웃은 성립한 것으로 응답한다. 예약된 재고는 이미 가용
+     * 수량에서 빠져 있으므로 초과 판매가 생기지 않는다. 되돌리면 팔린 재고가 다시 팔린다.
+     */
+    @Test
+    void failureAfterCaptureDoesNotCancelTheOrder() throws Exception {
+        stubMemberCartAndCatalog();
+        stubReservation();
+        stubAuthorize("card_test_success");
+        stubCreateShipment();
+        server.expect(times(1), requestTo(PAYMENT_URL + "/internal/payments/" + PAYMENT_ID + "/capture"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess(json(payment("CAPTURED")), MediaType.APPLICATION_JSON));
+        server.expect(times(1), requestTo(INVENTORY_URL + "/internal/reservations/" + RESERVATION_ID + "/commit"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
+        server.expect(times(1), requestTo(CART_URL + "/internal/carts/clear"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess());
+        server.expect(times(2), requestTo(NOTIFICATION_URL + "/internal/notifications/events"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess());
+        // 배송 취소, 승인 취소, 예약 해제는 stub하지 않는다. 되돌리면 테스트가 깨진다.
+
+        mockMvc.perform(checkout("card_test_success"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.order.status").value("FULFILLING"));
+
+        mockMvc.perform(get("/orders/{orderId}", reservedOrderId.get()).header("X-Member-Id", MEMBER_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("FULFILLING"))
+                .andExpect(jsonPath("$.paymentId").value(PAYMENT_ID));
+    }
+
+    private MockHttpServletRequestBuilder checkout(String paymentToken) {
+        return post("/checkouts")
+                .header("X-Member-Id", MEMBER_ID)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(new CheckoutRequest(paymentToken, null)));
+    }
+
+    private void assertOrderCancelledWithoutPayment() throws Exception {
         mockMvc.perform(get("/orders/{orderId}", reservedOrderId.get()).header("X-Member-Id", MEMBER_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("CANCELLED"))
-                .andExpect(jsonPath("$.paymentId").value(nullValue()))
                 .andExpect(jsonPath("$.inventoryReservationId").value(RESERVATION_ID));
+    }
+
+    private void stubAuthorize(String paymentToken) {
+        server.expect(times(1), requestTo(PAYMENT_URL + "/internal/payments/authorize"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(MockRestRequestMatchers.jsonPath("$.paymentToken").value(paymentToken))
+                .andExpect(MockRestRequestMatchers.jsonPath("$.amount.amount").value(UNIT_PRICE * QUANTITY))
+                .andRespond(withSuccess(json(payment("AUTHORIZED")), MediaType.APPLICATION_JSON));
+    }
+
+    private void stubCancelPayment() {
+        server.expect(times(1), requestTo(PAYMENT_URL + "/internal/payments/" + PAYMENT_ID + "/cancel"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess(json(payment("CANCELLED")), MediaType.APPLICATION_JSON));
+    }
+
+    private void stubCreateShipment() {
+        server.expect(times(1), requestTo(SHIPPING_URL + "/internal/shipments"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess(json(shipment("READY")), MediaType.APPLICATION_JSON));
+    }
+
+    private void stubReleaseReservation() {
+        server.expect(times(1), requestTo(INVENTORY_URL + "/internal/reservations/" + RESERVATION_ID + "/release"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess());
+    }
+
+    private void stubCancelledNotification() {
+        server.expect(times(1), requestTo(NOTIFICATION_URL + "/internal/notifications/events"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess());
+    }
+
+    private PaymentResponse payment(String status) {
+        return new PaymentResponse(
+                PAYMENT_ID,
+                "ord_ignored",
+                MEMBER_ID,
+                Money.krw(UNIT_PRICE * QUANTITY),
+                "CARD",
+                status,
+                "txn_seed"
+        );
+    }
+
+    private ShipmentResponse shipment(String status) {
+        return new ShipmentResponse(
+                SHIPMENT_ID,
+                "ord_ignored",
+                MEMBER_ID,
+                address(),
+                status,
+                "TRK-SEED-0001"
+        );
     }
 
     private void stubMemberCartAndCatalog() {

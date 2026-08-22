@@ -145,11 +145,22 @@ public final class OrderModels {
             this.inventoryReservationId = reservationId;
         }
 
-        public void markPaid(String paymentId) {
+        /**
+         * 승인된 결제를 붙인다. 청구가 아직 확정되지 않았으므로 상태는 그대로다 (PD-0011-R1).
+         *
+         * <p>주문이 결제됨으로 넘어가는 것은 매입 시점이다 (PD-0003-R1).
+         */
+        public void attachPayment(String paymentId) {
+            this.paymentId = paymentId;
+        }
+
+        public void markPaid() {
             if (!status.equals("CREATED")) {
                 throw DomainException.conflict("order cannot be paid from current status");
             }
-            this.paymentId = paymentId;
+            if (paymentId == null) {
+                throw DomainException.conflict("order has no authorized payment");
+            }
             this.status = "PAID";
         }
 
