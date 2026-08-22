@@ -114,7 +114,8 @@ public final class ApiContracts {
     public record CartResponse(String memberId, List<CartLineResponse> lines) {
     }
 
-    public record CapturePaymentRequest(String orderId, String memberId, Money amount, String paymentToken) {
+    /** order-service의 checkout saga → payment-service의 승인. 매입과 취소는 결제 식별자만 쓴다. */
+    public record AuthorizePaymentRequest(String orderId, String memberId, Money amount, String paymentToken) {
     }
 
     public record PaymentResponse(

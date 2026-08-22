@@ -1,23 +1,34 @@
 package com.impati.commerce.payment.domain;
 
 import com.impati.commerce.common.ApiContracts.Money;
+import com.impati.commerce.common.DomainException;
 import com.impati.commerce.common.Ids;
 
 public final class PaymentModels {
     private PaymentModels() {
     }
 
+    /**
+     * 한 주문의 결제. 승인으로 만들어지고 매입이나 취소로 끝난다 (PD-0011-R1, PD-0011-R3).
+     *
+     * <p>매입과 취소는 여러 번 요청되어도 첫 결과를 유지한다 (PD-0011-R4). 되돌리는 경로에서
+     * 호출되고 그 경로 자체가 재시도될 수 있으므로, 같은 요청이 두 번 오는 것이 정상이다.
+     */
     public static final class Payment {
+        public static final String AUTHORIZED = "AUTHORIZED";
+        public static final String CAPTURED = "CAPTURED";
+        public static final String CANCELLED = "CANCELLED";
+
         private final String id;
         private final String orderId;
         private final String memberId;
         private final Money amount;
         private final String method;
-        private final String status;
+        private String status;
         private final String transactionId;
 
         public Payment(String orderId, String memberId, Money amount) {
-            this(Ids.newId("pay"), orderId, memberId, amount, "CARD", "CAPTURED", Ids.newId("txn"));
+            this(Ids.newId("pay"), orderId, memberId, amount, "CARD", AUTHORIZED, Ids.newId("txn"));
         }
 
         private Payment(
@@ -49,6 +60,28 @@ public final class PaymentModels {
                 String transactionId
         ) {
             return new Payment(id, orderId, memberId, amount, method, status, transactionId);
+        }
+
+        /** 승인된 대금을 청구로 확정한다. 이미 매입됐으면 아무것도 하지 않는다 (PD-0011-R4). */
+        public void capture() {
+            if (status.equals(CAPTURED)) {
+                return;
+            }
+            if (!status.equals(AUTHORIZED)) {
+                throw DomainException.conflict("cancelled payment cannot be captured");
+            }
+            status = CAPTURED;
+        }
+
+        /** 승인을 취소한다. 이미 취소됐으면 아무것도 하지 않는다 (PD-0011-R4). */
+        public void cancel() {
+            if (status.equals(CANCELLED)) {
+                return;
+            }
+            if (!status.equals(AUTHORIZED)) {
+                throw DomainException.conflict("captured payment cannot be cancelled");
+            }
+            status = CANCELLED;
         }
 
         public String id() {

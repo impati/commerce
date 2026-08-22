@@ -1,8 +1,9 @@
 package com.impati.commerce.payment.adapter.in.web;
 
-import com.impati.commerce.common.ApiContracts.CapturePaymentRequest;
+import com.impati.commerce.common.ApiContracts.AuthorizePaymentRequest;
 import com.impati.commerce.common.ApiContracts.PaymentResponse;
 import com.impati.commerce.payment.application.PaymentService;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -24,8 +25,18 @@ public class InternalPaymentController {
         this.payments = payments;
     }
 
-    @PostMapping("/capture")
-    PaymentResponse capture(@RequestBody CapturePaymentRequest request) {
-        return payments.capture(request.orderId(), request.memberId(), request.amount(), request.paymentToken());
+    @PostMapping("/authorize")
+    PaymentResponse authorize(@RequestBody AuthorizePaymentRequest request) {
+        return payments.authorize(request.orderId(), request.memberId(), request.amount(), request.paymentToken());
+    }
+
+    @PostMapping("/{paymentId}/capture")
+    PaymentResponse capture(@PathVariable String paymentId) {
+        return payments.capture(paymentId);
+    }
+
+    @PostMapping("/{paymentId}/cancel")
+    PaymentResponse cancel(@PathVariable String paymentId) {
+        return payments.cancel(paymentId);
     }
 }
