@@ -2,7 +2,7 @@ package com.impati.commerce.payment.adapter.in.web;
 
 import com.impati.commerce.common.ApiContracts.AuthorizePaymentRequest;
 import com.impati.commerce.common.ApiContracts.PaymentResponse;
-import com.impati.commerce.payment.application.service.PaymentService;
+import com.impati.commerce.payment.application.port.in.PaymentUseCase;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -21,9 +21,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/internal/payments")
 public class InternalPaymentController {
-    private final PaymentService payments;
+    private final PaymentUseCase payments;
 
-    public InternalPaymentController(PaymentService payments) {
+    public InternalPaymentController(PaymentUseCase payments) {
         this.payments = payments;
     }
 
