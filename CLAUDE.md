@@ -78,7 +78,8 @@ make verify
 - 에러는 `DomainException` 팩토리(`validation`/`notFound`/`conflict`/`paymentDeclined`)로 던지고, HTTP 상태 매핑은 각 서비스 `support/ApiExceptionHandler`가 담당한다. 컨트롤러에서 상태 코드를 직접 만들지 않는다.
 - **게이트웨이가 노출하지 않을 경로는 `/internal` 아래에 두고 `Internal*Controller`가 담는다.** 기준은 "누가 부르는가"가 아니라 "게이트웨이가 브라우저에 노출하는가"다 — 게이트웨이도 내부 경로를 부른다. 이 프리픽스는 등급을 선언할 뿐 아무것도 막지 않으며, 막는 것은 배포 토폴로지다. 근거는 [docs/adr/0003](docs/adr/0003-internal-path-prefix.md), 경계 전체는 [docs/adr/0002](docs/adr/0002-network-segmentation-as-trust-boundary.md)에 있다.
 - 패키지 구조는 `adapter/in/web`, `adapter/out/client`, `adapter/out/persistence`, `application`, `domain`, `support`를 따른다. 새 서비스도 같은 모양으로 만든다.
-- **`application`에는 네 종류가 산다** — 유스케이스(`XxxService`), 출력 포트(`XxxRepository`/`XxxClient`/능력 이름), 매퍼(`XxxMapper`), 그리고 있어서는 안 되는 구동자. 각각의 의미와 커질 때 나누는 순서는 [docs/architecture.md](docs/architecture.md)에 있다. **포트 이름에 수단을 넣지 않는다** — `PasswordHasher`이고 `BCryptHasher`가 아니다. 수단이 이름에 박히면 갈아끼울 때 호출하는 쪽이 전부 바뀐다.
+- **`application`은 `port/in`·`port/out`·`component` 셋으로 나눈다** — 무엇을 할 수 있나(`XxxUseCase`와 입출력 타입), 바깥에 무엇을 요구하나(`XxxRepository`/`XxxClient`/능력 이름), 그것을 실행하는 것(`XxxExecutor`, `@Component`). 매퍼는 `component`에 package-private으로 둔다. 상세는 [docs/architecture.md](docs/architecture.md)에 있다. **포트 이름에 수단을 넣지 않는다** — `PasswordHasher`이고 `BCryptHasher`가 아니다. 수단이 이름에 박히면 갈아끼울 때 호출하는 쪽이 전부 바뀐다.
+- **유스케이스는 서비스 간 계약(`ApiContracts`)을 돌려주지 않는다.** 반환값은 서비스 사이에서 오가는 것이 아니므로 자기 입출력 타입을 갖고, 인바운드 어댑터가 각자 자기 표현으로 옮긴다. **매퍼는 자기가 변환하는 두 타입을 모두 알아도 되는 계층에 산다** — 도메인 → 입출력은 응용, 입출력 → HTTP는 어댑터. 나가는 방향의 계약은 실제로 서비스 사이에서 오가므로 그대로 쓴다.
 - **스케줄러나 앱 시작으로 구동되는 진입점은 `adapter/in` 아래 둔다.** 컨트롤러와 역할이 같다 — 애플리케이션을 바깥에서 호출한다. `application`에 두면 응용 계층이 자기를 깨우는 모양이 된다.
 - **조회는 저장소에 쓰지 않는다.** 없는 것을 만들어 넣는 `getOrCreate` 류를 저장소 포트에 두지 말고, 기본값 생성은 애플리케이션이 한다. GET에 INSERT가 따라붙으면 읽기 복제본·캐시·헬스체크가 전부 망가진다.
 - **다른 서비스 호출도 포트로만 쓴다.** 협력자별 인터페이스(`XxxClient`)를 `application`에 두고 HTTP 구현(`HttpXxxClient`)은 `adapter/out/client`에 둔다. 프로토콜 오류를 도메인 언어로 옮기는 것도 어댑터의 일이다 (예: 402 → `paymentDeclined`). 예외는 api-gateway로, 응용·도메인 계층이 없는 순수 어댑터라 뒤집을 대상이 없다.
@@ -156,6 +157,7 @@ git 저장소이지만 이력이 `first commit` 하나뿐이다. 되돌릴 지�
 
 ## 변경 이력
 
+- 2026-08-22 — `application`을 `port/in`·`port/out`·`component` 셋으로 나누고 유스케이스가 자기 입출력 타입을 갖게 했다. 10개 서비스 전부에 적용. 계기: 네 종류가 한 패키지에 평평하게 놓여 접미사로만 구분됐고, "이게 유스케이스인가 포트인가"를 열어봐야 알 수 있었다. 유스케이스가 `ApiContracts`를 반환하던 것도 함께 고쳤다 — 인바운드 어댑터가 스케줄러이면 HTTP 계약을 받아도 보낼 데가 없다 (BL-0041, BL-0042).
 - 2026-08-22 — 병합 전 브랜치에서 만든 정책·ADR은 대체하지 않고 고치기로 했다. 계기: BL-0034 리뷰에서 결함이 나와 결정을 바꿔야 했는데, 대체 규약을 그대로 적용하면 같은 브랜치에서 만든 PD-0011·PD-0012를 PD-0014·PD-0015로 대체하게 된다. 두 문서는 `main`에 존재한 적이 없어 아무도 읽지 않았고, 대체 규약의 목적인 "무엇이 언제 왜 바뀌었나"는 브랜치의 `git log`가 이미 갖고 있다 (BL-0034).
 - 2026-08-22 — 백로그 항목을 합칠 때의 처리를 명시했다. 새 번호로 채번하고 이전 항목은 삭제하며, `done/`에는 넣지 않는다. 계기: BL-0024와 BL-0027의 원인이 하나(결제가 즉시 매입되고 그 매입이 주문 성립보다 앞선다)임을 확인해 BL-0034로 합쳤는데, 기존 룰은 "완료 항목을 `done/`으로 옮긴다"만 정하고 있어 합쳐서 대체된 항목이 갈 곳이 없었다. `done/`은 검증을 통과한 작업만 담아야 하므로 넣으면 거짓이 된다 (BL-0034).
 - 2026-08-17 — `docs/policy/`를 문서 배치에 추가했다. 비즈니스 규칙은 정책 문서(`PD-NNNN`)가, 그 구현 방식은 ADR이 담는다. 규칙 ID를 테스트 주석에 남겨 정책과 검증을 잇는다. 계기: 가입 규칙 7개가 응용 서비스·도메인 생성자·설정 파일·javadoc 다섯 곳에 흩어져 정본이 없었고, 그중 다섯은 테스트가 없어 코드를 반대로 바꿔도 하네스가 통과했다. ADR은 전부 기술 결정이라 비즈니스 규칙이 갈 곳이 없던 것이 원인이다 (PD-0001).
