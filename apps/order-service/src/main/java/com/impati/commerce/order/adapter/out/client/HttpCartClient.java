@@ -1,7 +1,7 @@
 package com.impati.commerce.order.adapter.out.client;
 
 import com.impati.commerce.common.ApiContracts.CartResponse;
-import com.impati.commerce.order.application.CartClient;
+import com.impati.commerce.order.application.port.out.CartClient;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 

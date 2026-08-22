@@ -3,7 +3,7 @@ package com.impati.commerce.order.adapter.out.client;
 import com.impati.commerce.common.ApiContracts.CreateShipmentRequest;
 import com.impati.commerce.common.ApiContracts.ShipmentResponse;
 import com.impati.commerce.common.DomainException;
-import com.impati.commerce.order.application.ShippingClient;
+import com.impati.commerce.order.application.port.out.ShippingClient;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;

@@ -3,7 +3,7 @@ package com.impati.commerce.order.adapter.out.client;
 import com.impati.commerce.common.ApiContracts.AuthorizePaymentRequest;
 import com.impati.commerce.common.ApiContracts.PaymentResponse;
 import com.impati.commerce.common.DomainException;
-import com.impati.commerce.order.application.PaymentClient;
+import com.impati.commerce.order.application.port.out.PaymentClient;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;

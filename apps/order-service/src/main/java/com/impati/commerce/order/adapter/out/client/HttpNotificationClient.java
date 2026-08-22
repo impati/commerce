@@ -1,7 +1,7 @@
 package com.impati.commerce.order.adapter.out.client;
 
 import com.impati.commerce.common.ApiContracts.NotificationEventRequest;
-import com.impati.commerce.order.application.NotificationClient;
+import com.impati.commerce.order.application.port.out.NotificationClient;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 

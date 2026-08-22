@@ -1,7 +1,7 @@
 package com.impati.commerce.order.adapter.out.client;
 
 import com.impati.commerce.common.ApiContracts.MemberResponse;
-import com.impati.commerce.order.application.MemberClient;
+import com.impati.commerce.order.application.port.out.MemberClient;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 

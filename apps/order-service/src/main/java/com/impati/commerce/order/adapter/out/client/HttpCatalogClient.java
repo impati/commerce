@@ -2,7 +2,7 @@ package com.impati.commerce.order.adapter.out.client;
 
 import com.impati.commerce.common.ApiContracts.ProductResponse;
 import com.impati.commerce.common.ApiContracts.SkuResponse;
-import com.impati.commerce.order.application.CatalogClient;
+import com.impati.commerce.order.application.port.out.CatalogClient;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 

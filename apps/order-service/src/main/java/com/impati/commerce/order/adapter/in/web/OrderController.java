@@ -3,7 +3,7 @@ package com.impati.commerce.order.adapter.in.web;
 import com.impati.commerce.common.ApiContracts.CheckoutRequest;
 import com.impati.commerce.common.ApiContracts.CheckoutResponse;
 import com.impati.commerce.common.ApiContracts.OrderResponse;
-import com.impati.commerce.order.application.OrderService;
+import com.impati.commerce.order.application.port.in.OrderUseCase;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -21,9 +21,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping
 public class OrderController {
-    private final OrderService orders;
+    private final OrderUseCase orders;
 
-    public OrderController(OrderService orders) {
+    public OrderController(OrderUseCase orders) {
         this.orders = orders;
     }
 
@@ -32,17 +32,17 @@ public class OrderController {
             @RequestHeader("X-Member-Id") String memberId,
             @RequestBody CheckoutRequest request
     ) {
-        return orders.checkout(memberId, request.paymentToken(), request.addressId());
+        return OrderResponseMapper.from(orders.checkout(memberId, request.paymentToken(), request.addressId()));
     }
 
     @GetMapping("/orders/{orderId}")
     OrderResponse order(@RequestHeader("X-Member-Id") String memberId, @PathVariable String orderId) {
-        return orders.getOwned(memberId, orderId);
+        return OrderResponseMapper.from(orders.getOwned(memberId, orderId));
     }
 
     /** shipping 흐름에서 게이트웨이가 부르는 내부 경로. 배송 완료 처리는 회원 요청이 아니다. */
     @PostMapping("/orders/{orderId}/delivered")
     OrderResponse delivered(@PathVariable String orderId) {
-        return orders.markDelivered(orderId);
+        return OrderResponseMapper.from(orders.markDelivered(orderId));
     }
 }

@@ -1,21 +1,30 @@
-package com.impati.commerce.order.application;
+package com.impati.commerce.order.application.component;
 
 import com.impati.commerce.common.ApiContracts.AddressResponse;
 import com.impati.commerce.common.ApiContracts.AuthorizePaymentRequest;
-import com.impati.commerce.common.ApiContracts.CheckoutResponse;
 import com.impati.commerce.common.ApiContracts.CreateShipmentRequest;
 import com.impati.commerce.common.ApiContracts.NotificationEventRequest;
-import com.impati.commerce.common.ApiContracts.OrderResponse;
 import com.impati.commerce.common.ApiContracts.PaymentResponse;
 import com.impati.commerce.common.ApiContracts.ReservationLine;
 import com.impati.commerce.common.ApiContracts.ReserveInventoryRequest;
 import com.impati.commerce.common.ApiContracts.ShipmentResponse;
 import com.impati.commerce.common.DomainException;
+import com.impati.commerce.order.application.port.in.CheckoutResult;
+import com.impati.commerce.order.application.port.in.OrderDetails;
+import com.impati.commerce.order.application.port.in.OrderUseCase;
+import com.impati.commerce.order.application.port.out.CartClient;
+import com.impati.commerce.order.application.port.out.CatalogClient;
+import com.impati.commerce.order.application.port.out.InventoryClient;
+import com.impati.commerce.order.application.port.out.MemberClient;
+import com.impati.commerce.order.application.port.out.NotificationClient;
+import com.impati.commerce.order.application.port.out.OrderRepository;
+import com.impati.commerce.order.application.port.out.PaymentClient;
+import com.impati.commerce.order.application.port.out.ShippingClient;
 import com.impati.commerce.order.domain.OrderModels.Order;
 import com.impati.commerce.order.domain.OrderModels.OrderLine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -30,9 +39,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * (PD-0012-R5). 매입 전의 실패는 배송 취소·승인 취소·예약 해제로 흔적 없이 정리되고,
  * 매입 후에는 되돌리지 않는다 (PD-0012-R6, PD-0012-R8).
  */
-@Service
-public class OrderService {
-    private static final Logger log = LoggerFactory.getLogger(OrderService.class);
+@Component
+public class OrderExecutor implements OrderUseCase {
+    private static final Logger log = LoggerFactory.getLogger(OrderExecutor.class);
 
     private final OrderRepository orders;
     private final MemberClient members;
@@ -43,7 +52,7 @@ public class OrderService {
     private final ShippingClient shipping;
     private final NotificationClient notifications;
 
-    public OrderService(
+    public OrderExecutor(
             OrderRepository orders,
             MemberClient members,
             CartClient carts,
@@ -63,7 +72,8 @@ public class OrderService {
         this.notifications = notifications;
     }
 
-    public CheckoutResponse checkout(String memberId, String paymentToken, String addressId) {
+    @Override
+    public CheckoutResult checkout(String memberId, String paymentToken, String addressId) {
         var member = members.member(memberId);
         var address = OrderMapper.toAddress(selectAddress(member.addresses(), addressId));
         var cart = carts.cart(memberId);
@@ -143,7 +153,7 @@ public class OrderService {
                 "Shipment ready",
                 "Tracking number: " + shipment.trackingNumber()
         ));
-        return new CheckoutResponse(OrderMapper.toResponse(order), payment, shipment);
+        return new CheckoutResult(OrderMapper.toDetails(order), payment, shipment);
     }
 
     /**
@@ -263,15 +273,17 @@ public class OrderService {
      * <p>없는 주문과 남의 주문을 같은 응답으로 거절한다. 구분하면 어떤 주문 id가 존재하는지
      * 알아낼 수 있다.
      */
-    public OrderResponse getOwned(String memberId, String orderId) {
+    @Override
+    public OrderDetails getOwned(String memberId, String orderId) {
         var order = getOrder(orderId);
         if (!order.memberId().equals(memberId)) {
             throw DomainException.notFound("order not found");
         }
-        return OrderMapper.toResponse(order);
+        return OrderMapper.toDetails(order);
     }
 
-    public OrderResponse markDelivered(String orderId) {
+    @Override
+    public OrderDetails markDelivered(String orderId) {
         var order = getOrder(orderId);
         order.markDelivered();
         orders.save(order);
@@ -281,7 +293,7 @@ public class OrderService {
                 "Order delivered",
                 "Order " + order.id() + " has been delivered."
         ));
-        return OrderMapper.toResponse(order);
+        return OrderMapper.toDetails(order);
     }
 
     private AddressResponse selectAddress(List<AddressResponse> addresses, String addressId) {

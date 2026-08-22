@@ -2,7 +2,7 @@ package com.impati.commerce.order.adapter.out.client;
 
 import com.impati.commerce.common.ApiContracts.ReservationResponse;
 import com.impati.commerce.common.ApiContracts.ReserveInventoryRequest;
-import com.impati.commerce.order.application.InventoryClient;
+import com.impati.commerce.order.application.port.out.InventoryClient;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 

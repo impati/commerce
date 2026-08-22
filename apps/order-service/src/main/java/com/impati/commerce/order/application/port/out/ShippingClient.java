@@ -1,4 +1,4 @@
-package com.impati.commerce.order.application;
+package com.impati.commerce.order.application.port.out;
 
 import com.impati.commerce.common.ApiContracts.CreateShipmentRequest;
 import com.impati.commerce.common.ApiContracts.ShipmentResponse;

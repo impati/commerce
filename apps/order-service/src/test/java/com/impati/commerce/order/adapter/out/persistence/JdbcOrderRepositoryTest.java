@@ -1,7 +1,7 @@
 package com.impati.commerce.order.adapter.out.persistence;
 
 import com.impati.commerce.common.ApiContracts.Money;
-import com.impati.commerce.order.application.OrderRepository;
+import com.impati.commerce.order.application.port.out.OrderRepository;
 import com.impati.commerce.order.domain.OrderModels.Address;
 import com.impati.commerce.order.domain.OrderModels.Order;
 import com.impati.commerce.order.domain.OrderModels.OrderLine;
