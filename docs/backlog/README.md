@@ -61,7 +61,7 @@ make todo
 | [BL-0026](bl-0026-unpublished-sku-is-readable.md) 발행 전 판매 단위 노출 | 상품은 숨기는데 하위 단위가 샌다 |
 | [BL-0028](bl-0028-order-total-forces-krw.md) 주문 총액 통화 고정 | 지금 맞는 이유가 계산이 옳아서가 아니다 |
 | [BL-0029](bl-0029-order-and-shipment-status-diverge.md) 주문·배송 상태 불일치 | 어느 쪽이 진실인지 정해져 있지 않다 |
-| [BL-0030](bl-0030-policy-verification-gaps.md) PD-0003~0010 검증 공백 | 세 서비스는 정책 규칙 테스트가 하나도 없다 |
+| [BL-0030](bl-0030-policy-verification-gaps.md) 정책 규칙 검증 공백 | 결제·배송은 메워졌다. 상품 노출과 체크아웃 R1~R4가 남았다 |
 | [BL-0031](bl-0031-check-policy-rule-coverage.md) 규칙·테스트 대응 검사 | 규율에 의존하는 것은 반드시 샌다 |
 | [BL-0032](bl-0032-payment-gateway-port-not-separated.md) 결제 대행사 포트 미분리 | 어댑터 교체로 운영에 나갈 수 없다 |
 | [BL-0033](bl-0033-checkout-compensation-can-fail-silently.md) 보상 실패 시 원인 소실 | 정책이 보상 성공을 전제한다 ([PD-0004](../policy/pd-0004-checkout-and-compensation.md)) |
