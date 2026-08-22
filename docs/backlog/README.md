@@ -66,3 +66,6 @@ make todo
 | [BL-0032](bl-0032-payment-gateway-port-not-separated.md) 결제 대행사 포트 미분리 | 어댑터 교체로 운영에 나갈 수 없다 |
 | [BL-0033](bl-0033-checkout-compensation-can-fail-silently.md) 보상 실패 시 원인 소실 | 정책이 보상 성공을 전제한다 ([PD-0004](../policy/pd-0004-checkout-and-compensation.md)) |
 | [BL-0035](bl-0035-checkout-request-idempotency.md) 체크아웃 요청 멱등성 | 결제 멱등 키로는 막히지 않는 경로다 |
+| [BL-0036](bl-0036-clients-leak-protocol-errors.md) 클라이언트가 프로토콜 오류를 흘린다 | 7개 중 5개가 ErrorResponse 계약을 깬다 |
+| [BL-0037](bl-0037-downstream-failure-reported-as-conflict.md) 하위 장애가 409로 나간다 | 재시도 판단이 반대가 된다 |
+| [BL-0038](bl-0038-captured-order-leaves-uncommitted-reservation.md) 매입 후 미확정 예약 | BL-0025와 반대 방향으로 처리해야 한다 ([PD-0012-R9](../policy/pd-0012-checkout-and-compensation.md)) |
