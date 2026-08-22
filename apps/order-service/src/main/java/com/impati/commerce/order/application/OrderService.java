@@ -18,6 +18,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * checkout saga를 조율한다.
@@ -88,6 +89,7 @@ public class OrderService {
         String reservationId = null;
         String paymentId = null;
         ShipmentResponse shipment = null;
+        var captureAttempted = new AtomicBoolean(false);
         PaymentResponse payment;
         try {
             reservationId = inventory.reserve(new ReserveInventoryRequest(
@@ -114,9 +116,11 @@ public class OrderService {
                     OrderMapper.toResponse(address)
             ));
 
-            payment = payments.capturePayment(paymentId);
+            captureAttempted.set(true);
+            payment = capture(paymentId);
         } catch (RuntimeException exception) {
-            rollbackBeforeCapture(order, reservationId, paymentId, shipment, memberId, exception);
+            rollbackBeforeCapture(
+                    order, reservationId, paymentId, shipment, memberId, captureAttempted.get(), exception);
             throw exception;
         }
 
@@ -143,6 +147,28 @@ public class OrderService {
     }
 
     /**
+     * 매입한다. 결과를 받지 못하면 한 번 더 시도한다 (PD-0012-R13).
+     *
+     * <p>응답 유실은 매입이 실패했다는 뜻이 아니다. 요청은 갔고 상대는 처리를 마쳤을 수
+     * 있으므로, 다시 부르면 대개 그 결과를 그대로 돌려받는다 — 매입은 멱등하다
+     * (PD-0011-R4). 재시도가 곧 확인이므로 별도 조회가 필요 없다.
+     *
+     * <p>두 번 모두 결과를 받지 못하면 여기서는 확정할 수 없다. 그대로 올려보내고
+     * 되돌리는 쪽이 판단한다.
+     */
+    private PaymentResponse capture(String paymentId) {
+        try {
+            return payments.capturePayment(paymentId);
+        } catch (DomainException exception) {
+            if (!exception.code().equals("outcome_unknown")) {
+                throw exception;
+            }
+            log.warn("capture outcome unknown, retrying once payment={}", paymentId);
+            return payments.capturePayment(paymentId);
+        }
+    }
+
+    /**
      * 매입 전 실패를 되돌린다 (PD-0012-R6). 장바구니는 그대로 둔다 (PD-0012-R7).
      *
      * <p>각 단계를 독립적으로 시도한다. 하나가 실패해도 나머지를 시도하며, 원래 실패 원인이
@@ -158,6 +184,7 @@ public class OrderService {
             String paymentId,
             ShipmentResponse shipment,
             String memberId,
+            boolean captureAttempted,
             RuntimeException cause
     ) {
         if (shipment != null) {
@@ -171,10 +198,23 @@ public class OrderService {
             var id = reservationId;
             compensate("release-reservation", id, () -> inventory.releaseReservation(id), cause);
         }
-        compensate("cancel-order", order.id(), () -> {
+        // 매입을 시도했는데 결과를 못 받은 경우에만 표시한다. 그 앞 단계의 결과 불명은
+        // 아직 대금이 움직이지 않았으므로 환불 대상이 아니다.
+        var captureOutcomeUnknown = captureAttempted
+                && cause instanceof DomainException domain
+                && domain.code().equals("outcome_unknown");
+        var cancelled = compensate("cancel-order", order.id(), () -> {
             order.cancel();
+            if (captureOutcomeUnknown) {
+                // 매입 여부를 모른 채 취소한다. 환불이 필요한지 나중에 결제에 물어야 한다.
+                order.markPaymentOutcomeUnknown();
+            }
             orders.save(order);
         }, cause);
+        if (!cancelled) {
+            // 취소되지 않은 주문에 취소를 알리지 않는다 (PD-0012-R11).
+            return;
+        }
         notifications.notify(new NotificationEventRequest(
                 "OrderCancelled",
                 memberId,
@@ -183,12 +223,15 @@ public class OrderService {
         ));
     }
 
-    private void compensate(String step, String id, Runnable action, RuntimeException cause) {
+    /** 성공하면 {@code true}. 실패는 원인에 붙이고 삼켜서 남은 보상이 계속 돌게 한다. */
+    private boolean compensate(String step, String id, Runnable action, RuntimeException cause) {
         try {
             action.run();
+            return true;
         } catch (RuntimeException failure) {
             cause.addSuppressed(failure);
-            log.error("checkout compensation failed step={} id={} order={}", step, id, cause.getMessage(), failure);
+            log.error("checkout compensation failed step={} id={} cause={}", step, id, cause.getMessage(), failure);
+            return false;
         }
     }
 

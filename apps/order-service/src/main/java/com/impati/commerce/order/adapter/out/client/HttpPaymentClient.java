@@ -5,6 +5,7 @@ import com.impati.commerce.common.ApiContracts.PaymentResponse;
 import com.impati.commerce.common.DomainException;
 import com.impati.commerce.order.application.PaymentClient;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
@@ -16,7 +17,13 @@ public class HttpPaymentClient implements PaymentClient {
         this.restClient = paymentRestClient;
     }
 
-    /** HTTP 상태를 도메인 언어로 옮긴다. 402는 결제 거절이고 그 외는 결제 시스템 오류다. */
+    /**
+     * HTTP 상태를 도메인 언어로 옮긴다. 402는 결제 거절이고 그 외 응답은 결제 시스템 오류다.
+     *
+     * <p>응답을 받지 못한 경우는 다르다. 요청은 갔고 상대가 처리를 마쳤을 수 있으므로
+     * 실패가 아니라 <b>결과 불명</b>이다. 이 구분이 없으면 호출자가 모르는 것을 실패로
+     * 단정해 이미 일어난 일을 되돌린다.
+     */
     @Override
     public PaymentResponse authorizePayment(AuthorizePaymentRequest request) {
         try {
@@ -30,6 +37,8 @@ public class HttpPaymentClient implements PaymentClient {
                 throw DomainException.paymentDeclined("payment was declined by issuer");
             }
             throw DomainException.conflict("payment service error: " + exception.getStatusText());
+        } catch (ResourceAccessException exception) {
+            throw DomainException.outcomeUnknown("payment authorization outcome unknown: " + exception.getMessage());
         }
     }
 
@@ -55,6 +64,8 @@ public class HttpPaymentClient implements PaymentClient {
                     .body(PaymentResponse.class);
         } catch (RestClientResponseException exception) {
             throw DomainException.conflict("payment service error: " + exception.getStatusText());
+        } catch (ResourceAccessException exception) {
+            throw DomainException.outcomeUnknown("payment " + action + " outcome unknown: " + exception.getMessage());
         }
     }
 }

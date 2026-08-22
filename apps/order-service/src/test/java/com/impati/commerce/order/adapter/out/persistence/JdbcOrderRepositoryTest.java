@@ -84,6 +84,52 @@ class JdbcOrderRepositoryTest {
         assertThat(orders.findById("ord_never_saved")).isEmpty();
     }
 
+    /** PD-0012-R12: 매입 결과를 확인하지 못한 주문은 표시가 남고 다시 찾힌다. */
+    @Test
+    void keepsAndFindsTheUnknownPaymentOutcomeMark() {
+        var order = newOrder();
+        order.attachPayment("pay_unknown");
+        order.cancel();
+        order.markPaymentOutcomeUnknown();
+        orders.save(order);
+
+        assertThat(orders.findById(order.id()).orElseThrow().paymentOutcomeUnknown()).isTrue();
+        assertThat(flagColumn(order.id(), "payment_outcome_unknown")).isTrue();
+        assertThat(orders.findWithUnknownPaymentOutcome())
+                .extracting(loaded -> loaded.id())
+                .contains(order.id());
+    }
+
+    /** 정리가 끝난 주문은 다시 조회 대상이 되지 않는다. 아니면 목록이 영원히 줄지 않는다. */
+    @Test
+    void resolvedOrderLeavesTheUnknownPaymentOutcomeList() {
+        var order = newOrder();
+        order.attachPayment("pay_resolved");
+        order.cancel();
+        order.markPaymentOutcomeUnknown();
+        orders.save(order);
+
+        order.resolvePaymentOutcome();
+        orders.save(order);
+
+        assertThat(flagColumn(order.id(), "payment_outcome_unknown")).isFalse();
+        assertThat(orders.findWithUnknownPaymentOutcome())
+                .extracting(loaded -> loaded.id())
+                .doesNotContain(order.id());
+    }
+
+    /** 평범한 주문에는 표시가 붙지 않는다. 기본값이 반대면 모든 주문이 정리 대상이 된다. */
+    @Test
+    void ordinaryOrderIsNotMarked() {
+        var order = newOrder();
+        orders.save(order);
+
+        assertThat(flagColumn(order.id(), "payment_outcome_unknown")).isFalse();
+        assertThat(orders.findWithUnknownPaymentOutcome())
+                .extracting(loaded -> loaded.id())
+                .doesNotContain(order.id());
+    }
+
     /**
      * 각 값이 자기 컬럼에 들어갔는지 직접 확인한다.
      *
@@ -128,6 +174,15 @@ class JdbcOrderRepositoryTest {
         assertThat(first.get("QUANTITY")).isEqualTo(2);
         assertThat(first.get("UNIT_AMOUNT")).isEqualTo(29_000L);
         assertThat(first.get("UNIT_CURRENCY")).isEqualTo("KRW");
+    }
+
+    /** boolean 컬럼은 String으로 읽으면 "TRUE"/"FALSE"가 되므로 타입을 명시해 읽는다. */
+    private boolean flagColumn(String orderId, String columnName) {
+        return Boolean.TRUE.equals(jdbc.queryForObject(
+                "select " + columnName + " from orders where id = ?",
+                Boolean.class,
+                orderId
+        ));
     }
 
     private String column(String orderId, String columnName) {

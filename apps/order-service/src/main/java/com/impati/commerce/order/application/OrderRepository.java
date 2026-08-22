@@ -2,6 +2,7 @@ package com.impati.commerce.order.application;
 
 import com.impati.commerce.order.domain.OrderModels.Order;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -14,4 +15,7 @@ public interface OrderRepository {
     void save(Order order);
 
     Optional<Order> findById(String orderId);
+
+    /** 매입 결과를 확인하지 못한 채 취소된 주문 (PD-0012-R12). 정리하는 쪽이 대상으로 삼는다. */
+    List<Order> findWithUnknownPaymentOutcome();
 }

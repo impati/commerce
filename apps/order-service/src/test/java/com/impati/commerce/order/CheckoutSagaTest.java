@@ -14,6 +14,7 @@ import com.impati.commerce.common.ApiContracts.ReservationResponse;
 import com.impati.commerce.common.ApiContracts.ReserveInventoryRequest;
 import com.impati.commerce.common.ApiContracts.ShipmentResponse;
 import com.impati.commerce.common.ApiContracts.SkuResponse;
+import com.impati.commerce.order.application.OrderRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.client.ExpectedCount.times;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
@@ -96,6 +98,9 @@ class CheckoutSagaTest {
 
     @Autowired
     private MockServerRestClientCustomizer customizer;
+
+    @Autowired
+    private OrderRepository orders;
 
     private MockRestServiceServer server;
 
@@ -266,6 +271,109 @@ class CheckoutSagaTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("FULFILLING"))
                 .andExpect(jsonPath("$.paymentId").value(PAYMENT_ID));
+    }
+
+    /**
+     * [PD-0012-R13][PD-0011-R4] 매입 응답을 못 받으면 한 번 더 시도한다.
+     *
+     * <p>응답 유실은 매입 실패가 아니다. 상대는 처리를 마쳤을 수 있고 매입은 멱등하므로,
+     * 다시 부르면 그 결과를 그대로 돌려받는다. 재시도가 곧 확인이다.
+     */
+    @Test
+    void lostCaptureResponseIsRetriedAndSucceeds() throws Exception {
+        stubMemberCartAndCatalog();
+        stubReservation();
+        stubAuthorize("card_test_success");
+        stubCreateShipment();
+        // 첫 호출은 응답을 만들지 않아 전송 실패가 된다. 둘째 호출이 확정한다.
+        server.expect(times(1), requestTo(PAYMENT_URL + "/internal/payments/" + PAYMENT_ID + "/capture"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(request -> {
+                    throw new java.net.SocketTimeoutException("read timed out");
+                });
+        server.expect(times(1), requestTo(PAYMENT_URL + "/internal/payments/" + PAYMENT_ID + "/capture"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess(json(payment("CAPTURED")), MediaType.APPLICATION_JSON));
+        server.expect(times(1), requestTo(INVENTORY_URL + "/internal/reservations/" + RESERVATION_ID + "/commit"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess());
+        server.expect(times(1), requestTo(CART_URL + "/internal/carts/clear"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess());
+        server.expect(times(2), requestTo(NOTIFICATION_URL + "/internal/notifications/events"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess());
+        // 배송 취소·승인 취소·예약 해제는 stub하지 않는다. 되돌리면 테스트가 깨진다.
+
+        mockMvc.perform(checkout("card_test_success"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.order.status").value("FULFILLING"));
+    }
+
+    /**
+     * [PD-0012-R12] 두 번 모두 결과를 못 받으면 되돌리되 결제 미확인으로 표시한다.
+     *
+     * <p>이 경로가 이번 작업의 마지막 구멍이었다. 모르는 것을 실패로 단정해 되돌리면 매입된
+     * 대금이 그대로 남는다. 표시가 없으면 그 주문을 다시 찾을 수 없다.
+     */
+    @Test
+    void repeatedlyLostCaptureResponseMarksTheOrderForRefundCheck() throws Exception {
+        stubMemberCartAndCatalog();
+        stubReservation();
+        stubAuthorize("card_test_success");
+        stubCreateShipment();
+        server.expect(times(2), requestTo(PAYMENT_URL + "/internal/payments/" + PAYMENT_ID + "/capture"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(request -> {
+                    throw new java.net.SocketTimeoutException("read timed out");
+                });
+        server.expect(times(1), requestTo(SHIPPING_URL + "/internal/shipments/" + SHIPMENT_ID + "/cancel"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess(json(shipment("CANCELLED")), MediaType.APPLICATION_JSON));
+        // 매입됐을 수 있으므로 취소는 409로 거절될 수 있다. 그것을 삼키고 표시로 남긴다.
+        server.expect(times(1), requestTo(PAYMENT_URL + "/internal/payments/" + PAYMENT_ID + "/cancel"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.CONFLICT)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(json(new ErrorResponse("conflict", "captured payment cannot be cancelled"))));
+        stubReleaseReservation();
+        stubCancelledNotification();
+
+        mockMvc.perform(checkout("card_test_success"))
+                .andExpect(status().isBadGateway());
+
+        assertOrderCancelledWithoutPayment();
+        assertThat(unresolvedOrderIds()).contains(reservedOrderId.get());
+    }
+
+    /**
+     * [PD-0012-R12] 매입 앞 단계의 결과 불명은 표시하지 않는다.
+     *
+     * <p>대금이 아직 움직이지 않았으므로 환불 대상이 아니다. 원인 코드만 보고 표시하면
+     * 여기서 거짓 양성이 나온다.
+     */
+    @Test
+    void unknownOutcomeBeforeCaptureDoesNotMarkTheOrder() throws Exception {
+        stubMemberCartAndCatalog();
+        stubReservation();
+        stubAuthorize("card_test_success");
+        server.expect(times(1), requestTo(SHIPPING_URL + "/internal/shipments"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(request -> {
+                    throw new java.net.SocketTimeoutException("read timed out");
+                });
+        stubCancelPayment();
+        stubReleaseReservation();
+        stubCancelledNotification();
+
+        mockMvc.perform(checkout("card_test_success"))
+                .andExpect(status().isBadGateway());
+
+        assertThat(unresolvedOrderIds()).doesNotContain(reservedOrderId.get());
+    }
+
+    private List<String> unresolvedOrderIds() {
+        return orders.findWithUnknownPaymentOutcome().stream().map(order -> order.id()).toList();
     }
 
     private MockHttpServletRequestBuilder checkout(String paymentToken) {

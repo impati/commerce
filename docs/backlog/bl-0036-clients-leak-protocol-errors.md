@@ -5,7 +5,9 @@
 
 ## 배경
 
-order-service의 HTTP 클라이언트 7개 중 2개만 프로토콜 오류를 도메인 언어로 옮긴다. `HttpPaymentClient`와 `HttpShippingClient`가 그렇고, member·cart·catalog·inventory·notification은 `RestClientResponseException`을 그대로 응용 계층까지 올려보낸다.
+order-service의 HTTP 클라이언트 7개 중 `HttpPaymentClient`와 `HttpShippingClient`만 프로토콜 오류를 도메인 언어로 옮긴다. member·cart·catalog·inventory·notification은 응답 코드 실패도 전송 실패도 그대로 응용 계층까지 올려보낸다.
+
+**옮기는 두 클라이언트도 완전하지 않았다.** 처음에는 응답을 받은 경우(`RestClientResponseException`)만 다뤘고 연결 실패와 타임아웃은 빠져 있었다. 그 구멍이 실제 결함으로 드러나 [BL-0034](done/bl-0034-checkout-payment-integrity.md)에서 두 클라이언트만 메웠다. 나머지 다섯은 두 종류 모두 남아 있다.
 
 CLAUDE.md는 프로토콜 오류를 도메인 언어로 옮기는 것도 어댑터의 일이라고 정한다. 지키지 않으면 두 가지가 어긋난다.
 

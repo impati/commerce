@@ -25,6 +25,7 @@ import java.util.Optional;
 public class JdbcOrderRepository implements OrderRepository {
     private static final String ORDER_COLUMNS = """
             id, member_id, status, payment_id, shipment_id, inventory_reservation_id,
+            payment_outcome_unknown,
             ship_address_id, ship_alias, ship_recipient, ship_phone,
             ship_line1, ship_city, ship_postal_code, ship_default_address
             """;
@@ -40,6 +41,7 @@ public class JdbcOrderRepository implements OrderRepository {
                    payment_id = :payment_id,
                    shipment_id = :shipment_id,
                    inventory_reservation_id = :inventory_reservation_id,
+                   payment_outcome_unknown = :payment_outcome_unknown,
                    ship_address_id = :ship_address_id,
                    ship_alias = :ship_alias,
                    ship_recipient = :ship_recipient,
@@ -54,10 +56,12 @@ public class JdbcOrderRepository implements OrderRepository {
     private static final String INSERT_ORDER = """
             insert into orders (
                 id, member_id, status, payment_id, shipment_id, inventory_reservation_id,
+                payment_outcome_unknown,
                 ship_address_id, ship_alias, ship_recipient, ship_phone,
                 ship_line1, ship_city, ship_postal_code, ship_default_address
             ) values (
                 :id, :member_id, :status, :payment_id, :shipment_id, :inventory_reservation_id,
+                :payment_outcome_unknown,
                 :ship_address_id, :ship_alias, :ship_recipient, :ship_phone,
                 :ship_line1, :ship_city, :ship_postal_code, :ship_default_address
             )
@@ -74,6 +78,9 @@ public class JdbcOrderRepository implements OrderRepository {
             """;
 
     private static final String SELECT_ORDER = "select " + ORDER_COLUMNS + " from orders where id = :id";
+
+    private static final String SELECT_UNRESOLVED = "select " + ORDER_COLUMNS
+            + " from orders where payment_outcome_unknown = true";
     private static final String DELETE_LINES = "delete from order_lines where order_id = :order_id";
     private static final String SELECT_LINES =
             "select " + LINE_COLUMNS + " from order_lines where order_id = :order_id order by line_no";
@@ -121,6 +128,7 @@ public class JdbcOrderRepository implements OrderRepository {
                 .addValue("payment_id", order.paymentId())
                 .addValue("shipment_id", order.shipmentId())
                 .addValue("inventory_reservation_id", order.inventoryReservationId())
+                .addValue("payment_outcome_unknown", order.paymentOutcomeUnknown())
                 .addValue("ship_address_id", address.id())
                 .addValue("ship_alias", address.alias())
                 .addValue("ship_recipient", address.recipient())
@@ -144,6 +152,23 @@ public class JdbcOrderRepository implements OrderRepository {
                 .addValue("unit_currency", line.unitPrice().currency());
     }
 
+    /**
+     * 매입 결과를 확인하지 못한 채 취소된 주문을 찾는다 (PD-0012-R12).
+     *
+     * <p>정리하는 쪽이 이 목록의 주문마다 결제에 매입 여부를 물어 환불이 필요한지 판단한다.
+     * 그 절차가 없으면 목록만 쌓이므로 조회 자체가 정리의 시작점이다.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public List<Order> findWithUnknownPaymentOutcome() {
+        var ids = jdbc.queryForList(
+                "select id from orders where payment_outcome_unknown = true",
+                new MapSqlParameterSource(),
+                String.class
+        );
+        return ids.stream().map(id -> findById(id).orElseThrow()).toList();
+    }
+
     private RowMapper<Order> orderRowMapper(String orderId) {
         return (rs, rowNum) -> Order.restore(
                 rs.getString("id"),
@@ -162,7 +187,8 @@ public class JdbcOrderRepository implements OrderRepository {
                 rs.getString("status"),
                 rs.getString("payment_id"),
                 rs.getString("shipment_id"),
-                rs.getString("inventory_reservation_id")
+                rs.getString("inventory_reservation_id"),
+                rs.getBoolean("payment_outcome_unknown")
         );
     }
 

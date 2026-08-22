@@ -5,6 +5,7 @@ import com.impati.commerce.common.ApiContracts.ShipmentResponse;
 import com.impati.commerce.common.DomainException;
 import com.impati.commerce.order.application.ShippingClient;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
@@ -26,6 +27,8 @@ public class HttpShippingClient implements ShippingClient {
                     .body(ShipmentResponse.class);
         } catch (RestClientResponseException exception) {
             throw shippingError(exception);
+        } catch (ResourceAccessException exception) {
+            throw DomainException.outcomeUnknown("shipment creation outcome unknown: " + exception.getMessage());
         }
     }
 
@@ -38,6 +41,8 @@ public class HttpShippingClient implements ShippingClient {
                     .body(ShipmentResponse.class);
         } catch (RestClientResponseException exception) {
             throw shippingError(exception);
+        } catch (ResourceAccessException exception) {
+            throw DomainException.outcomeUnknown("shipment cancellation outcome unknown: " + exception.getMessage());
         }
     }
 
