@@ -63,10 +63,11 @@ make todo
 | [BL-0029](bl-0029-order-and-shipment-status-diverge.md) 주문·배송 상태 불일치 | 어느 쪽이 진실인지 정해져 있지 않다 |
 | [BL-0030](bl-0030-policy-verification-gaps.md) 정책 규칙 검증 공백 | 결제·배송은 메워졌다. 상품 노출과 체크아웃 R1~R4가 남았다 |
 | [BL-0031](bl-0031-check-policy-rule-coverage.md) 규칙·테스트 대응 검사 | 규율에 의존하는 것은 반드시 샌다 |
-| [BL-0032](bl-0032-payment-gateway-port-not-separated.md) 결제 대행사 포트 미분리 | 어댑터 교체로 운영에 나갈 수 없다 |
+| [BL-0032](bl-0032-payment-gateway-port-not-separated.md) 결제 대행사 호출이 없다 | 상태 전이가 대행사 없이 성립하는 모양이다 |
 | [BL-0033](bl-0033-checkout-compensation-can-fail-silently.md) 보상 실패 시 원인 소실 | 정책이 보상 성공을 전제한다 ([PD-0004](../policy/pd-0004-checkout-and-compensation.md)) |
 | [BL-0035](bl-0035-checkout-request-idempotency.md) 체크아웃 요청 멱등성 | 결제 멱등 키로는 막히지 않는 경로다 |
 | [BL-0036](bl-0036-clients-leak-protocol-errors.md) 클라이언트가 프로토콜 오류를 흘린다 | 7개 중 5개가 ErrorResponse 계약을 깬다 |
 | [BL-0037](bl-0037-downstream-failure-reported-as-conflict.md) 하위 장애가 409로 나간다 | 재시도 판단이 반대가 된다 |
 | [BL-0038](bl-0038-captured-order-leaves-uncommitted-reservation.md) 매입 후 미확정 예약 | BL-0025와 반대 방향으로 처리해야 한다 ([PD-0012-R9](../policy/pd-0012-checkout-and-compensation.md)) |
 | [BL-0039](bl-0039-resolve-unknown-payment-outcome.md) 결제 미확인 주문 정리 | 찾을 수단과 되돌릴 수단은 있고 잇는 절차가 없다 ([PD-0012-R12](../policy/pd-0012-checkout-and-compensation.md)) |
+| [BL-0040](bl-0040-port-field-naming-hides-boundary.md) 포트 필드 이름이 경계를 감춘다 | 저장소와 클라이언트가 같은 이름을 쓴다 |
