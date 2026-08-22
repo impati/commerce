@@ -1,4 +1,4 @@
-package com.impati.commerce.payment.application.service;
+package com.impati.commerce.payment.application.component;
 
 import com.impati.commerce.common.ApiContracts.Money;
 import com.impati.commerce.payment.application.port.out.PaymentGateway;
@@ -73,7 +73,7 @@ class PaymentGatewayInteractionTest {
     }
 
     @Autowired
-    private PaymentService payments;
+    private PaymentExecutor payments;
 
     @Autowired
     private RecordingPaymentGateway gateway;

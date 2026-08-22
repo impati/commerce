@@ -1,4 +1,4 @@
-package com.impati.commerce.payment.application.service;
+package com.impati.commerce.payment.application.component;
 
 import com.impati.commerce.common.ApiContracts.PaymentResponse;
 import com.impati.commerce.payment.domain.PaymentModels.Payment;

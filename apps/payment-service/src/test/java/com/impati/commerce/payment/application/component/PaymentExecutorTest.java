@@ -1,4 +1,4 @@
-package com.impati.commerce.payment.application.service;
+package com.impati.commerce.payment.application.component;
 
 import com.impati.commerce.common.ApiContracts.Money;
 import com.impati.commerce.common.DomainException;
@@ -16,12 +16,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * 결제는 하나뿐이므로(PD-0011-R2) 식별자를 공유하면 서로의 결제를 돌려받는다.
  */
 @SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:payment-service;DB_CLOSE_DELAY=-1")
-class PaymentServiceTest {
+class PaymentExecutorTest {
     private static final Money AMOUNT = Money.krw(58_000);
     private static final String OK_TOKEN = "card_test_success";
 
     @Autowired
-    private PaymentService payments;
+    private PaymentExecutor payments;
 
     /** PD-0011-R1: 승인은 대금을 확보만 하고 청구를 확정하지 않는다. */
     @Test
