@@ -1,4 +1,4 @@
-package com.impati.commerce.inventory.application;
+package com.impati.commerce.inventory.application.port.out;
 
 import com.impati.commerce.inventory.domain.InventoryModels.Reservation;
 import com.impati.commerce.inventory.domain.InventoryModels.StockItem;

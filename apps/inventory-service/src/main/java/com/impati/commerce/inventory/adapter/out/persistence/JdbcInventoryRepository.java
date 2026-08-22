@@ -1,6 +1,6 @@
 package com.impati.commerce.inventory.adapter.out.persistence;
 
-import com.impati.commerce.inventory.application.InventoryRepository;
+import com.impati.commerce.inventory.application.port.out.InventoryRepository;
 import com.impati.commerce.inventory.domain.InventoryModels.Reservation;
 import com.impati.commerce.inventory.domain.InventoryModels.ReservedLine;
 import com.impati.commerce.inventory.domain.InventoryModels.StockItem;

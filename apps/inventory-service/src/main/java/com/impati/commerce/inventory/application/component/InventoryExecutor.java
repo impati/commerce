@@ -1,13 +1,15 @@
-package com.impati.commerce.inventory.application;
+package com.impati.commerce.inventory.application.component;
 
-import com.impati.commerce.common.ApiContracts.ReservationLine;
-import com.impati.commerce.common.ApiContracts.ReservationResponse;
-import com.impati.commerce.common.ApiContracts.StockResponse;
 import com.impati.commerce.common.DomainException;
+import com.impati.commerce.inventory.application.port.in.InventoryUseCase;
+import com.impati.commerce.inventory.application.port.in.ReservationDetails;
+import com.impati.commerce.inventory.application.port.in.StockDetails;
+import com.impati.commerce.inventory.application.port.in.StockLine;
+import com.impati.commerce.inventory.application.port.out.InventoryRepository;
 import com.impati.commerce.inventory.domain.InventoryModels.Reservation;
 import com.impati.commerce.inventory.domain.InventoryModels.ReservedLine;
 import com.impati.commerce.inventory.domain.InventoryModels.StockItem;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.LinkedHashMap;
@@ -20,26 +22,28 @@ import java.util.Map;
  * <p>이전에는 메서드에 {@code synchronized}를 걸었다. 단일 프로세스와 맵을 가정한 동기화이므로
  * DB로 옮기면서 걷어냈다. 인스턴스가 여러 개면 JVM 락은 아무것도 보호하지 못한다.
  */
-@Service
-public class InventoryService {
+@Component
+public class InventoryExecutor implements InventoryUseCase {
     private final InventoryRepository inventory;
 
-    public InventoryService(InventoryRepository inventory) {
+    public InventoryExecutor(InventoryRepository inventory) {
         this.inventory = inventory;
     }
 
     @Transactional
-    public StockResponse addStock(String skuId, int quantity) {
+    @Override
+    public StockDetails addStock(String skuId, int quantity) {
         var stock = inventory.lockStock(List.of(skuId)).stream()
                 .findFirst()
                 .orElseGet(() -> new StockItem(skuId));
         stock.add(quantity);
         inventory.saveStock(stock);
-        return InventoryMapper.toResponse(stock);
+        return InventoryMapper.toDetails(stock);
     }
 
     @Transactional
-    public ReservationResponse reserve(String orderId, List<ReservationLine> lines) {
+    @Override
+    public ReservationDetails reserve(String orderId, List<StockLine> lines) {
         var reservedLines = lines.stream()
                 .map(line -> new ReservedLine(line.skuId(), line.quantity()))
                 .toList();
@@ -59,11 +63,12 @@ public class InventoryService {
 
         var reservation = new Reservation(orderId, reservedLines);
         inventory.saveReservation(reservation);
-        return InventoryMapper.toResponse(reservation);
+        return InventoryMapper.toDetails(reservation);
     }
 
     @Transactional
-    public ReservationResponse commit(String reservationId) {
+    @Override
+    public ReservationDetails commit(String reservationId) {
         var reservation = getReservation(reservationId);
         var locked = lockFor(reservation.lines());
         for (var line : reservation.lines()) {
@@ -73,11 +78,12 @@ public class InventoryService {
         }
         reservation.commit();
         inventory.saveReservation(reservation);
-        return InventoryMapper.toResponse(reservation);
+        return InventoryMapper.toDetails(reservation);
     }
 
     @Transactional
-    public ReservationResponse release(String reservationId) {
+    @Override
+    public ReservationDetails release(String reservationId) {
         var reservation = getReservation(reservationId);
         var locked = lockFor(reservation.lines());
         for (var line : reservation.lines()) {
@@ -87,16 +93,18 @@ public class InventoryService {
         }
         reservation.release();
         inventory.saveReservation(reservation);
-        return InventoryMapper.toResponse(reservation);
+        return InventoryMapper.toDetails(reservation);
     }
 
     @Transactional(readOnly = true)
-    public List<StockResponse> stock() {
-        return inventory.stock().stream().map(InventoryMapper::toResponse).toList();
+    @Override
+    public List<StockDetails> stock() {
+        return inventory.stock().stream().map(InventoryMapper::toDetails).toList();
     }
 
     /** 시드가 이미 들어가 있는지 확인한다. 파일 DB에서는 재시작마다 시드를 넣으면 재고가 늘어난다. */
     @Transactional(readOnly = true)
+    @Override
     public boolean isEmpty() {
         return inventory.stock().isEmpty();
     }
