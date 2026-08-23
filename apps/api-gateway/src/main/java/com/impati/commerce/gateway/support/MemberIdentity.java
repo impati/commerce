@@ -12,6 +12,7 @@ import java.security.interfaces.ECPublicKey;
 import java.security.spec.X509EncodedKeySpec;
 import java.text.ParseException;
 import java.time.Clock;
+import java.time.Duration;
 import java.util.Base64;
 
 /**
@@ -29,8 +30,8 @@ import java.util.Base64;
  * <p>공개키만 갖는 이유는 이 서비스가 유일한 퍼블릭 인그레스이기 때문이다. 대칭 키라면 검증 키가
  * 곧 발급 키이므로 여기가 뚫리면 임의 신원을 위조할 수 있다.
  *
- * <p>TODO 접근 토큰이 만료된 뒤에는 갱신이 필요하고 그 경로는 member-service에 의존한다. 즉 장애
- * 내성이 접근 토큰 수명(5분)까지다. 장애 판정과 더 긴 상한은 BL-0045.
+ * <p>member-service가 장애로 판정되는 동안에는 <b>만료 판정만</b> 완화해 이미 발급된 토큰을 상한까지
+ * 받는다 (PD-0014-R9, ADR-0008). 서명과 발급자는 그대로 본다 — 완화되는 것은 만료 하나뿐이다.
  */
 @Component
 public class MemberIdentity {
@@ -39,14 +40,20 @@ public class MemberIdentity {
     private final ECPublicKey publicKey;
     private final Clock clock;
     private final String issuer;
+    private final MemberServiceAvailability memberServiceAvailability;
+    private final Duration outageTolerance;
 
     public MemberIdentity(
             Clock clock,
+            MemberServiceAvailability memberServiceAvailability,
             @Value("${gateway.access-token.public-key}") String encodedPublicKey,
-            @Value("${gateway.access-token.issuer}") String issuer
+            @Value("${gateway.access-token.issuer}") String issuer,
+            @Value("${gateway.member-service.outage-tolerance}") Duration outageTolerance
     ) {
         this.clock = clock;
+        this.memberServiceAvailability = memberServiceAvailability;
         this.issuer = issuer;
+        this.outageTolerance = outageTolerance;
         this.publicKey = readPublicKey(encodedPublicKey);
     }
 
@@ -82,9 +89,25 @@ public class MemberIdentity {
         return issuer.equals(claims(jwt).getIssuer());
     }
 
+    /**
+     * 만료됐는가.
+     *
+     * <p>member-service가 장애로 판정되는 동안에는 만료 시각에 상한을 더해 판정한다. 그때는
+     * 폐기를 기록하는 것 자체가 불가능하므로 짧게 끊어도 막을 것이 없고 사용자만 끊긴다
+     * (PD-0014-R9).
+     *
+     * <p>만료 시각이 없는 토큰은 완화 대상이 아니라 그냥 거절이다. 상한을 더할 기준이 없으면
+     * 무기한 유효한 토큰이 되기 때문이다.
+     */
     private boolean expired(SignedJWT jwt) {
         var expiresAt = claims(jwt).getExpirationTime();
-        return expiresAt == null || !clock.instant().isBefore(expiresAt.toInstant());
+        if (expiresAt == null) {
+            return true;
+        }
+        var usableUntil = memberServiceAvailability.isUnavailable()
+                ? expiresAt.toInstant().plus(outageTolerance)
+                : expiresAt.toInstant();
+        return !clock.instant().isBefore(usableUntil);
     }
 
     private String subject(SignedJWT jwt) {

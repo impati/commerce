@@ -22,7 +22,9 @@ import com.impati.commerce.common.ApiContracts.VerifyEmailRequest;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
 import com.impati.commerce.common.DomainException;
+import com.impati.commerce.gateway.support.MemberServiceAvailability;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientResponseException;
 
 import java.util.List;
@@ -30,6 +32,8 @@ import java.util.List;
 @Component
 public class GatewayClients {
     private static final String MEMBER_ID_HEADER = "X-Member-Id";
+
+    private final MemberServiceAvailability memberServiceAvailability;
 
     private final RestClient members;
     private final RestClient display;
@@ -41,6 +45,7 @@ public class GatewayClients {
     private final RestClient notifications;
 
     public GatewayClients(
+            MemberServiceAvailability memberServiceAvailability,
             RestClient memberRestClient,
             RestClient displayRestClient,
             RestClient catalogRestClient,
@@ -50,6 +55,7 @@ public class GatewayClients {
             RestClient shippingRestClient,
             RestClient notificationRestClient
     ) {
+        this.memberServiceAvailability = memberServiceAvailability;
         this.members = memberRestClient;
         this.display = displayRestClient;
         this.catalog = catalogRestClient;
@@ -104,21 +110,39 @@ public class GatewayClients {
      *
      * <p>member-service는 쓸 수 없는 세션을 404로 답한다. 그대로 흘려보내면 호출자에게 "그런
      * 경로가 없다"로 읽히므로 인증 실패로 옮긴다. 이유를 구분하지 않는 것은 정해진 규칙이다
-     * (PD-0014-R7). 그 밖의 응답과 전송 실패는 여기서 다루지 않는다 — BL-0036·BL-0037이
-     * 게이트웨이의 프록시 호출 전체를 함께 볼 대상이다.
+     * (PD-0014-R7). 그 밖의 응답 변환은 여기서 다루지 않는다 — BL-0036·BL-0037이 게이트웨이의
+     * 프록시 호출 전체를 함께 볼 대상이다.
+     *
+     * <p>여기가 인증 경로에서 member-service에 닿는 유일한 곳이므로 장애 판정의 신호도 여기서
+     * 나온다. <b>404는 실패로 세지 않는다</b> — 세션이 쓸 수 없다는 것은 member-service가
+     * 멀쩡히 답했다는 뜻이다 (ADR-0008).
+     *
+     * <p>전송 실패는 503으로 옮긴다. 세션에 대해 아무것도 알아내지 못한 상태이므로 인증 실패로
+     * 답하면 클라이언트가 멀쩡한 세션 토큰을 버린다 — BL-0043이 신원 확인 경로에서 고친 것과
+     * 같은 문제다.
      */
     public AccessTokenResponse refresh(String sessionToken) {
         try {
-            return members.post()
+            var issued = members.post()
                     .uri("/internal/members/sessions/refresh")
                     .body(new SessionTokenRequest(sessionToken))
                     .retrieve()
                     .body(AccessTokenResponse.class);
+            memberServiceAvailability.recordReachable();
+            return issued;
         } catch (RestClientResponseException exception) {
             if (exception.getStatusCode().value() == 404) {
+                // 쓸 수 없는 세션이다. member-service는 멀쩡히 답했으므로 장애가 아니다.
+                memberServiceAvailability.recordReachable();
                 throw new DomainException("unauthorized", "authentication is required", 401);
             }
+            if (exception.getStatusCode().is5xxServerError()) {
+                memberServiceAvailability.recordUnreachable();
+            }
             throw exception;
+        } catch (ResourceAccessException exception) {
+            memberServiceAvailability.recordUnreachable();
+            throw DomainException.unavailable("session could not be refreshed");
         }
     }
 
