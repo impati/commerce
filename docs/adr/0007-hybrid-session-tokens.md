@@ -4,7 +4,7 @@
 - **날짜:** 2026-08-23
 - **대체:** [ADR-0001](0001-session-token-strategy.md) 로그인 세션을 불투명 토큰으로 유지한다
 - **해결한 백로그:** BL-0003 세션 확인의 가용성 결합과 지연
-- **관련:** [PD-0014](../policy/pd-0014-login-rejection-and-session-lifetime.md), [ADR-0002](0002-network-segmentation-as-trust-boundary.md), [BL-0045](../backlog/bl-0045-tolerate-member-service-outage.md)
+- **관련:** [PD-0014](../policy/pd-0014-login-rejection-and-session-lifetime.md), [ADR-0002](0002-network-segmentation-as-trust-boundary.md), [BL-0045](../backlog/done/bl-0045-tolerate-member-service-outage.md)
 
 ## 맥락과 의도
 
@@ -53,7 +53,7 @@
 
 **그러나 목표를 달성하지 못한다.** 캐시는 기억한 항목만 안다. 미스에서는 여전히 member-service에 의존하고, 게이트웨이가 재시작하면 전부 잃으며, 장애 중에 로그인한 적 없는 사용자는 인정할 근거가 없다. 결합이 남는다.
 
-이 차이는 [BL-0045](../backlog/bl-0045-tolerate-member-service-outage.md)에서 결정적이 된다. "장애 판정 중 24시간 인정"([PD-0014-R9](../policy/pd-0014-login-rejection-and-session-lifetime.md))을 캐시로는 지킬 수 없다 — 인정할 신원을 게이트웨이가 들고 있지 않기 때문이다. 서명 토큰은 게이트웨이가 아무 상태 없이 검증하므로 전원이 동작한다.
+이 차이는 [BL-0045](../backlog/done/bl-0045-tolerate-member-service-outage.md)에서 결정적이 된다. "장애 판정 중 24시간 인정"([PD-0014-R9](../policy/pd-0014-login-rejection-and-session-lifetime.md))을 캐시로는 지킬 수 없다 — 인정할 신원을 게이트웨이가 들고 있지 않기 때문이다. 서명 토큰은 게이트웨이가 아무 상태 없이 검증하므로 전원이 동작한다.
 
 ### 대칭 키(HMAC) 서명 — 채택하지 않음
 
@@ -78,7 +78,7 @@ member-service가 공개키를 HTTP로 노출하고 게이트웨이가 주기적
 ## 범위
 
 - **포함:** access token 발급 포트와 어댑터, 로그인 응답 확장, 갱신 유스케이스, 게이트웨이의 로컬 검증 전환, 프론트의 토큰 두 개 보관과 갱신 흐름, 각 계층 테스트
-- **제외:** 장애 판정과 24시간 스테일 허용([BL-0045](../backlog/bl-0045-tolerate-member-service-outage.md)), rotation, JWKS, 쿠키 전환([BL-0005](../backlog/bl-0005-token-storage-to-cookie.md)), 회원 상태 확인([BL-0044](../backlog/bl-0044-session-resolve-ignores-member-status.md)), 키 회전 절차
+- **제외:** 장애 판정과 24시간 스테일 허용([BL-0045](../backlog/done/bl-0045-tolerate-member-service-outage.md)), rotation, JWKS, 쿠키 전환([BL-0005](../backlog/bl-0005-token-storage-to-cookie.md)), 회원 상태 확인([BL-0044](../backlog/bl-0044-session-resolve-ignores-member-status.md)), 키 회전 절차
 
 ## 완료 기준
 
@@ -95,13 +95,13 @@ member-service가 공개키를 HTTP로 노출하고 게이트웨이가 주기적
 
 ## 결과와 제약
 
-**얻는 것.** 게이트웨이가 access token 수명 동안 member-service 없이 동작한다. 인증이 필요한 요청에서 홉이 사라져 지연과 부하가 준다. [BL-0045](../backlog/bl-0045-tolerate-member-service-outage.md)가 얹힐 토대가 생긴다.
+**얻는 것.** 게이트웨이가 access token 수명 동안 member-service 없이 동작한다. 인증이 필요한 요청에서 홉이 사라져 지연과 부하가 준다. [BL-0045](../backlog/done/bl-0045-tolerate-member-service-outage.md)가 얹힐 토대가 생긴다.
 
 **받아들인 트레이드오프.** 폐기가 최대 5분 늦는다([PD-0014-R5](../policy/pd-0014-login-rejection-and-session-lifetime.md), [R8](../policy/pd-0014-login-rejection-and-session-lifetime.md)). 키를 두 서비스가 나눠 갖는 운영 요소가 생긴다. 프론트에 갱신 흐름과 그 동시성 처리가 생긴다.
 
 **남은 위험.**
 
-1. **이번 작업 후 장애 내성은 5분이다.** 실제 장애는 대개 그보다 길다. [BL-0045](../backlog/bl-0045-tolerate-member-service-outage.md) 전까지는 목표가 절반만 달성된 상태다.
+1. **이번 작업 후 장애 내성은 5분이다.** 실제 장애는 대개 그보다 길다. [BL-0045](../backlog/done/bl-0045-tolerate-member-service-outage.md) 전까지는 목표가 절반만 달성된 상태다.
 2. **개인키가 유출되면 임의 신원을 위조할 수 있다.** 지금 구조에는 없던 종류의 단일 실패점이며, 회전 절차가 없으므로 유출 시 대응이 정해져 있지 않다.
 3. **프론트의 갱신 흐름을 하네스가 검증하지 못한다.** 이 저장소에 프론트 테스트 러너가 없어 타입 검사까지가 상한이다. 동시 요청이 갱신을 여러 번 일으키는 결함은 수동 확인으로만 잡힌다.
 4. **세션 토큰이 여전히 `localStorage`에 있다.** 수명이 14일이라 탈취 피해가 access token보다 크다 ([BL-0005](../backlog/bl-0005-token-storage-to-cookie.md)).
