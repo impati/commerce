@@ -171,12 +171,45 @@ class OutageToleranceTest {
     void 프로브가_복구를_감지해_판정을_푼다() throws Exception {
         driveToUnavailable();
 
+        // 살아 있는 member-service는 모르는 세션을 404로 거절한다. 그것이 곧 "닿았다"는 신호다.
         restClientCustomizer.getServer()
-                .expect(requestTo("http://localhost:8101/actuator/health"))
-                .andRespond(withSuccess("{\"status\":\"UP\"}", MediaType.APPLICATION_JSON));
+                .expect(requestTo(REFRESH))
+                .andRespond(withStatus(HttpStatus.NOT_FOUND));
         probe.probe();
 
         assertThat(availability.isUnavailable()).isFalse();
+    }
+
+    /**
+     * 프로브가 여전히 닿지 못하면 판정이 유지된다.
+     *
+     * <p>이것이 없으면 프로브가 무조건 닫는 구현도 위 테스트를 통과한다.
+     */
+    @Test
+    void 프로브가_실패하면_판정이_유지된다() throws Exception {
+        driveToUnavailable();
+
+        restClientCustomizer.getServer()
+                .expect(requestTo(REFRESH))
+                .andRespond(request -> {
+                    throw new IOException("still down");
+                });
+        probe.probe();
+
+        assertThat(availability.isUnavailable()).isTrue();
+    }
+
+    /** 프로브가 보호 대상과 같은 경로를 부른다. 다른 경로를 프로브하면 판정이 어긋난다. */
+    @Test
+    void 프로브가_갱신_경로를_부른다() throws Exception {
+        driveToUnavailable();
+
+        restClientCustomizer.getServer()
+                .expect(requestTo(REFRESH))
+                .andRespond(withStatus(HttpStatus.NOT_FOUND));
+        probe.probe();
+
+        restClientCustomizer.getServer().verify();
     }
 
     /** 닫혀 있으면 프로브가 member-service를 부르지 않는다. 정상 상태에 부하를 더하지 않는다. */
