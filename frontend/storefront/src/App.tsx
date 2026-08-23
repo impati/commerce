@@ -26,23 +26,6 @@ type BusyAction = 'load' | 'cart' | 'checkout' | 'ship' | 'deliver' | null;
 const categories = ['all', 'apparel', 'home', 'travel'];
 
 /**
- * 인증 링크에서 확인 토큰을 꺼낸다.
- *
- * 프래그먼트(`#token=`)가 정본이다. 프래그먼트는 브라우저가 서버로 보내지 않으므로 토큰이
- * 정적 호스트와 중간 프록시의 접근 로그에 남지 않는다. 근거는 ADR-0006.
- *
- * 쿼리(`?token=`)는 하위 호환 전용이다. 형식을 바꾸기 전에 발송된 링크가 최대 24시간
- * 유효하므로(PD-0001-R6) 그동안만 받는다. 배포 후 24시간이 지나면 이 분기를 지운다.
- */
-function readVerificationToken(location: Location): string | null {
-  const fromFragment = new URLSearchParams(location.hash.replace(/^#/, '')).get('token');
-  if (fromFragment) {
-    return fromFragment;
-  }
-  return new URLSearchParams(location.search).get('token');
-}
-
-/**
  * 첫 화면에 필요한 5개를 각각 독립적으로 가져온다.
  *
  * Promise.all이었을 때는 알림 하나가 죽어도 상품까지 데모 데이터로 바뀌었다.
@@ -128,7 +111,8 @@ export function App() {
       setBusy('load');
 
       // 인증 링크로 들어온 경우 먼저 처리한다. 토큰은 한 번만 쓸 수 있으므로 URL에서 지운다.
-      const verificationToken = readVerificationToken(window.location);
+      // 토큰은 프래그먼트에 있다. 프래그먼트는 서버로 전송되지 않아 접근 로그에 남지 않는다 (ADR-0006).
+      const verificationToken = new URLSearchParams(window.location.hash.slice(1)).get('token');
       if (verificationToken) {
         try {
           await api.verifyEmail(verificationToken);
