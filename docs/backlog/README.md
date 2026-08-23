@@ -27,19 +27,20 @@ make todo
 
 위에서부터 먼저 한다. 이 순서는 항목 파일에 적지 않는다 — 순서는 바뀌고 항목은 남는다.
 
-1~6은 이전에 정한 순서이고 그대로 두었다. 7~9는 결제 정합성 작업(BL-0034·0032·0041·0042)에서 나온 것들이다.
+2~7은 이전에 정한 순서이고 그대로 두었다. 8~10은 결제 정합성 작업(BL-0034·0032·0041·0042)에서 나온 것들이다.
 
 | 순서 | 항목 | 왜 이 순서인가 |
 | --- | --- | --- |
-| 1 | [BL-0003](bl-0003-session-lookup-coupling.md) 세션 확인의 가용성 결합과 지연 | 한 서비스 장애가 전 서비스 인증 장애가 된다 |
-| 2 | [BL-0004](bl-0004-member-service-outbox.md) member-service 아웃박스 | 서비스 간 호출이 DB 트랜잭션 안에 있다 |
-| 3 | [BL-0005](bl-0005-token-storage-to-cookie.md) 프론트 토큰 보관을 쿠키로 | XSS로 토큰이 읽힌다 |
-| 4 | [BL-0006](bl-0006-local-profile-smoke.md) local 프로파일 스모크 | 하네스가 못 보는 구간이다. 급하지 않다 |
-| 5 | [BL-0007](bl-0007-password-policy-to-domain.md) 비밀번호 정책을 도메인으로 | 클래스 리뷰에서 나왔다. 지금 동작에는 문제가 없다 |
-| 6 | [BL-0008](bl-0008-duplicate-signup-conflict-response.md) 동시 가입 경합 응답 | 위와 같다 |
-| 7 | [BL-0039](bl-0039-resolve-unknown-payment-outcome.md) 결제 미확인 주문 정리 | **BL-0034가 만든 부채다.** [PD-0012-R12](../policy/pd-0012-checkout-and-compensation.md)가 "표시하고 나중에 환불한다"고 정했는데 그 나중을 담당하는 것이 없다. 표시된 주문은 고객 대금이 나간 채로 쌓인다 |
-| 8 | [BL-0036](bl-0036-clients-leak-protocol-errors.md) + [BL-0037](bl-0037-downstream-failure-reported-as-conflict.md) 오류 변환과 상태 코드 | 원인이 하나다 — `DomainException`에 하위 장애를 담을 종류가 없어 `conflict`가 대신 쓰이고, 전송 실패는 아예 변환되지 않는다. **한 작업으로 묶어 새 번호를 딴다** |
-| 9 | [BL-0030](bl-0030-policy-verification-gaps.md) 정책 규칙 검증 공백 | 상품 노출 전체와 체크아웃 R1~R4. 크지만 기계적이라 앞의 것들이 끝난 뒤가 낫다 |
+| 1 | [BL-0043](bl-0043-session-lookup-failure-reported-as-unauthorized.md) 세션 확인 실패가 로그아웃이 된다 | **BL-0003 조사에서 나왔다.** member-service가 3초만 느려도 그 순간 페이지를 연 사용자 전원이 토큰을 잃는다. 어느 방향을 고르든 남는 결함이라 먼저 없앤다 |
+| 2 | [BL-0003](bl-0003-session-lookup-coupling.md) 세션 확인의 가용성 결합과 지연 | 한 서비스 장애가 전 서비스 인증 장애가 된다. 폐기 즉시성을 얼마나 포기할지가 먼저다 |
+| 3 | [BL-0004](bl-0004-member-service-outbox.md) member-service 아웃박스 | 서비스 간 호출이 DB 트랜잭션 안에 있다 |
+| 4 | [BL-0005](bl-0005-token-storage-to-cookie.md) 프론트 토큰 보관을 쿠키로 | XSS로 토큰이 읽힌다 |
+| 5 | [BL-0006](bl-0006-local-profile-smoke.md) local 프로파일 스모크 | 하네스가 못 보는 구간이다. 급하지 않다 |
+| 6 | [BL-0007](bl-0007-password-policy-to-domain.md) 비밀번호 정책을 도메인으로 | 클래스 리뷰에서 나왔다. 지금 동작에는 문제가 없다 |
+| 7 | [BL-0008](bl-0008-duplicate-signup-conflict-response.md) 동시 가입 경합 응답 | 위와 같다 |
+| 8 | [BL-0039](bl-0039-resolve-unknown-payment-outcome.md) 결제 미확인 주문 정리 | **BL-0034가 만든 부채다.** [PD-0012-R12](../policy/pd-0012-checkout-and-compensation.md)가 "표시하고 나중에 환불한다"고 정했는데 그 나중을 담당하는 것이 없다. 표시된 주문은 고객 대금이 나간 채로 쌓인다 |
+| 9 | [BL-0036](bl-0036-clients-leak-protocol-errors.md) + [BL-0037](bl-0037-downstream-failure-reported-as-conflict.md) 오류 변환과 상태 코드 | 원인이 하나다 — `DomainException`에 하위 장애를 담을 종류가 없어 `conflict`가 대신 쓰이고, 전송 실패는 아예 변환되지 않는다. **한 작업으로 묶어 새 번호를 딴다** |
+| 10 | [BL-0030](bl-0030-policy-verification-gaps.md) 정책 규칙 검증 공백 | 상품 노출 전체와 체크아웃 R1~R4. 크지만 기계적이라 앞의 것들이 끝난 뒤가 낫다 |
 
 ## 순서를 정하지 않은 항목
 
