@@ -113,7 +113,7 @@ class MemberAuthTest {
     }
 
     /**
-     * [PD-0001-R1][PD-0002-R2] 인증 전에는 로그인할 수 없다. 이메일 소유가 확인되지 않은 계정이다.
+     * [PD-0001-R1][PD-0014-R2] 인증 전에는 로그인할 수 없다. 이메일 소유가 확인되지 않은 계정이다.
      *
      * <p>거절된다는 것만 잡는다. 이 응답이 다른 거절과 구분되어 미인증 계정의 존재를 드러낸다는
      * 점은 보지 않는다. BL-0022.
@@ -157,7 +157,7 @@ class MemberAuthTest {
     }
 
     /**
-     * [PD-0002-R1] 없는 이메일과 틀린 비밀번호를 같은 메시지로 거절한다. 이메일 열거를 막는다.
+     * [PD-0014-R1] 없는 이메일과 틀린 비밀번호를 같은 메시지로 거절한다. 이메일 열거를 막는다.
      *
      * <p>두 응답을 직접 비교하므로 한쪽만 바뀌어도 잡힌다. 미인증 계정의 거절은 이 비교에 없다.
      */
@@ -172,7 +172,7 @@ class MemberAuthTest {
         assertThat(wrongPassword).isEqualTo(unknownEmail);
     }
 
-    /** [PD-0002-R4] 만료된 세션은 확인되지 않는다. 사용해도 만료가 연장되지 않는지는 보지 않는다. */
+    /** [PD-0014-R4] 만료된 세션은 확인되지 않는다. 사용해도 만료가 연장되지 않는지는 보지 않는다. */
     @Test
     void expiredSessionDoesNotResolve() {
         var member = registrationUseCase.register("session@impati.dev", "Session", "session-pw12");
@@ -185,7 +185,13 @@ class MemberAuthTest {
                 .isInstanceOf(DomainException.class);
     }
 
-    /** [PD-0002-R5] 로그아웃이 만료 전 세션을 즉시 끊는 것을 잡는다. 다른 기기의 세션은 보지 않는다. */
+    /**
+     * [PD-0014-R5] 폐기된 세션이 만료 전이라도 확인되지 않는 것을 잡는다. 다른 기기의 세션은 보지 않는다.
+     *
+     * <p>여기서는 폐기가 같은 저장소 안에서 일어나므로 즉시 반영된다. 규칙이 요구하는 것은
+     * 즉시가 아니라 상한 안이므로(R8) 이 테스트는 상한을 고정하지 못한다. 게이트웨이가 신원을
+     * 확인하는 경로가 바뀌면 그 상한을 고정하는 테스트가 따로 필요하다.
+     */
     @Test
     void logoutRevokesSessionImmediately() {
         var member = registrationUseCase.register("logout@impati.dev", "Logout", "logout-pw123");

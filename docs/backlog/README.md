@@ -60,8 +60,8 @@ make todo
 | [BL-0019](bl-0019-invalidate-previous-verification-token.md) 재발송 시 이전 토큰 무효화 | 유효한 확인 토큰이 여러 개 존재한다 |
 | [BL-0020](bl-0020-password-length-upper-bound.md) 비밀번호 길이 상한 | BCrypt가 72바이트 초과분을 조용히 버린다 |
 | [BL-0021](bl-0021-pd-0001-verification-gaps.md) PD-0001 검증 공백 | 규칙 10개 중 5개를 아무것도 고정하지 않는다 |
-| [BL-0022](bl-0022-unverified-login-leaks-account-existence.md) 미인증 로그인 응답의 계정 열거 | 한 문서 안에서 R1과 R2가 어긋난다 ([PD-0002](../policy/pd-0002-login-rejection-and-session-lifetime.md)) |
-| [BL-0023](bl-0023-pd-0002-verification-gaps.md) PD-0002 검증 공백 | 규칙 7개 중 3개를 아무것도 고정하지 않는다 |
+| [BL-0022](bl-0022-unverified-login-leaks-account-existence.md) 미인증 로그인 응답의 계정 열거 | 한 문서 안에서 R1과 R2가 어긋난다 ([PD-0014](../policy/pd-0014-login-rejection-and-session-lifetime.md)) |
+| [BL-0023](bl-0023-pd-0014-verification-gaps.md) PD-0014 검증 공백 | R3·R6·R7을 아무것도 고정하지 않는다 |
 | [BL-0025](bl-0025-inventory-reservation-never-expires.md) 재고 예약 만료 부재 | 방치된 예약이 재고를 무기한 묶는다 |
 | [BL-0026](bl-0026-unpublished-sku-is-readable.md) 발행 전 판매 단위 노출 | 상품은 숨기는데 하위 단위가 샌다 |
 | [BL-0028](bl-0028-order-total-forces-krw.md) 주문 총액 통화 고정 | 지금 맞는 이유가 계산이 옳아서가 아니다 |
