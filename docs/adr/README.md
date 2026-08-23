@@ -26,6 +26,7 @@
 | [0003](0003-internal-path-prefix.md) | 노출하지 않을 경로를 `/internal` 프리픽스로 선언한다 | 승인됨 |
 | [0004](0004-split-authorization-and-capture.md) | 결제를 승인과 매입으로 나누고 매입을 체크아웃 마지막에 둔다 | 승인됨 |
 | [0005](0005-payment-gateway-port.md) | 결제 대행사를 포트로 분리하고 거절을 값으로 표현한다 | 승인됨 |
+| [0006](0006-verification-token-in-url-fragment.md) | 이메일 확인 토큰을 URL 프래그먼트로 옮긴다 | 승인됨 |
 
 ## ADR이 없는 합의
 
