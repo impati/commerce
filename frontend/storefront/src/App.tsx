@@ -201,7 +201,7 @@ export function App() {
         return;
       }
       const issued = await api.login(authEmail, authPassword);
-      session.write(issued.token);
+      session.write(issued.sessionToken, issued.accessToken);
       const current = await api.me();
       setMember(current);
       applyStorefront(await fetchStorefront(true));

@@ -21,7 +21,9 @@ import com.impati.commerce.common.ApiContracts.SessionTokenRequest;
 import com.impati.commerce.common.ApiContracts.VerifyEmailRequest;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
+import com.impati.commerce.common.DomainException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.util.List;
 
@@ -97,13 +99,27 @@ public class GatewayClients {
         return members.post().uri("/members/login").body(request).retrieve().body(LoginResponse.class);
     }
 
-    /** 세션 토큰을 새 접근 토큰으로 바꾼다. 인증 경로 중 member-service를 부르는 유일한 곳이다. */
+    /**
+     * 세션 토큰을 새 접근 토큰으로 바꾼다. 인증 경로 중 member-service를 부르는 유일한 곳이다.
+     *
+     * <p>member-service는 쓸 수 없는 세션을 404로 답한다. 그대로 흘려보내면 호출자에게 "그런
+     * 경로가 없다"로 읽히므로 인증 실패로 옮긴다. 이유를 구분하지 않는 것은 정해진 규칙이다
+     * (PD-0014-R7). 그 밖의 응답과 전송 실패는 여기서 다루지 않는다 — BL-0036·BL-0037이
+     * 게이트웨이의 프록시 호출 전체를 함께 볼 대상이다.
+     */
     public AccessTokenResponse refresh(String sessionToken) {
-        return members.post()
-                .uri("/internal/members/sessions/refresh")
-                .body(new SessionTokenRequest(sessionToken))
-                .retrieve()
-                .body(AccessTokenResponse.class);
+        try {
+            return members.post()
+                    .uri("/internal/members/sessions/refresh")
+                    .body(new SessionTokenRequest(sessionToken))
+                    .retrieve()
+                    .body(AccessTokenResponse.class);
+        } catch (RestClientResponseException exception) {
+            if (exception.getStatusCode().value() == 404) {
+                throw new DomainException("unauthorized", "authentication is required", 401);
+            }
+            throw exception;
+        }
     }
 
     public void logout(String token) {

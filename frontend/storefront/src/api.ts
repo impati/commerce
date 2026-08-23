@@ -7,7 +7,18 @@ import {
   products
 } from './mockData';
 import { session } from './session';
-import type { Cart, Checkout, DisplayHome, Member, Notification, Product, Session, Shipment, Stock } from './types';
+import type {
+  Cart,
+  Checkout,
+  DisplayHome,
+  IssuedAccessToken,
+  Member,
+  Notification,
+  Product,
+  Session,
+  Shipment,
+  Stock
+} from './types';
 
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? '/api';
 
@@ -30,9 +41,9 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = session.read();
-  const response = await fetch(`${apiBase}${path}`, {
+async function send(path: string, init?: RequestInit): Promise<Response> {
+  const token = session.readAccess();
+  return fetch(`${apiBase}${path}`, {
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -40,6 +51,51 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     },
     ...init
   });
+}
+
+/**
+ * 진행 중인 갱신. 동시에 나간 요청들이 한꺼번에 401을 받아도 갱신은 한 번만 돈다.
+ *
+ * 묶지 않으면 요청 수만큼 갱신이 나가고, 그만큼 member-service를 부르게 된다 — 요청당 조회를
+ * 없애려는 목적과 정면으로 어긋난다.
+ */
+let refreshing: Promise<boolean> | null = null;
+
+function refreshAccessToken(): Promise<boolean> {
+  if (!refreshing) {
+    refreshing = (async () => {
+      const sessionToken = session.read();
+      if (!sessionToken) {
+        return false;
+      }
+      const response = await fetch(`${apiBase}/sessions/refresh`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${sessionToken}` }
+      });
+      if (!response.ok) {
+        return false;
+      }
+      const issued = (await response.json()) as IssuedAccessToken;
+      session.writeAccess(issued.accessToken);
+      return true;
+    })().finally(() => {
+      refreshing = null;
+    });
+  }
+  return refreshing;
+}
+
+/**
+ * 접근 토큰이 만료됐으면 한 번 갱신하고 재시도한다.
+ *
+ * 갱신은 세션 토큰이 살아 있을 때만 성공한다. 실패하면 401이 그대로 올라가고 호출자가
+ * 로그인 화면으로 돌려보낸다.
+ */
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  let response = await send(path, init);
+  if (response.status === 401 && (await refreshAccessToken())) {
+    response = await send(path, init);
+  }
   if (response.status === 401) {
     throw new UnauthorizedError();
   }
@@ -93,8 +149,22 @@ export const api = {
     });
   },
 
-  logout(): Promise<void> {
-    return request<void>('/logout', { method: 'POST' });
+  /**
+   * 로그아웃.
+   *
+   * 접근 토큰이 아니라 세션 토큰을 보낸다 — 폐기 대상이 세션이기 때문이다. 접근 토큰을 보내면
+   * 그 해시와 일치하는 세션이 없어 아무것도 폐기되지 않고, 폐기 요청은 멱등이라(PD-0014-R6)
+   * 성공으로 돌아온다. 조용히 실패하는 모양이 된다.
+   */
+  async logout(): Promise<void> {
+    const sessionToken = session.read();
+    if (!sessionToken) {
+      return;
+    }
+    await fetch(`${apiBase}/logout`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${sessionToken}` }
+    });
   },
 
   me(): Promise<Member> {
