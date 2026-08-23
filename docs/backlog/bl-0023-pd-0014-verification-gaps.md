@@ -7,7 +7,7 @@
 
 [PD-0014](../policy/pd-0014-login-rejection-and-session-lifetime.md)의 규칙 중 셋을 아무 테스트도 고정하지 않는다. R3(로그인마다 새 세션, 동시 세션 무제한), R6(로그아웃 멱등), R7(유효하지 않은 세션을 이유 구분 없이 거절)이 그렇다.
 
-폐기 반영 상한을 정한 R8~R10은 이 항목의 대상이 아니다. 그 규칙들을 성립시키는 구조를 [BL-0003](done/bl-0003-session-lookup-coupling.md)과 [BL-0045](done/bl-0045-tolerate-member-service-outage.md)가 만들므로, 고정하는 테스트도 그쪽에서 함께 나온다.
+폐기 반영 상한을 정한 R8과 R9는 [BL-0003](done/bl-0003-session-lookup-coupling.md)·[BL-0045](done/bl-0045-tolerate-member-service-outage.md)에서 고정됐으므로 이 항목의 대상이 아니다. R10(사유별 상한을 두지 않는다)은 남아 있다 — 없는 것을 확인하는 규칙이라 무엇을 단언할지부터 정해야 한다.
 
 R2는 거절된다는 것만 확인하고 그 응답이 R1과 다르다는 사실은 확인하지 않는다. 즉 [BL-0022](bl-0022-unverified-login-leaks-account-existence.md)가 지적하는 동작이 지금 테스트로는 드러나지 않는다.
 

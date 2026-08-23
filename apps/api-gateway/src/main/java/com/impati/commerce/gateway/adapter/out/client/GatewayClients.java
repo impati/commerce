@@ -117,9 +117,10 @@ public class GatewayClients {
      * 나온다. <b>404는 실패로 세지 않는다</b> — 세션이 쓸 수 없다는 것은 member-service가
      * 멀쩡히 답했다는 뜻이다 (ADR-0008).
      *
-     * <p>전송 실패는 503으로 옮긴다. 세션에 대해 아무것도 알아내지 못한 상태이므로 인증 실패로
-     * 답하면 클라이언트가 멀쩡한 세션 토큰을 버린다 — BL-0043이 신원 확인 경로에서 고친 것과
-     * 같은 문제다.
+     * <p>전송 실패와 5xx는 503으로 옮긴다. 둘 다 세션에 대해 아무것도 알아내지 못한 상태이며
+     * 우리 쪽 문제다. 하위 상태를 그대로 흘리면 member-service의 500이 게이트웨이의 500으로
+     * 읽혀 재시도 판단이 반대가 된다 — BL-0043이 신원 확인 경로에서 고친 것과 같은 문제다.
+     * 브레이커가 둘을 같게 취급하므로 클라이언트에게도 같게 나가야 한다.
      */
     public AccessTokenResponse refresh(String sessionToken) {
         try {
@@ -138,6 +139,7 @@ public class GatewayClients {
             }
             if (exception.getStatusCode().is5xxServerError()) {
                 memberServiceAvailability.recordUnreachable();
+                throw DomainException.unavailable("session could not be refreshed");
             }
             throw exception;
         } catch (ResourceAccessException exception) {

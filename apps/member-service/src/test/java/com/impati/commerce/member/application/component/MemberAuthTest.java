@@ -211,6 +211,27 @@ class MemberAuthTest {
                 .isInstanceOf(DomainException.class);
     }
 
+    /**
+     * [PD-0014-R8] 접근 토큰의 수명이 5분이다. 그 수명이 곧 정상 동작 중의 폐기 반영 상한이다.
+     *
+     * <p>설정값을 덮어쓰지 않고 운영과 같은 값으로 확인한다 — 덮어쓰면 설정이 바뀌어도 통과해
+     * 정책이 정한 수를 아무것도 고정하지 못한다.
+     *
+     * <p>발급 시각과 만료 시각의 차를 본다. 절대 시각을 보면 테스트가 도는 시점에 좌우된다.
+     */
+    @Test
+    void accessTokenLivesForFiveMinutes() throws Exception {
+        var member = registrationUseCase.register("ttl@impati.dev", "Ttl", "ttl-password1");
+        registrationUseCase.verifyEmail(rawTokenOf(member.id()));
+
+        var login = sessionUseCase.login("ttl@impati.dev", "ttl-password1");
+
+        var claims = com.nimbusds.jwt.SignedJWT.parse(login.accessToken()).getJWTClaimsSet();
+        var lifetime = Duration.between(
+                claims.getIssueTime().toInstant(), claims.getExpirationTime().toInstant());
+        assertThat(lifetime).isEqualTo(Duration.ofMinutes(5));
+    }
+
     /** 원문 토큰은 저장되지 않는다. DB에는 해시만 있어야 한다. */
     @Test
     void storesOnlyHashedTokens() {

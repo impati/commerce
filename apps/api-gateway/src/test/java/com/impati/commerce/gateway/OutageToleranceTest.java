@@ -48,8 +48,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(properties = {
         "gateway.access-token.issuer=impati-member",
         "gateway.access-token.public-key=" + OutageToleranceTest.PUBLIC_KEY,
+        // 상한은 덮어쓰지 않는다. 덮어쓰면 운영 설정이 바뀌어도 테스트가 통과해
+        // PD-0014-R9가 정한 24시간을 아무것도 고정하지 못한다. 임계값은 정책이 아니라
+        // 메커니즘 손잡이이므로 테스트를 빠르게 하려고 낮춘다.
         "gateway.member-service.failure-threshold=2",
-        "gateway.member-service.outage-tolerance=PT24H",
         // 스케줄러가 배경에서 프로브를 돌리면 판정이 흔들린다. 프로브는 테스트가 직접 부른다.
         "gateway.member-service.probe-interval=3600000"
 })
@@ -82,7 +84,7 @@ class OutageToleranceTest {
         availability.recordReachable();
     }
 
-    /** 정상 판정에서는 만료된 토큰이 거절된다. 완화가 기본값이 아니라는 것을 잡는다. */
+    /** [PD-0014-R8] 정상 판정에서는 만료된 토큰이 거절된다. 완화가 기본값이 아니라는 것을 잡는다. */
     @Test
     void 정상일_때_만료된_토큰은_거절된다() throws Exception {
         mockMvc.perform(get("/me").header("Authorization", bearer(expiredBy(Duration.ofMinutes(1)))))
@@ -90,7 +92,7 @@ class OutageToleranceTest {
     }
 
     /**
-     * 장애로 판정되면 만료된 토큰이 통과한다.
+     * [PD-0014-R9] 장애로 판정되면 만료된 토큰이 상한 안에서 통과한다.
      *
      * <p>이 테스트가 이 작업의 핵심 단언이다. 갱신 실패가 쌓여 판정이 뒤집히고, 그 뒤에는 같은
      * 토큰이 통과한다.
@@ -109,7 +111,12 @@ class OutageToleranceTest {
                 .andExpect(status().isOk());
     }
 
-    /** 완화에도 상한이 있다. 상한을 넘으면 장애 중이어도 거절된다 (PD-0014-R9). */
+    /**
+     * [PD-0014-R9] 장애 중 완화 상한은 24시간이다. 3시간은 통과하고 25시간은 거절된다.
+     *
+     * <p>설정된 값을 그대로 쓰므로 운영 설정을 줄이면 여기서 깨진다. 위의 통과 테스트와 짝이며,
+     * 둘 중 하나만 있으면 상한이 0이거나 무한이어도 통과한다.
+     */
     @Test
     void 장애_중이어도_상한을_넘으면_거절된다() throws Exception {
         driveToUnavailable();
@@ -136,6 +143,22 @@ class OutageToleranceTest {
         }
 
         assertThat(availability.isUnavailable()).isFalse();
+    }
+
+    /**
+     * member-service의 5xx도 503으로 나간다.
+     *
+     * <p>전송 실패와 같은 처리여야 한다. 둘 다 세션에 대해 아무것도 알아내지 못한 상태이고
+     * 브레이커도 같게 취급하므로, 클라이언트에게만 다르게 나가면 재시도 판단이 갈린다.
+     */
+    @Test
+    void member_service의_5xx도_503으로_나간다() throws Exception {
+        restClientCustomizer.getServer()
+                .expect(requestTo(REFRESH))
+                .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
+
+        mockMvc.perform(post("/sessions/refresh").header("Authorization", "Bearer tok_any"))
+                .andExpect(status().isServiceUnavailable());
     }
 
     /** 한도에 못 미치는 실패로는 열리지 않는다. 일시적 지연 한두 번에 완화가 켜지면 안 된다. */

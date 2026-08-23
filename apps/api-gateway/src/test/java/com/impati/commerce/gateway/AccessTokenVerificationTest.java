@@ -3,6 +3,7 @@ package com.impati.commerce.gateway;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.ECDSASigner;
+import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import org.junit.jupiter.api.BeforeEach;
@@ -111,6 +112,31 @@ class AccessTokenVerificationTest {
         var foreign = signedWith(privateKey(), "mem_other", "someone-else", Duration.ofMinutes(5));
 
         mockMvc.perform(get("/me").header("Authorization", bearer(foreign)))
+                .andExpect(status().isUnauthorized());
+    }
+
+    /**
+     * 다른 알고리즘으로 서명된 토큰은 거부된다.
+     *
+     * <p>알고리즘 혼동(alg confusion)이다. 검증자가 토큰이 선언한 알고리즘을 그대로 믿으면,
+     * 공개키를 HMAC 비밀키로 삼아 서명한 토큰이 통과한다 — 공개키는 누구나 알 수 있으므로
+     * 임의 신원을 위조할 수 있다. ADR-0007이 서명을 직접 만들지 않기로 한 이유가 이것이며,
+     * 그 방어가 실제로 서 있는지는 문서가 아니라 이 테스트가 답한다.
+     */
+    @Test
+    void 다른_알고리즘으로_서명된_토큰은_거부된다() throws Exception {
+        var now = Instant.now();
+        var claims = new JWTClaimsSet.Builder()
+                .subject("mem_confused")
+                .issuer("impati-member")
+                .issueTime(Date.from(now))
+                .expirationTime(Date.from(now.plus(Duration.ofMinutes(5))))
+                .build();
+        var jwt = new SignedJWT(new JWSHeader(JWSAlgorithm.HS256), claims);
+        // 공개키를 HMAC 비밀키로 쓴다. 공격자가 실제로 시도하는 모양이다.
+        jwt.sign(new MACSigner(Base64.getDecoder().decode(PUBLIC_KEY)));
+
+        mockMvc.perform(get("/me").header("Authorization", bearer(jwt.serialize())))
                 .andExpect(status().isUnauthorized());
     }
 
