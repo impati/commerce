@@ -13,10 +13,11 @@ json_post() {
 }
 
 echo "1. login"
-# 퍼블릭 API는 memberId를 받지 않는다. 신원은 세션 토큰에서만 온다.
+# 퍼블릭 API는 memberId를 받지 않는다. 신원은 토큰에서만 온다.
+# 요청에 붙이는 것은 접근 토큰이다. 세션 토큰은 갱신과 로그아웃에만 쓴다 (ADR-0007).
 login_response="$(curl -sS -H 'Content-Type: application/json' -X POST "${BASE_URL}/login" \
   -d "{\"email\":\"${EMAIL}\",\"password\":\"${PASSWORD}\"}")"
-TOKEN="$(printf '%s' "$login_response" | jq -r '.token')"
+TOKEN="$(printf '%s' "$login_response" | jq -r '.accessToken')"
 echo "session acquired"
 echo
 

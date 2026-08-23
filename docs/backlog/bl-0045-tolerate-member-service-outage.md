@@ -5,7 +5,7 @@
 
 ## 배경
 
-[BL-0003](bl-0003-session-lookup-coupling.md)이 요청당 조회를 없애면 게이트웨이가 access token 수명 동안 member-service 없이 동작한다. 합의한 수명이 5분이므로 **내성도 5분이다.** 5분이 지나면 갱신하러 가야 하고, member-service가 아직 죽어 있으면 인증이 다시 끊긴다.
+[BL-0003](done/bl-0003-session-lookup-coupling.md)이 요청당 조회를 없애면 게이트웨이가 access token 수명 동안 member-service 없이 동작한다. 합의한 수명이 5분이므로 **내성도 5분이다.** 5분이 지나면 갱신하러 가야 하고, member-service가 아직 죽어 있으면 인증이 다시 끊긴다.
 
 실제 장애는 5분을 흔히 넘는다. 배포 롤백, DB 페일오버, 노드 교체는 대개 그보다 오래 걸린다. 즉 하이브리드만으로는 **가장 흔한 크기의 장애를 못 넘긴다.**
 

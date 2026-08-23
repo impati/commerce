@@ -55,7 +55,9 @@ POST /members/verifications      이메일 소유 확인
 POST /login
 ```
 
-세션 토큰이 필요한 경로 (`Authorization: Bearer <token>`):
+`POST /login`은 접근 토큰과 세션 토큰을 함께 돌려준다. **요청에 붙이는 것은 접근 토큰**이고, 5분 뒤 만료되면 세션 토큰으로 `POST /sessions/refresh`를 불러 새로 받는다. 게이트웨이는 접근 토큰을 공개키로 직접 검증하므로 요청마다 member-service를 부르지 않는다 ([ADR-0007](docs/adr/0007-hybrid-session-tokens.md)).
+
+접근 토큰이 필요한 경로 (`Authorization: Bearer <accessToken>`):
 
 ```http
 GET  /me
@@ -65,9 +67,15 @@ POST /cart/items
 POST /checkout
 GET  /orders/{orderId}
 GET  /notifications
-POST /logout
 POST /shipments/{shipmentId}/ship
 POST /shipments/{shipmentId}/deliver
+```
+
+세션 토큰이 필요한 경로 (`Authorization: Bearer <sessionToken>`):
+
+```http
+POST /sessions/refresh           접근 토큰 재발급
+POST /logout                     세션 폐기
 ```
 
 **퍼블릭 경로는 `memberId`를 받지 않는다.** 게이트웨이가 세션을 검증해 하위 서비스에
