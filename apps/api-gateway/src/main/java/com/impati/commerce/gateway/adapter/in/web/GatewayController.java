@@ -1,5 +1,6 @@
 package com.impati.commerce.gateway.adapter.in.web;
 
+import com.impati.commerce.common.ApiContracts.AccessTokenResponse;
 import com.impati.commerce.common.ApiContracts.AddAddressRequest;
 import com.impati.commerce.common.ApiContracts.AddressResponse;
 import com.impati.commerce.common.ApiContracts.CartItemRequest;
@@ -92,6 +93,17 @@ public class GatewayController {
     @PostMapping("/login")
     LoginResponse login(@RequestBody LoginRequest request) {
         return clients.login(request);
+    }
+
+    /**
+     * 접근 토큰을 갱신한다.
+     *
+     * <p>세션 토큰을 받으므로 {@code identity.require}를 쓰지 않는다 — 그쪽은 접근 토큰을 본다.
+     * 만료된 접근 토큰으로 401을 받은 클라이언트가 이 경로로 온다.
+     */
+    @PostMapping("/sessions/refresh")
+    AccessTokenResponse refresh(@RequestHeader(value = "Authorization", required = false) String authorization) {
+        return clients.refresh(identity.bearerToken(authorization));
     }
 
     // --- 세션이 필요한 경로 ---

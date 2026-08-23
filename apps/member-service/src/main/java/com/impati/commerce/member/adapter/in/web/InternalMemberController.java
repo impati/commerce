@@ -1,7 +1,7 @@
 package com.impati.commerce.member.adapter.in.web;
 
 import com.impati.commerce.common.ApiContracts.MemberResponse;
-import com.impati.commerce.common.ApiContracts.SessionResponse;
+import com.impati.commerce.common.ApiContracts.AccessTokenResponse;
 import com.impati.commerce.common.ApiContracts.SessionTokenRequest;
 import com.impati.commerce.member.application.port.in.MemberUseCase;
 import com.impati.commerce.member.application.port.in.SessionUseCase;
@@ -39,10 +39,15 @@ public class InternalMemberController {
         this.sessionUseCase = sessionUseCase;
     }
 
-    /** 게이트웨이가 세션 토큰을 회원 식별자로 바꾼다. */
-    @PostMapping("/sessions/resolve")
-    SessionResponse resolveSession(@RequestBody SessionTokenRequest request) {
-        return MemberResponseMapper.from(sessionUseCase.resolveSession(request.token()));
+    /**
+     * 게이트웨이가 세션 토큰을 새 접근 토큰으로 바꾼다.
+     *
+     * <p>인증 경로 중 저장소를 보는 유일한 곳이다. 요청마다가 아니라 접근 토큰 수명당 한 번
+     * 호출된다 (ADR-0007).
+     */
+    @PostMapping("/sessions/refresh")
+    AccessTokenResponse refresh(@RequestBody SessionTokenRequest request) {
+        return MemberResponseMapper.from(sessionUseCase.refresh(request.token()));
     }
 
     /** order-service가 배송지를 읽기 위한 경로. */

@@ -101,15 +101,22 @@ class MemberAuthTest {
         verify(notificationClient).requestEmailVerification(eq(member.id()), eq("flow@impati.dev"), anyString());
     }
 
-    /** [PD-0001-R1] 확인을 마치면 로그인이 되는 것을 잡는다. 확인 없이 막히는 쪽은 아래 테스트가 본다. */
+    /**
+     * [PD-0001-R1] 확인을 마치면 로그인이 되는 것을 잡는다. 확인 없이 막히는 쪽은 아래 테스트가 본다.
+     *
+     * <p>로그인이 세션 토큰과 접근 토큰을 함께 내주는 것까지 본다. 접근 토큰이 없으면 클라이언트가
+     * 첫 요청부터 갱신을 해야 한다.
+     */
     @Test
-    void verifiedMemberCanLoginAndSessionResolves() {
+    void verifiedMemberCanLoginAndRefresh() {
         var member = registrationUseCase.register("login@impati.dev", "Login", "login-password");
         registrationUseCase.verifyEmail(rawTokenOf(member.id()));
 
         var login = sessionUseCase.login("login@impati.dev", "login-password");
 
-        assertThat(sessionUseCase.resolveSession(login.token()).memberId()).isEqualTo(member.id());
+        assertThat(login.accessToken()).isNotBlank();
+        assertThat(sessionUseCase.refresh(login.sessionToken()).accessToken()).isNotBlank();
+        assertThat(member.id()).isNotBlank();
     }
 
     /**
@@ -172,35 +179,35 @@ class MemberAuthTest {
         assertThat(wrongPassword).isEqualTo(unknownEmail);
     }
 
-    /** [PD-0014-R4] 만료된 세션은 확인되지 않는다. 사용해도 만료가 연장되지 않는지는 보지 않는다. */
+    /** [PD-0014-R4] 만료된 세션으로는 갱신되지 않는다. 사용해도 만료가 연장되지 않는지는 보지 않는다. */
     @Test
-    void expiredSessionDoesNotResolve() {
+    void expiredSessionDoesNotRefresh() {
         var member = registrationUseCase.register("session@impati.dev", "Session", "session-pw12");
         registrationUseCase.verifyEmail(rawTokenOf(member.id()));
         var login = sessionUseCase.login("session@impati.dev", "session-pw12");
 
         clock.advance(Duration.ofDays(15));
 
-        assertThatThrownBy(() -> sessionUseCase.resolveSession(login.token()))
+        assertThatThrownBy(() -> sessionUseCase.refresh(login.sessionToken()))
                 .isInstanceOf(DomainException.class);
     }
 
     /**
      * [PD-0014-R5] 폐기된 세션이 만료 전이라도 확인되지 않는 것을 잡는다. 다른 기기의 세션은 보지 않는다.
      *
-     * <p>여기서는 폐기가 같은 저장소 안에서 일어나므로 즉시 반영된다. 규칙이 요구하는 것은
-     * 즉시가 아니라 상한 안이므로(R8) 이 테스트는 상한을 고정하지 못한다. 게이트웨이가 신원을
-     * 확인하는 경로가 바뀌면 그 상한을 고정하는 테스트가 따로 필요하다.
+     * <p>세션이 폐기되면 더 이상 갱신되지 않는다는 것까지만 잡는다. <b>이미 발급된 접근 토큰이
+     * 만료까지 통하는 것은 여기서 보이지 않는다</b> — 그 상한(R8)은 게이트웨이가 검증하는
+     * 값이므로 게이트웨이 테스트가 고정한다.
      */
     @Test
-    void logoutRevokesSessionImmediately() {
+    void logoutStopsFurtherRefresh() {
         var member = registrationUseCase.register("logout@impati.dev", "Logout", "logout-pw123");
         registrationUseCase.verifyEmail(rawTokenOf(member.id()));
         var login = sessionUseCase.login("logout@impati.dev", "logout-pw123");
 
-        sessionUseCase.logout(login.token());
+        sessionUseCase.logout(login.sessionToken());
 
-        assertThatThrownBy(() -> sessionUseCase.resolveSession(login.token()))
+        assertThatThrownBy(() -> sessionUseCase.refresh(login.sessionToken()))
                 .isInstanceOf(DomainException.class);
     }
 
@@ -215,12 +222,12 @@ class MemberAuthTest {
         assertThat(countVerifications(raw)).isZero();
         assertThat(countVerifications(secureTokens.hash(raw))).isEqualTo(1);
         assertThat(jdbc.queryForObject(
-                "select count(*) from member_sessions where token_hash = ?", Integer.class, login.token()))
+                "select count(*) from member_sessions where token_hash = ?", Integer.class, login.sessionToken()))
                 .isZero();
         assertThat(jdbc.queryForObject(
                 "select count(*) from member_sessions where token_hash = ?",
                 Integer.class,
-                secureTokens.hash(login.token())))
+                secureTokens.hash(login.sessionToken())))
                 .isEqualTo(1);
     }
 

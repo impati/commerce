@@ -1,84 +1,106 @@
 package com.impati.commerce.gateway.support;
 
-import com.impati.commerce.common.ApiContracts.SessionResponse;
-import com.impati.commerce.common.ApiContracts.SessionTokenRequest;
 import com.impati.commerce.common.DomainException;
+import com.nimbusds.jose.JOSEException;
+import com.nimbusds.jose.crypto.ECDSAVerifier;
+import com.nimbusds.jwt.SignedJWT;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClient;
-import org.springframework.web.client.ResourceAccessException;
-import org.springframework.web.client.RestClientResponseException;
+
+import java.security.KeyFactory;
+import java.security.interfaces.ECPublicKey;
+import java.security.spec.X509EncodedKeySpec;
+import java.text.ParseException;
+import java.time.Clock;
+import java.util.Base64;
 
 /**
- * 세션 토큰을 회원 신원으로 바꾼다.
+ * 접근 토큰을 회원 신원으로 바꾼다.
  *
  * <p>토큰 검증 지식은 게이트웨이에만 있다. 하위 서비스는 토큰을 모르고 {@code X-Member-Id}만
  * 신뢰한다. 그래서 하위 서비스는 게이트웨이 뒤에만 있어야 한다 — 직접 노출되면 헤더를 위조해
  * 아무 회원으로 행세할 수 있다. 이 경계는 코드가 아니라 배포 토폴로지가 강제한다: 게이트웨이만
- * 퍼블릭 인그레스이고 나머지는 프라이빗망에 둔다 (ADR-0002). 로컬에서 8101~8109가 열려 있는
- * 것은 프로세스를 나란히 띄운 결과이지 운영 토폴로지가 아니다.
+ * 퍼블릭 인그레스이고 나머지는 프라이빗망에 둔다 (ADR-0002).
  *
- * <p>불투명 토큰이므로 요청마다 member-service를 부른다. 폐기가 즉시 되는 대가다.
+ * <p><b>member-service를 부르지 않는다.</b> 접근 토큰은 서명되어 있으므로 공개키만으로 검증된다.
+ * 그래서 member-service가 죽어도 토큰이 살아 있는 동안은 인증이 동작한다. 대가로 세션을 폐기해도
+ * 이미 발급된 토큰은 만료까지 통한다 — 그 수명이 폐기 지연 상한이다 (ADR-0007, PD-0014-R8).
  *
- * <p>TODO 세션 확인이 member-service에 요청마다 의존한다. 캐시를 붙이면 지연과 부하는 줄지만
- * 미스와 콜드 캐시에서는 여전히 의존하므로 결합 자체는 하이브리드로 가야 끊긴다. 어느 쪽이든
- * 폐기가 즉시에서 수명 내로 바뀌므로 그 지연을 먼저 정해야 한다. BL-0003.
+ * <p>공개키만 갖는 이유는 이 서비스가 유일한 퍼블릭 인그레스이기 때문이다. 대칭 키라면 검증 키가
+ * 곧 발급 키이므로 여기가 뚫리면 임의 신원을 위조할 수 있다.
+ *
+ * <p>TODO 접근 토큰이 만료된 뒤에는 갱신이 필요하고 그 경로는 member-service에 의존한다. 즉 장애
+ * 내성이 접근 토큰 수명(5분)까지다. 장애 판정과 더 긴 상한은 BL-0045.
  */
 @Component
 public class MemberIdentity {
     private static final String BEARER = "Bearer ";
 
-    private final RestClient members;
+    private final ECPublicKey publicKey;
+    private final Clock clock;
+    private final String issuer;
 
-    public MemberIdentity(RestClient memberRestClient) {
-        this.members = memberRestClient;
+    public MemberIdentity(
+            Clock clock,
+            @Value("${gateway.access-token.public-key}") String encodedPublicKey,
+            @Value("${gateway.access-token.issuer}") String issuer
+    ) {
+        this.clock = clock;
+        this.issuer = issuer;
+        this.publicKey = readPublicKey(encodedPublicKey);
     }
 
     /**
      * 인증이 필요한 경로에서 쓴다. 토큰이 없거나 유효하지 않으면 401이다.
      *
-     * <p><b>세션이 유효하지 않은 것과 세션을 확인할 수 없는 것을 구분한다.</b> 둘을 같은 401로
-     * 답하면 우리 쪽 장애를 사용자에게 "당신 세션이 만료됐다"고 알리는 것이 되고, 그 말을 믿은
-     * 클라이언트가 멀쩡한 토큰을 버린다. 서버에 14일 살아 있는 세션이 member-service의 몇 초짜리
-     * 지연 때문에 사라진다. 확인할 수 없는 동안에는 503으로 답해 재시도하면 된다는 것을 알린다.
+     * <p>서명, 발급자, 만료를 모두 확인한다. 서명만 보면 다른 용도로 발급된 토큰이 통하고,
+     * 만료를 보지 않으면 폐기 지연 상한이 사라진다.
      */
     public String require(String authorizationHeader) {
         var token = bearerToken(authorizationHeader);
-        SessionResponse session;
+        SignedJWT jwt;
         try {
-            session = members.post()
-                    .uri("/internal/members/sessions/resolve")
-                    .body(new SessionTokenRequest(token))
-                    .retrieve()
-                    .body(SessionResponse.class);
-        } catch (RestClientResponseException exception) {
-            throw resolveFailed(exception);
-        } catch (ResourceAccessException exception) {
-            // 연결 실패와 타임아웃. 세션에 대해 아무것도 알아내지 못했다.
-            throw DomainException.unavailable("session could not be resolved");
-        }
-        if (session == null) {
+            jwt = SignedJWT.parse(token);
+        } catch (ParseException malformed) {
             throw unauthorized();
         }
-        return session.memberId();
+        if (!verified(jwt) || !issuedByUs(jwt) || expired(jwt)) {
+            throw unauthorized();
+        }
+        return subject(jwt);
     }
 
-    /**
-     * member-service의 응답 상태를 게이트웨이의 응답으로 옮긴다.
-     *
-     * <p>404만 인증 실패다 — 세션이 없거나 만료됐거나 폐기됐을 때 member-service가 내는 것이
-     * 404이고, 넷을 구분하지 않는 것은 정해진 규칙이다 (PD-0014-R7). 5xx는 member-service가
-     * 고장 난 것이고, 그 밖의 4xx는 게이트웨이가 잘못된 요청을 보냈다는 뜻이라 사용자 세션과
-     * 무관하다. 뒤의 둘을 401로 뭉치면 원인이 사라진다.
-     */
-    private DomainException resolveFailed(RestClientResponseException exception) {
-        var status = exception.getStatusCode();
-        if (status.value() == 404) {
-            return unauthorized();
+    private boolean verified(SignedJWT jwt) {
+        try {
+            return jwt.verify(new ECDSAVerifier(publicKey));
+        } catch (JOSEException unusable) {
+            return false;
         }
-        if (status.is5xxServerError()) {
-            return DomainException.unavailable("session could not be resolved");
+    }
+
+    private boolean issuedByUs(SignedJWT jwt) {
+        return issuer.equals(claims(jwt).getIssuer());
+    }
+
+    private boolean expired(SignedJWT jwt) {
+        var expiresAt = claims(jwt).getExpirationTime();
+        return expiresAt == null || !clock.instant().isBefore(expiresAt.toInstant());
+    }
+
+    private String subject(SignedJWT jwt) {
+        var subject = claims(jwt).getSubject();
+        if (subject == null || subject.isBlank()) {
+            throw unauthorized();
         }
-        return new DomainException("internal_error", "session resolve request was rejected", 500);
+        return subject;
+    }
+
+    private com.nimbusds.jwt.JWTClaimsSet claims(SignedJWT jwt) {
+        try {
+            return jwt.getJWTClaimsSet();
+        } catch (ParseException malformed) {
+            throw unauthorized();
+        }
     }
 
     public String bearerToken(String authorizationHeader) {
@@ -94,5 +116,14 @@ public class MemberIdentity {
 
     private DomainException unauthorized() {
         return new DomainException("unauthorized", "authentication is required", 401);
+    }
+
+    private static ECPublicKey readPublicKey(String encoded) {
+        try {
+            var spec = new X509EncodedKeySpec(Base64.getDecoder().decode(encoded));
+            return (ECPublicKey) KeyFactory.getInstance("EC").generatePublic(spec);
+        } catch (RuntimeException | java.security.GeneralSecurityException failure) {
+            throw new IllegalStateException("gateway.access-token.public-key is not a usable EC public key", failure);
+        }
     }
 }

@@ -1,5 +1,6 @@
 package com.impati.commerce.gateway.adapter.out.client;
 
+import com.impati.commerce.common.ApiContracts.AccessTokenResponse;
 import com.impati.commerce.common.ApiContracts.AddAddressRequest;
 import com.impati.commerce.common.ApiContracts.AddressResponse;
 import com.impati.commerce.common.ApiContracts.CartItemRequest;
@@ -94,6 +95,15 @@ public class GatewayClients {
 
     public LoginResponse login(LoginRequest request) {
         return members.post().uri("/members/login").body(request).retrieve().body(LoginResponse.class);
+    }
+
+    /** 세션 토큰을 새 접근 토큰으로 바꾼다. 인증 경로 중 member-service를 부르는 유일한 곳이다. */
+    public AccessTokenResponse refresh(String sessionToken) {
+        return members.post()
+                .uri("/internal/members/sessions/refresh")
+                .body(new SessionTokenRequest(sessionToken))
+                .retrieve()
+                .body(AccessTokenResponse.class);
     }
 
     public void logout(String token) {

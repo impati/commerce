@@ -200,12 +200,23 @@ public final class ApiContracts {
     public record LoginRequest(String email, String password) {
     }
 
-    /** POST /login 응답. token은 불투명 문자열이며 서버가 해시만 보관한다. */
-    public record LoginResponse(String token, String expiresAt) {
+    /**
+     * POST /login 응답.
+     *
+     * <p>{@code sessionToken}은 불투명 문자열이며 서버가 해시만 보관한다. 갱신에만 쓰인다.
+     * {@code accessToken}은 서명된 단명 토큰이라 게이트웨이가 조회 없이 검증하며, 담긴 값은
+     * 누구나 읽을 수 있다 (ADR-0007).
+     */
+    public record LoginResponse(
+            String sessionToken,
+            String sessionExpiresAt,
+            String accessToken,
+            String accessTokenExpiresAt
+    ) {
     }
 
-    /** POST /members/internal/sessions/resolve 응답. 게이트웨이가 신원을 확인할 때 쓴다. */
-    public record SessionResponse(String memberId) {
+    /** POST /internal/members/sessions/refresh 응답. 세션 토큰을 새 접근 토큰으로 바꾼다. */
+    public record AccessTokenResponse(String accessToken, String accessTokenExpiresAt) {
     }
 
     /** POST /notifications/email-verifications — member-service가 notification-service에 보낸다. */

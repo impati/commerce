@@ -4,7 +4,7 @@ package com.impati.commerce.member.application.port.in;
 public interface SessionUseCase {
     IssuedSession login(String email, String rawPassword);
 
-    SessionOwner resolveSession(String rawToken);
+    IssuedAccessToken refresh(String rawSessionToken);
 
     void logout(String rawToken);
 }

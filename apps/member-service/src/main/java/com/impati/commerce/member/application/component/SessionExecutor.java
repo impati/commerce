@@ -2,8 +2,9 @@ package com.impati.commerce.member.application.component;
 
 import com.impati.commerce.common.DomainException;
 import com.impati.commerce.member.application.port.in.IssuedSession;
-import com.impati.commerce.member.application.port.in.SessionOwner;
+import com.impati.commerce.member.application.port.in.IssuedAccessToken;
 import com.impati.commerce.member.application.port.in.SessionUseCase;
+import com.impati.commerce.member.application.port.out.AccessTokenIssuer;
 import com.impati.commerce.member.application.port.out.MemberRepository;
 import com.impati.commerce.member.application.port.out.PasswordHasher;
 import com.impati.commerce.member.application.port.out.SecureTokens;
@@ -17,11 +18,14 @@ import java.time.Clock;
 import java.time.Duration;
 
 /**
- * 로그인, 세션 확인, 폐기.
+ * 로그인, 접근 토큰 갱신, 폐기.
  *
- * <p>{@link #resolveSession}은 이 시스템에서 가장 자주 호출되는 경로다 — 인증이 필요한 모든 요청이
- * 게이트웨이를 지나며 한 번씩 부른다. 캐시·서킷브레이커·지표를 붙일 대상이 이 클래스이므로
- * 배송지 수정 같은 저빈도 기능과 같은 클래스에 두지 않는다.
+ * <p>세션은 장수명 자격증명이고 접근 토큰은 그 세션에서 파생되는 단명 증명서다. 게이트웨이는
+ * 접근 토큰을 스스로 검증하므로 요청마다 여기를 부르지 않는다 — {@link #refresh}만 접근 토큰
+ * 수명당 한 번 호출된다 (ADR-0007).
+ *
+ * <p>폐기는 세션에만 건다. 이미 발급된 접근 토큰은 만료까지 통하므로 접근 토큰 수명이 곧 폐기
+ * 지연 상한이다 (PD-0014-R5, PD-0014-R8).
  */
 @Component
 public class SessionExecutor implements SessionUseCase {
@@ -29,6 +33,7 @@ public class SessionExecutor implements SessionUseCase {
     private final SessionRepository sessionRepository;
     private final PasswordHasher passwordHasher;
     private final SecureTokens secureTokens;
+    private final AccessTokenIssuer accessTokenIssuer;
     private final Clock clock;
     private final Duration sessionTtl;
 
@@ -37,6 +42,7 @@ public class SessionExecutor implements SessionUseCase {
             SessionRepository sessionRepository,
             PasswordHasher passwordHasher,
             SecureTokens secureTokens,
+            AccessTokenIssuer accessTokenIssuer,
             Clock clock,
             @Value("${member.session-ttl}") Duration sessionTtl
     ) {
@@ -44,6 +50,7 @@ public class SessionExecutor implements SessionUseCase {
         this.sessionRepository = sessionRepository;
         this.passwordHasher = passwordHasher;
         this.secureTokens = secureTokens;
+        this.accessTokenIssuer = accessTokenIssuer;
         this.clock = clock;
         this.sessionTtl = sessionTtl;
     }
@@ -69,17 +76,29 @@ public class SessionExecutor implements SessionUseCase {
         var rawToken = secureTokens.newToken();
         var expiresAt = clock.instant().plus(sessionTtl);
         sessionRepository.save(new Session(secureTokens.hash(rawToken), member.id(), expiresAt));
-        return new IssuedSession(rawToken, expiresAt.toString());
+        var accessToken = accessTokenIssuer.issue(member.id());
+        return new IssuedSession(
+                rawToken,
+                expiresAt.toString(),
+                accessToken.value(),
+                accessToken.expiresAt().toString()
+        );
     }
 
-    /** 세션이 가리키는 회원을 돌려준다. 게이트웨이가 신원을 확인할 때 쓴다. */
+    /**
+     * 세션을 확인하고 새 접근 토큰을 발급한다.
+     *
+     * <p>저장소를 보는 유일한 인증 경로다. 폐기가 실제로 반영되는 지점이므로 여기서 거절되면
+     * 사용자는 다시 로그인해야 한다. 이유를 구분하지 않는 것은 정해진 규칙이다 (PD-0014-R7).
+     */
     @Transactional(readOnly = true)
     @Override
-    public SessionOwner resolveSession(String rawToken) {
-        var session = sessionRepository.findByTokenHash(secureTokens.hash(rawToken))
+    public IssuedAccessToken refresh(String rawSessionToken) {
+        var session = sessionRepository.findByTokenHash(secureTokens.hash(rawSessionToken))
                 .filter(candidate -> candidate.isUsable(clock.instant()))
                 .orElseThrow(() -> DomainException.notFound("session is not valid"));
-        return new SessionOwner(session.memberId());
+        var accessToken = accessTokenIssuer.issue(session.memberId());
+        return new IssuedAccessToken(accessToken.value(), accessToken.expiresAt().toString());
     }
 
     @Transactional

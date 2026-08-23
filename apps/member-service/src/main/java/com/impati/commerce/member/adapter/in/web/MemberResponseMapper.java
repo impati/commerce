@@ -4,12 +4,12 @@ import com.impati.commerce.common.ApiContracts.AddAddressRequest;
 import com.impati.commerce.common.ApiContracts.AddressResponse;
 import com.impati.commerce.common.ApiContracts.LoginResponse;
 import com.impati.commerce.common.ApiContracts.MemberResponse;
-import com.impati.commerce.common.ApiContracts.SessionResponse;
+import com.impati.commerce.common.ApiContracts.AccessTokenResponse;
 import com.impati.commerce.member.application.port.in.IssuedSession;
 import com.impati.commerce.member.application.port.in.MemberAddress;
 import com.impati.commerce.member.application.port.in.MemberDetails;
 import com.impati.commerce.member.application.port.in.NewAddress;
-import com.impati.commerce.member.application.port.in.SessionOwner;
+import com.impati.commerce.member.application.port.in.IssuedAccessToken;
 
 /**
  * 서비스 간 HTTP 계약과 유스케이스 입출력을 잇는다.
@@ -57,10 +57,15 @@ final class MemberResponseMapper {
     }
 
     static LoginResponse from(IssuedSession session) {
-        return new LoginResponse(session.token(), session.expiresAt());
+        return new LoginResponse(
+                session.sessionToken(),
+                session.sessionExpiresAt(),
+                session.accessToken(),
+                session.accessTokenExpiresAt()
+        );
     }
 
-    static SessionResponse from(SessionOwner owner) {
-        return new SessionResponse(owner.memberId());
+    static AccessTokenResponse from(IssuedAccessToken issued) {
+        return new AccessTokenResponse(issued.accessToken(), issued.accessTokenExpiresAt());
     }
 }

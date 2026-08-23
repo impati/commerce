@@ -52,6 +52,14 @@ configure([project(':apps:member-service')]) {
     }
 }
 
+// access token에 서명하고 검증하는 서비스. 직접 만들지 않는 이유는 알고리즘 confusion류
+// 취약점이며 근거는 docs/adr/0007에 있다. member-service가 서명하고 api-gateway는 검증만 한다.
+configure([project(':apps:member-service'), project(':apps:api-gateway')]) {
+    dependencies {
+        implementation 'com.nimbusds:nimbus-jose-jwt:9.37.3'
+    }
+}
+
 configure([
         project(':apps:order-service'),
         project(':apps:api-gateway'),
