@@ -18,7 +18,6 @@ import com.impati.commerce.common.ApiContracts.ShipmentResponse;
 import com.impati.commerce.common.ApiContracts.StockResponse;
 import com.impati.commerce.common.ApiContracts.SessionTokenRequest;
 import com.impati.commerce.common.ApiContracts.VerifyEmailRequest;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -39,24 +38,23 @@ public class GatewayClients {
     private final RestClient notifications;
 
     public GatewayClients(
-            RestClient.Builder builder,
-            @Value("${clients.member.url}") String memberUrl,
-            @Value("${clients.display.url}") String displayUrl,
-            @Value("${clients.catalog.url}") String catalogUrl,
-            @Value("${clients.inventory.url}") String inventoryUrl,
-            @Value("${clients.cart.url}") String cartUrl,
-            @Value("${clients.order.url}") String orderUrl,
-            @Value("${clients.shipping.url}") String shippingUrl,
-            @Value("${clients.notification.url}") String notificationUrl
+            RestClient memberRestClient,
+            RestClient displayRestClient,
+            RestClient catalogRestClient,
+            RestClient inventoryRestClient,
+            RestClient cartRestClient,
+            RestClient orderRestClient,
+            RestClient shippingRestClient,
+            RestClient notificationRestClient
     ) {
-        this.members = builder.clone().baseUrl(memberUrl).build();
-        this.display = builder.clone().baseUrl(displayUrl).build();
-        this.catalog = builder.clone().baseUrl(catalogUrl).build();
-        this.inventory = builder.clone().baseUrl(inventoryUrl).build();
-        this.carts = builder.clone().baseUrl(cartUrl).build();
-        this.orders = builder.clone().baseUrl(orderUrl).build();
-        this.shipping = builder.clone().baseUrl(shippingUrl).build();
-        this.notifications = builder.clone().baseUrl(notificationUrl).build();
+        this.members = memberRestClient;
+        this.display = displayRestClient;
+        this.catalog = catalogRestClient;
+        this.inventory = inventoryRestClient;
+        this.carts = cartRestClient;
+        this.orders = orderRestClient;
+        this.shipping = shippingRestClient;
+        this.notifications = notificationRestClient;
     }
 
     public DisplayHomeResponse home() {

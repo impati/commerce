@@ -3,7 +3,6 @@ package com.impati.commerce.gateway.support;
 import com.impati.commerce.common.ApiContracts.SessionResponse;
 import com.impati.commerce.common.ApiContracts.SessionTokenRequest;
 import com.impati.commerce.common.DomainException;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
@@ -28,8 +27,8 @@ public class MemberIdentity {
 
     private final RestClient members;
 
-    public MemberIdentity(RestClient.Builder builder, @Value("${clients.member.url}") String baseUrl) {
-        this.members = builder.baseUrl(baseUrl).build();
+    public MemberIdentity(RestClient memberRestClient) {
+        this.members = memberRestClient;
     }
 
     /** 인증이 필요한 경로에서 쓴다. 토큰이 없거나 유효하지 않으면 401이다. */
