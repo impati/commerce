@@ -123,12 +123,19 @@ export function App() {
         window.history.replaceState({}, '', window.location.pathname);
       }
 
+      // 세션을 버리는 것은 서버가 세션이 유효하지 않다고 답했을 때뿐이다. 게이트웨이가 닿지
+      // 않거나 오류를 내는 것은 세션에 대한 답이 아니므로 토큰을 남긴다 — 서버에는 아직 살아
+      // 있고, 여기서 지우면 장애가 끝나도 사용자가 다시 로그인해야 한다.
       let current: Member | null = null;
       if (session.read()) {
         try {
           current = await api.me();
-        } catch {
-          session.clear();
+        } catch (error) {
+          if (error instanceof UnauthorizedError) {
+            session.clear();
+          } else {
+            setAuthNotice('로그인 정보를 확인할 수 없습니다. 잠시 후 다시 시도해주세요.');
+          }
         }
       }
       if (ignore) return;
