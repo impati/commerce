@@ -200,8 +200,17 @@ public final class OrderModels {
             this.status = "CANCELLED";
         }
 
-        /** 매입 결과를 확인하지 못했다고 표시한다. 환불이 필요한지 나중에 결제에 물어야 한다. */
+        /**
+         * 매입 결과를 확인하지 못했다고 표시한다. 환불이 필요한지 나중에 결제에 물어야 한다.
+         *
+         * <p>결제가 붙어 있지 않으면 표시할 수 없다. 표시의 뜻은 "이 결제가 매입됐는지 모른다"
+         * 이므로 물어볼 대상이 없으면 성립하지 않고, 그런 주문이 표시되면 정리가 영영 끝나지
+         * 않는다 (PD-0015-R2).
+         */
         public void markPaymentOutcomeUnknown() {
+            if (paymentId == null) {
+                throw DomainException.conflict("order without a payment cannot have an unknown outcome");
+            }
             this.paymentOutcomeUnknown = true;
         }
 

@@ -11,6 +11,10 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 
@@ -42,6 +46,10 @@ public class JdbcOrderRepository implements OrderRepository {
                    shipment_id = :shipment_id,
                    inventory_reservation_id = :inventory_reservation_id,
                    payment_outcome_unknown = :payment_outcome_unknown,
+                   payment_reconcile_after = case
+                       when :payment_outcome_unknown then payment_reconcile_after
+                       else null
+                   end,
                    ship_address_id = :ship_address_id,
                    ship_alias = :ship_alias,
                    ship_recipient = :ship_recipient,
@@ -79,16 +87,33 @@ public class JdbcOrderRepository implements OrderRepository {
 
     private static final String SELECT_ORDER = "select " + ORDER_COLUMNS + " from orders where id = :id";
 
-    private static final String SELECT_UNRESOLVED = "select " + ORDER_COLUMNS
-            + " from orders where payment_outcome_unknown = true";
+    private static final String SELECT_RECONCILE_CANDIDATES = """
+            select id
+              from orders
+             where payment_outcome_unknown = true
+               and (payment_reconcile_after is null or payment_reconcile_after <= :now)
+             order by payment_reconcile_after nulls first
+             limit :batch_size
+            """;
+
+    private static final String CLAIM_FOR_RECONCILE = """
+            update orders
+               set payment_reconcile_after = :retry_after
+             where id = :id
+               and payment_outcome_unknown = true
+               and (payment_reconcile_after is null or payment_reconcile_after <= :now)
+            """;
+
     private static final String DELETE_LINES = "delete from order_lines where order_id = :order_id";
     private static final String SELECT_LINES =
             "select " + LINE_COLUMNS + " from order_lines where order_id = :order_id order by line_no";
 
     private final NamedParameterJdbcTemplate jdbc;
+    private final Clock clock;
 
-    public JdbcOrderRepository(NamedParameterJdbcTemplate jdbc) {
+    public JdbcOrderRepository(NamedParameterJdbcTemplate jdbc, Clock clock) {
         this.jdbc = jdbc;
+        this.clock = clock;
     }
 
     /**
@@ -152,21 +177,44 @@ public class JdbcOrderRepository implements OrderRepository {
                 .addValue("unit_currency", line.unitPrice().currency());
     }
 
-    /**
-     * 매입 결과를 확인하지 못한 채 취소된 주문을 찾는다 (PD-0012-R12).
-     *
-     * <p>정리하는 쪽이 이 목록의 주문마다 결제에 매입 여부를 물어 환불이 필요한지 판단한다.
-     * 그 절차가 없으면 목록만 쌓이므로 조회 자체가 정리의 시작점이다.
-     */
     @Override
     @Transactional(readOnly = true)
-    public List<Order> findWithUnknownPaymentOutcome() {
-        var ids = jdbc.queryForList(
-                "select id from orders where payment_outcome_unknown = true",
-                new MapSqlParameterSource(),
+    public List<String> findPaymentReconciliationCandidates(int batchSize) {
+        return jdbc.queryForList(
+                SELECT_RECONCILE_CANDIDATES,
+                new MapSqlParameterSource()
+                        .addValue("now", now())
+                        .addValue("batch_size", batchSize),
                 String.class
         );
-        return ids.stream().map(id -> findById(id).orElseThrow()).toList();
+    }
+
+    /**
+     * 조건부 UPDATE의 갱신 행 수가 점유의 승자를 정한다 (ADR-0009).
+     *
+     * <p>{@code select for update}를 쓰지 않는 이유는 잠금이 트랜잭션 수명에 묶이기 때문이다.
+     * 점유한 뒤에 결제 서비스를 부르는데, 잠금을 들고 부르면 외부 호출이 DB 트랜잭션을 늘리고
+     * 호출 전에 트랜잭션을 닫으면 잠금이 아무것도 지켜주지 않는다. 조건부 UPDATE는 짧은
+     * 트랜잭션 하나로 끝나고 그 뒤의 호출은 어떤 잠금도 잡지 않는다.
+     *
+     * <p>두 시각을 같은 {@code now}에서 만든다. 따로 읽으면 조건과 갱신값이 미세하게 어긋난다.
+     */
+    @Override
+    @Transactional
+    public Optional<Order> claimForPaymentReconciliation(String orderId, Duration retryDelay) {
+        var now = now();
+        var claimed = jdbc.update(CLAIM_FOR_RECONCILE, new MapSqlParameterSource()
+                .addValue("id", orderId)
+                .addValue("now", now)
+                .addValue("retry_after", now.plus(retryDelay)));
+        if (claimed == 0) {
+            return Optional.empty();
+        }
+        return findById(orderId);
+    }
+
+    private OffsetDateTime now() {
+        return OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
     }
 
     private RowMapper<Order> orderRowMapper(String orderId) {

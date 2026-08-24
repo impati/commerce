@@ -373,7 +373,7 @@ class CheckoutSagaTest {
     }
 
     private List<String> unresolvedOrderIds() {
-        return orderRepository.findWithUnknownPaymentOutcome().stream().map(order -> order.id()).toList();
+        return orderRepository.findPaymentReconciliationCandidates(100);
     }
 
     private MockHttpServletRequestBuilder checkout(String paymentToken) {

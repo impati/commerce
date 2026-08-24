@@ -52,6 +52,32 @@ public class HttpPaymentClient implements PaymentClient {
         return post(paymentId, "cancel");
     }
 
+    @Override
+    public PaymentResponse refundPayment(String paymentId) {
+        return post(paymentId, "refund");
+    }
+
+    /**
+     * 조회는 부수효과가 없으므로 실패를 <b>결과 불명</b>이 아니라 <b>지금 응답하지 못함</b>으로
+     * 옮긴다. 아무 일도 일어나지 않은 것이 분명하므로 그대로 다시 시도해도 안전하다.
+     */
+    @Override
+    public PaymentResponse payment(String paymentId) {
+        try {
+            return restClient.get()
+                    .uri("/internal/payments/{paymentId}", paymentId)
+                    .retrieve()
+                    .body(PaymentResponse.class);
+        } catch (RestClientResponseException exception) {
+            if (exception.getStatusCode().value() == 404) {
+                throw DomainException.notFound("payment not found: " + paymentId);
+            }
+            throw DomainException.unavailable("payment service error: " + exception.getStatusText());
+        } catch (ResourceAccessException exception) {
+            throw DomainException.unavailable("payment lookup failed: " + exception.getMessage());
+        }
+    }
+
     /**
      * 승인 이후의 호출은 거절될 수 없다. 이미 확보된 대금을 다루는 것이므로 발급사가 다시
      * 판단하지 않는다. 실패는 전부 결제 시스템 오류다.
