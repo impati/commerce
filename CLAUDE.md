@@ -83,6 +83,7 @@ make verify
 - **유스케이스는 서비스 간 계약(`ApiContracts`)을 돌려주지 않는다.** 반환값은 서비스 사이에서 오가는 것이 아니므로 자기 입출력 타입을 갖고, 인바운드 어댑터가 각자 자기 표현으로 옮긴다. **매퍼는 자기가 변환하는 두 타입을 모두 알아도 되는 계층에 산다** — 도메인 → 입출력은 응용, 입출력 → HTTP는 어댑터. 나가는 방향의 계약은 실제로 서비스 사이에서 오가므로 그대로 쓴다.
 - **스케줄러나 앱 시작으로 구동되는 진입점은 `adapter/in` 아래 둔다.** 컨트롤러와 역할이 같다 — 애플리케이션을 바깥에서 호출한다. `application`에 두면 응용 계층이 자기를 깨우는 모양이 된다.
 - **조회는 저장소에 쓰지 않는다.** 없는 것을 만들어 넣는 `getOrCreate` 류를 저장소 포트에 두지 말고, 기본값 생성은 애플리케이션이 한다. GET에 INSERT가 따라붙으면 읽기 복제본·캐시·헬스체크가 전부 망가진다.
+- **쓰는 조회는 이름으로 드러낸다.** 작업 큐의 배타적 점유처럼 쓰기가 필요한 조회는 `find*`가 아니라 `claim*`으로 부른다. 위 룰이 막으려는 것은 조회로 보이는 것이 몰래 쓰는 상황이므로, 이름이 쓰기를 드러내면 그 오해가 생기지 않는다. 선례: [OrderRepository.claimForPaymentReconciliation](apps/order-service/src/main/java/com/impati/commerce/order/application/port/out/OrderRepository.java) ([ADR-0009](docs/adr/0009-reconcile-unconfirmed-payments.md))
 - **다른 서비스 호출도 포트로만 쓴다.** 협력자별 인터페이스(`XxxClient`)를 `application`에 두고 HTTP 구현(`HttpXxxClient`)은 `adapter/out/client`에 둔다. 프로토콜 오류를 도메인 언어로 옮기는 것도 어댑터의 일이다 (예: 402 → `paymentDeclined`). 예외는 api-gateway로, 응용·도메인 계층이 없는 순수 어댑터라 뒤집을 대상이 없다.
 - `RestClient.Builder`는 서비스당 한 번만 주입받아 복제한다. 어댑터마다 주입받으면 빌더가 어댑터 수만큼 생겨서 빌더 단위로 동작하는 테스트 스텁과 공통 커스터마이저가 갈라진다. 선례: [CommerceRestClients](apps/order-service/src/main/java/com/impati/commerce/order/adapter/out/client/CommerceRestClients.java)
 - **저장소는 포트로만 쓴다.** 인터페이스(`XxxRepository`)는 `application`에 두고 구현은 `adapter/out/persistence`에 둔다. 애플리케이션 서비스가 `InMemoryXxxRepository` 같은 구현 타입을 직접 참조하면 안 된다 — 저장소를 갈아끼울 수 없게 된다.
@@ -158,6 +159,7 @@ git 저장소이지만 이력이 `first commit` 하나뿐이다. 되돌릴 지�
 
 ## 변경 이력
 
+- 2026-08-24 — 쓰는 조회를 `claim*`으로 드러내는 예외를 경계 규칙에 추가했다. 계기: 결제 미확인 주문의 정리에 배타적 점유가 필요해졌는데, 점유는 조건부 UPDATE라 쓰기이면서 조회다. "조회는 저장소에 쓰지 않는다"를 문자대로 지키면 점유를 포트 밖에 두게 되고, 그러면 인스턴스가 여러 개일 때 같은 주문을 두 번 집는 것을 막을 수단이 사라진다. 원래 룰이 막으려던 것은 `getOrCreate`처럼 조회로 보이는 것이 몰래 쓰는 상황이므로 이름으로 드러내면 성립한다 (BL-0039).
 - 2026-08-23 — 포트 필드 이름을 타입 이름의 camelCase로 통일했다. 10개 서비스 전부. 계기: `payments.capturePayment(...)`만 보면 자기 DB인지 다른 서비스 호출인지 알 수 없었다. 넘는 호출과 넘지 않는 호출이 같은 이름을 쓰고 있었고, 능력 포트는 이미 이 규칙을 따르고 있어 통일하면 예외가 사라진다 (BL-0040).
 - 2026-08-22 — `application`을 `port/in`·`port/out`·`component` 셋으로 나누고 유스케이스가 자기 입출력 타입을 갖게 했다. 10개 서비스 전부에 적용. 계기: 네 종류가 한 패키지에 평평하게 놓여 접미사로만 구분됐고, "이게 유스케이스인가 포트인가"를 열어봐야 알 수 있었다. 유스케이스가 `ApiContracts`를 반환하던 것도 함께 고쳤다 — 인바운드 어댑터가 스케줄러이면 HTTP 계약을 받아도 보낼 데가 없다 (BL-0041, BL-0042).
 - 2026-08-22 — 병합 전 브랜치에서 만든 정책·ADR은 대체하지 않고 고치기로 했다. 계기: BL-0034 리뷰에서 결함이 나와 결정을 바꿔야 했는데, 대체 규약을 그대로 적용하면 같은 브랜치에서 만든 PD-0011·PD-0012를 PD-0014·PD-0015로 대체하게 된다. 두 문서는 `main`에 존재한 적이 없어 아무도 읽지 않았고, 대체 규약의 목적인 "무엇이 언제 왜 바뀌었나"는 브랜치의 `git log`가 이미 갖고 있다 (BL-0034).
