@@ -37,12 +37,28 @@ public class PaymentReconciliationExecutor implements PaymentReconciliationUseCa
     private final int batchSize;
     private final Duration retryDelay;
 
+    /**
+     * 설정값이 잘못되면 기동을 실패시킨다.
+     *
+     * <p>{@code batchSize}가 0이면 {@code limit 0}이 되어 후보가 항상 비고, 아무것도 집지
+     * 않으므로 로그조차 남지 않는다. {@code retryDelay}가 0이면 점유가 즉시 만료돼 백오프가
+     * 사라지고 장애 중 재시도 증폭이 되살아난다. 둘 다 <b>조용히 잘못 도는</b> 실패이므로
+     * 뜨지 않는 편이 낫다 — 대금이 나간 주문을 정리하는 경로가 설정 오타 하나로 멈춰서는 안 된다.
+     */
     public PaymentReconciliationExecutor(
             OrderRepository orderRepository,
             PaymentClient paymentClient,
             @Value("${orders.payment-reconcile-batch-size:50}") int batchSize,
             @Value("${orders.payment-reconcile-retry-delay:60s}") Duration retryDelay
     ) {
+        if (batchSize <= 0) {
+            throw new IllegalArgumentException(
+                    "orders.payment-reconcile-batch-size must be positive but was " + batchSize);
+        }
+        if (retryDelay == null || retryDelay.isZero() || retryDelay.isNegative()) {
+            throw new IllegalArgumentException(
+                    "orders.payment-reconcile-retry-delay must be positive but was " + retryDelay);
+        }
         this.orderRepository = orderRepository;
         this.paymentClient = paymentClient;
         this.batchSize = batchSize;
