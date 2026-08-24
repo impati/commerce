@@ -40,3 +40,4 @@
 | [0012](pd-0012-checkout-and-compensation.md) | 체크아웃 성립과 실패 보상 | 유효 |
 | [0013](pd-0013-shipment-progress-and-cancellation.md) | 배송 진행과 취소 | 유효 |
 | [0014](pd-0014-login-rejection-and-session-lifetime.md) | 로그인 거절과 세션 수명 | 유효 |
+| [0015](pd-0015-unconfirmed-payment-reconciliation.md) | 결제 미확인 주문의 정리 | 유효 |
