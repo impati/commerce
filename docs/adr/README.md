@@ -30,6 +30,7 @@
 | [0007](0007-hybrid-session-tokens.md) | 세션을 단명 서명 토큰과 장수명 세션으로 나눈다 | 승인됨 |
 | [0008](0008-outage-tolerant-identity.md) | 장애로 판정되는 동안 만료된 접근 토큰을 받는다 | 승인됨 |
 | [0009](0009-reconcile-unconfirmed-payments.md) | 결제 미확인 주문을 점유 임차로 정리한다 | 승인됨 |
+| [0010](0010-verification-mail-outbox.md) | 인증 메일 발송을 아웃박스로 분리한다 | 승인됨 |
 
 ## ADR이 없는 합의
 
