@@ -31,7 +31,12 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>재시도 간격을 확인하려면 시간을 앞으로 돌릴 수 있어야 하므로 {@link Clock}을 테스트가
  * 조작하는 구현으로 바꾼다.
  */
-@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:member-vmail;DB_CLOSE_DELAY=-1")
+@SpringBootTest(properties = {
+        "spring.datasource.url=jdbc:h2:mem:member-vmail;DB_CLOSE_DELAY=-1",
+        // 발송기를 사실상 끈다. 이 테스트는 점유되지 않은 항목을 남기고 그것이 후보에 있는지
+        // 단정하는데, 발송기가 그 사이에 집으면 후보에서 빠져 단정이 깨진다.
+        "member.verification-mail-dispatch-interval=3600000"
+})
 class JdbcVerificationMailRepositoryTest {
     private static final Duration RETRY_DELAY = Duration.ofMinutes(1);
 
