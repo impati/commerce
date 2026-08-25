@@ -337,6 +337,137 @@ public final class MemberModels {
         }
     }
 
+    /**
+     * 인증 메일의 발송 상태.
+     *
+     * <p>PENDING이 남아 있는 것 자체가 관측 대상이다. 한도를 넘긴 것을 FAILED로 따로 두는
+     * 이유는 "아직 못 보냈다"와 "포기했다"가 다른 사실이기 때문이다 — 하나로 합치면 실패가
+     * 재시도 대기에 섞여 보이지 않는다.
+     */
+    public enum VerificationMailStatus {
+        PENDING, SENT, FAILED
+    }
+
+    /**
+     * 보내야 할 인증 메일 한 통. 아웃박스 항목이다 (ADR-0010).
+     *
+     * <p>가입 트랜잭션은 이것을 적고 끝나며 발송은 별도 진입점이 가져간다. 그래서 알림
+     * 서비스의 응답 시간이 가입 트랜잭션의 길이가 되지 않는다.
+     *
+     * <p>다음 시도 시각은 여기에 없다. 언제 다시 집을지는 도메인 사실이 아니라 작업 큐의
+     * 사정이며, 저장소가 점유하면서 정한다 (ADR-0009와 같은 이유).
+     */
+    public static final class VerificationMail {
+        private final String id;
+        private final String memberId;
+        private final String email;
+        private String token;
+        private VerificationMailStatus status;
+        private int attempts;
+        private String lastError;
+
+        public VerificationMail(String memberId, String email, String token) {
+            this(Ids.newId("vmail"), memberId, email, token,
+                    VerificationMailStatus.PENDING, 0, null);
+        }
+
+        private VerificationMail(
+                String id,
+                String memberId,
+                String email,
+                String token,
+                VerificationMailStatus status,
+                int attempts,
+                String lastError
+        ) {
+            this.id = required(id, "verification mail id is required");
+            this.memberId = required(memberId, "member id is required");
+            this.email = required(email, "verification mail recipient is required");
+            this.token = token;
+            this.status = status;
+            this.attempts = attempts;
+            this.lastError = lastError;
+        }
+
+        /** 저장된 상태에서 복원한다. 영속화 어댑터만 쓴다. */
+        public static VerificationMail restore(
+                String id,
+                String memberId,
+                String email,
+                String token,
+                VerificationMailStatus status,
+                int attempts,
+                String lastError
+        ) {
+            return new VerificationMail(id, memberId, email, token, status, attempts, lastError);
+        }
+
+        public String id() {
+            return id;
+        }
+
+        public String memberId() {
+            return memberId;
+        }
+
+        public String email() {
+            return email;
+        }
+
+        /** 보낼 원문 토큰. 종단 상태가 된 뒤에는 비어 있다. */
+        public String token() {
+            return token;
+        }
+
+        public VerificationMailStatus status() {
+            return status;
+        }
+
+        public int attempts() {
+            return attempts;
+        }
+
+        public String lastError() {
+            return lastError;
+        }
+
+        public boolean isPending() {
+            return status == VerificationMailStatus.PENDING;
+        }
+
+        public void markSent() {
+            this.attempts += 1;
+            this.status = VerificationMailStatus.SENT;
+            this.lastError = null;
+            discardToken();
+        }
+
+        /**
+         * 실패를 기록한다. 한도 전이면 PENDING으로 남아 다음 주기에 다시 집힌다.
+         *
+         * <p>한도를 넘기면 포기한다. 사용자에게 재발송 경로가 있고, 무한 재시도는 만료된
+         * 토큰을 계속 보내려 들기 때문이다 (ADR-0010).
+         */
+        public void markFailed(String error, int maxAttempts) {
+            this.attempts += 1;
+            this.lastError = error;
+            if (attempts >= maxAttempts) {
+                this.status = VerificationMailStatus.FAILED;
+                discardToken();
+            }
+        }
+
+        /**
+         * 더 보낼 일이 없어지면 원문 토큰을 버린다.
+         *
+         * <p>이 클래스가 평문 토큰을 들고 있는 유일한 이유는 나중에 보내야 하기 때문이다.
+         * 그 이유가 사라진 뒤에도 남겨두면 DB 유출 시 계정 인증 수단이 그대로 나간다.
+         */
+        private void discardToken() {
+            this.token = null;
+        }
+    }
+
     private static String required(String value, String message) {
         if (value == null || value.isBlank()) {
             throw DomainException.validation(message);
