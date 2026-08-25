@@ -37,8 +37,9 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
  * 대체한다. 응용 계층 - HttpNotificationClient - JSON 직렬화까지는 실제 코드가 돈다. 여기가
  * 서비스 경계이므로 클라이언트를 목으로 바꾸면 계약이 어긋나도 통과한다.
  *
- * <p>발송기는 꺼두고 테스트가 직접 한 주기를 돌린다. 주기에 맡기면 언제 돌았는지 알 수 없어
- * 단정할 시점이 없다.
+ * <p>발송기는 멈춰두고 테스트가 직접 한 주기를 돌린다. 주기에 맡기면 언제 돌았는지 알 수 없어
+ * 단정할 시점이 없다. 간격을 늘려도 기동 직후 한 번은 도는데, 그 시점에는 아웃박스가 비어
+ * 있어 무해하다.
  *
  * <p>재시도 한도를 2로 낮춘다. 한도 자체의 계산은 {@code VerificationMailTest}가 고정하며,
  * 여기서 볼 것은 설정된 한도가 실제로 전달돼 종단 상태에 도달하는지다.

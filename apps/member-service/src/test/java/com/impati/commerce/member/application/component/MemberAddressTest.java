@@ -23,7 +23,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * 전부 String이라 두 필드가 뒤바뀌어도 컴파일러가 잡지 못한다. 값을 필드마다 다르게 넣어
  * 어긋남이 드러나게 한다. 같은 종류의 실수를 JDBC 위치 바인딩에서 이미 겪었다.
  */
-@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:member-address;DB_CLOSE_DELAY=-1")
+@SpringBootTest(properties = {
+        "spring.datasource.url=jdbc:h2:mem:member-address;DB_CLOSE_DELAY=-1",
+        // 발송기를 멈춘다. 여기서 가입시킨 회원의 아웃박스 항목을 발송기가 집어 상태를 바꾼다.
+        "member.verification-mail-dispatch-interval=3600000"
+})
 class MemberAddressTest {
     @Autowired
     private MemberUseCase memberUseCase;

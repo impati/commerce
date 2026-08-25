@@ -37,9 +37,10 @@ import static org.mockito.Mockito.verifyNoInteractions;
  */
 @SpringBootTest(properties = {
         "spring.datasource.url=jdbc:h2:mem:member-auth;DB_CLOSE_DELAY=-1",
-        // 아웃박스 발송기를 사실상 끈다. 이 테스트는 아웃박스에 적힌 원문 토큰을 읽어 인증
+        // 아웃박스 발송기를 멈춘다. 이 테스트는 아웃박스에 적힌 원문 토큰을 읽어 인증
         // 흐름을 확인하는데, 발송기가 그 사이에 보내면 토큰이 지워져 읽을 수 없다.
         // 컨텍스트는 JVM 수명 내내 살아 있으므로 다른 테스트가 도는 동안에도 계속 틴다.
+        // 간격을 늘려도 기동 직후 한 번은 돈다 — 그때 아웃박스가 비어 있어 무해할 뿐이다.
         "member.verification-mail-dispatch-interval=3600000"
 })
 class MemberAuthTest {

@@ -33,8 +33,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @SpringBootTest(properties = {
         "spring.datasource.url=jdbc:h2:mem:member-vmail;DB_CLOSE_DELAY=-1",
-        // 발송기를 사실상 끈다. 이 테스트는 점유되지 않은 항목을 남기고 그것이 후보에 있는지
+        // 발송기를 멈춘다. 이 테스트는 점유되지 않은 항목을 남기고 그것이 후보에 있는지
         // 단정하는데, 발송기가 그 사이에 집으면 후보에서 빠져 단정이 깨진다.
+        // 간격을 늘려도 기동 직후 한 번은 돈다 — 그때 아웃박스가 비어 있어 무해할 뿐이다.
         "member.verification-mail-dispatch-interval=3600000"
 })
 class JdbcVerificationMailRepositoryTest {
