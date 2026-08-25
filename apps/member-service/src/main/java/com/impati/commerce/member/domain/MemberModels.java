@@ -358,6 +358,18 @@ public final class MemberModels {
      * 사정이며, 저장소가 점유하면서 정한다 (ADR-0009와 같은 이유).
      */
     public static final class VerificationMail {
+        /**
+         * 실패 이유로 남기는 최대 길이.
+         *
+         * <p>기록이 데이터 이유로 실패하면 그 항목은 종단 상태에 영영 도달하지 못한다 —
+         * 시도 횟수가 늘지 않아 한도에 닿지 못하고 무한히 재시도한다. 그래서 <b>결과를 적는
+         * 쓰기는 그것이 기록하는 작업보다 실패할 확률이 낮아야 한다.</b> 컬럼 폭보다 짧게
+         * 잡아 길이 때문에 실패할 수 없게 한다.
+         *
+         * <p>진단은 로그가 갖는다. 여기 남기는 것은 무엇 때문이었는지 알아볼 정도의 앞부분이다.
+         */
+        private static final int MAX_ERROR_LENGTH = 200;
+
         private final String id;
         private final String memberId;
         private final String email;
@@ -435,6 +447,10 @@ public final class MemberModels {
             return status == VerificationMailStatus.PENDING;
         }
 
+        public boolean isSent() {
+            return status == VerificationMailStatus.SENT;
+        }
+
         public void markSent() {
             this.attempts += 1;
             this.status = VerificationMailStatus.SENT;
@@ -450,11 +466,18 @@ public final class MemberModels {
          */
         public void markFailed(String error, int maxAttempts) {
             this.attempts += 1;
-            this.lastError = error;
+            this.lastError = shorten(error);
             if (attempts >= maxAttempts) {
                 this.status = VerificationMailStatus.FAILED;
                 discardToken();
             }
+        }
+
+        private static String shorten(String error) {
+            if (error == null || error.length() <= MAX_ERROR_LENGTH) {
+                return error;
+            }
+            return error.substring(0, MAX_ERROR_LENGTH);
         }
 
         /**

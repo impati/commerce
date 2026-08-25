@@ -84,6 +84,33 @@ class VerificationMailTest {
         assertThat(mail.token()).isNull();
     }
 
+    /**
+     * 긴 오류 문구는 잘라서 남긴다.
+     *
+     * <p>이 규칙이 없으면 기록 자체가 컬럼 폭 때문에 실패하고, 그러면 시도 횟수가 늘지 않아
+     * 그 항목은 한도에 영영 닿지 못한 채 무한히 재시도된다. 결과를 적는 쓰기가 그것이
+     * 기록하는 작업보다 실패하기 쉬워서는 안 된다.
+     */
+    @Test
+    void shortensOverlongFailureReason() {
+        var mail = new VerificationMail("mem_1", "user@impati.dev", "raw-token");
+
+        mail.markFailed("x".repeat(5_000), MAX_ATTEMPTS);
+
+        assertThat(mail.lastError()).hasSize(200);
+    }
+
+    /** 오류 문구가 없는 예외도 있다. 기록이 그것 때문에 실패해서는 안 된다. */
+    @Test
+    void acceptsMissingFailureReason() {
+        var mail = new VerificationMail("mem_1", "user@impati.dev", "raw-token");
+
+        mail.markFailed(null, MAX_ATTEMPTS);
+
+        assertThat(mail.lastError()).isNull();
+        assertThat(mail.attempts()).isEqualTo(1);
+    }
+
     /** 실패 뒤 성공하면 마지막 오류가 남아 있지 않아야 한다. 성공한 건이 실패로 보이면 안 된다. */
     @Test
     void clearsLastErrorWhenLaterAttemptSucceeds() {

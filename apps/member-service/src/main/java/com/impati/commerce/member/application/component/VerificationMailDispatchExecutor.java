@@ -109,23 +109,31 @@ public class VerificationMailDispatchExecutor implements VerificationMailDispatc
      *
      * <p>실패를 삼키지 않는다. 시도 횟수와 마지막 오류가 남고, 한도를 넘기면 FAILED가 되어
      * 조회로 드러난다. 이것이 이전 구현과의 차이다 — 그때는 실패가 로그 한 줄로 사라졌다.
+     *
+     * <p><b>전이는 최대 한 번, 저장도 한 번이다.</b> {@code try}가 전송만 감싸므로
+     * {@code markFailed}는 항상 PENDING인 항목에만 도달한다. 그래서 전송에 성공한 메일이
+     * 실패로 기록될 수 없다. 저장이 실패하면 예외가 그대로 올라가 <b>아무것도 기록되지
+     * 않고</b>, 그 항목은 PENDING으로 남아 다음 주기가 처음부터 다시 한다 — 저장되지 않은
+     * 것은 일어나지 않은 것이다.
+     *
+     * <p>남는 것은 전송 결과를 모르는 경우다. 읽기 타임아웃은 "안 갔다"가 아니므로 여기서
+     * 실패로 보이는 건이 실제로는 도달했을 수 있다. 아웃박스가 푸는 문제가 아니다 (ADR-0010).
      */
     private boolean dispatch(VerificationMail mail) {
         try {
             notificationClient.requestEmailVerification(mail.memberId(), mail.email(), mail.token());
             mail.markSent();
-            verificationMailRepository.save(mail);
-            return true;
         } catch (RuntimeException failure) {
             mail.markFailed(failure.getMessage(), maxAttempts);
-            verificationMailRepository.save(mail);
             if (mail.isPending()) {
-                log.warn("verification mail not sent, will retry id={} attempts={}", mail.id(), mail.attempts());
+                log.warn("verification mail not sent, will retry id={} attempts={}",
+                        mail.id(), mail.attempts(), failure);
             } else {
-                log.error("verification mail given up id={} memberId={} attempts={} lastError={}",
-                        mail.id(), mail.memberId(), mail.attempts(), mail.lastError());
+                log.error("verification mail given up id={} memberId={} attempts={}",
+                        mail.id(), mail.memberId(), mail.attempts(), failure);
             }
-            return false;
         }
+        verificationMailRepository.save(mail);
+        return mail.isSent();
     }
 }
