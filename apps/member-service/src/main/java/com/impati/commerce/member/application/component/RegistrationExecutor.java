@@ -5,13 +5,12 @@ import com.impati.commerce.member.application.port.in.MemberDetails;
 import com.impati.commerce.member.application.port.in.RegistrationUseCase;
 import com.impati.commerce.member.application.port.out.EmailVerificationRepository;
 import com.impati.commerce.member.application.port.out.MemberRepository;
-import com.impati.commerce.member.application.port.out.NotificationClient;
 import com.impati.commerce.member.application.port.out.PasswordHasher;
 import com.impati.commerce.member.application.port.out.SecureTokens;
+import com.impati.commerce.member.application.port.out.VerificationMailRepository;
 import com.impati.commerce.member.domain.MemberModels.EmailVerification;
 import com.impati.commerce.member.domain.MemberModels.Member;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.impati.commerce.member.domain.MemberModels.VerificationMail;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,16 +23,17 @@ import java.time.Duration;
  *
  * <p>세션은 다루지 않는다. 가입이 로그인시켜주지 않으므로 {@link SessionService}와 의존성이
  * 겹치지 않는다.
+ *
+ * <p>알림 서비스를 부르지 않는다. 발송할 것을 아웃박스에 적는 데까지가 여기의 일이고, 실제
+ * 발송은 {@link VerificationMailDispatchExecutor}가 가져간다 (ADR-0010).
  */
 @Component
 public class RegistrationExecutor implements RegistrationUseCase {
-    private static final Logger log = LoggerFactory.getLogger(RegistrationExecutor.class);
-
     private final MemberRepository memberRepository;
     private final EmailVerificationRepository emailVerificationRepository;
     private final PasswordHasher passwordHasher;
     private final SecureTokens secureTokens;
-    private final NotificationClient notificationClient;
+    private final VerificationMailRepository verificationMailRepository;
     private final Clock clock;
     private final Duration verificationTtl;
 
@@ -42,7 +42,7 @@ public class RegistrationExecutor implements RegistrationUseCase {
             EmailVerificationRepository emailVerificationRepository,
             PasswordHasher passwordHasher,
             SecureTokens secureTokens,
-            NotificationClient notificationClient,
+            VerificationMailRepository verificationMailRepository,
             Clock clock,
             @Value("${member.verification-ttl}") Duration verificationTtl
     ) {
@@ -50,7 +50,7 @@ public class RegistrationExecutor implements RegistrationUseCase {
         this.emailVerificationRepository = emailVerificationRepository;
         this.passwordHasher = passwordHasher;
         this.secureTokens = secureTokens;
-        this.notificationClient = notificationClient;
+        this.verificationMailRepository = verificationMailRepository;
         this.clock = clock;
         this.verificationTtl = verificationTtl;
     }
@@ -58,11 +58,8 @@ public class RegistrationExecutor implements RegistrationUseCase {
     /**
      * 가입은 이메일 소유가 확인되지 않은 상태로 끝난다. 로그인은 확인 후에만 된다.
      *
-     * <p>메일 요청이 실패해도 가입은 유지한다. 메일 시스템 장애로 가입을 막을 이유가 없고,
-     * 사용자는 재발송으로 복구할 수 있다.
-     *
-     * <p>TODO 이 호출이 트랜잭션 안에 있어 상대가 느리면 DB 트랜잭션이 함께 늘어난다.
-     * notification-service에 만든 것과 같은 아웃박스가 필요하다. BL-0004.
+     * <p>메일 시스템 장애로 가입을 막지 않는다. 그러나 실패를 없던 일로 하지도 않는다 —
+     * 보낼 것을 아웃박스에 함께 커밋하므로 발송은 나중에라도 일어난다.
      */
     @Transactional
     @Override
@@ -108,6 +105,15 @@ public class RegistrationExecutor implements RegistrationUseCase {
         return MemberMapper.toDetails(member);
     }
 
+    /**
+     * 확인 토큰을 발급하고 보낼 것을 아웃박스에 적는다.
+     *
+     * <p>둘이 호출자의 트랜잭션에서 함께 커밋된다. 그래서 "확인 토큰은 있는데 아무도 보내지
+     * 않는" 상태도, "메일은 보냈는데 토큰이 없는" 상태도 생기지 않는다.
+     *
+     * <p>여기서 나가는 호출이 없다는 것이 이 메서드의 핵심이다. 알림 서비스가 얼마나 느리든
+     * 가입 트랜잭션의 길이에 영향을 주지 않는다 (ADR-0010).
+     */
     private void issueVerification(Member member) {
         var rawToken = secureTokens.newToken();
         emailVerificationRepository.save(new EmailVerification(
@@ -115,11 +121,7 @@ public class RegistrationExecutor implements RegistrationUseCase {
                 member.id(),
                 clock.instant().plus(verificationTtl)
         ));
-        try {
-            notificationClient.requestEmailVerification(member.id(), member.email(), rawToken);
-        } catch (RuntimeException failure) {
-            log.warn("verification mail request failed memberId={} reason={}", member.id(), failure.getMessage());
-        }
+        verificationMailRepository.save(new VerificationMail(member.id(), member.email(), rawToken));
     }
 
     private void requirePassword(String rawPassword) {

@@ -6,7 +6,6 @@ import com.impati.commerce.member.application.port.in.SessionUseCase;
 import com.impati.commerce.member.application.port.out.NotificationClient;
 import com.impati.commerce.member.application.port.out.SecureTokens;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -23,10 +22,7 @@ import java.time.ZoneOffset;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.atLeastOnce;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 /**
  * 가입 → 이메일 인증 → 로그인 경로를 검증한다.
@@ -39,7 +35,14 @@ import static org.mockito.Mockito.verify;
  *
  * <p>테스트가 같은 DB를 공유하므로 이메일을 테스트별로 다르게 쓴다.
  */
-@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:member-auth;DB_CLOSE_DELAY=-1")
+@SpringBootTest(properties = {
+        "spring.datasource.url=jdbc:h2:mem:member-auth;DB_CLOSE_DELAY=-1",
+        // 아웃박스 발송기를 멈춘다. 이 테스트는 아웃박스에 적힌 원문 토큰을 읽어 인증
+        // 흐름을 확인하는데, 발송기가 그 사이에 보내면 토큰이 지워져 읽을 수 없다.
+        // 컨텍스트는 JVM 수명 내내 살아 있으므로 다른 테스트가 도는 동안에도 계속 틴다.
+        // 간격을 늘려도 기동 직후 한 번은 돈다 — 그때 아웃박스가 비어 있어 무해할 뿐이다.
+        "member.verification-mail-dispatch-interval=3600000"
+})
 class MemberAuthTest {
     /** 테스트가 앞으로 돌릴 수 있는 시계. */
     static class MutableClock extends Clock {
@@ -92,13 +95,24 @@ class MemberAuthTest {
     @MockBean
     private NotificationClient notificationClient;
 
-    /** [PD-0001-R1] 가입 직후 상태가 미인증인 것을 잡는다. 그 상태로 로그인이 막히는지는 보지 않는다. */
+    /**
+     * [PD-0001-R1] 가입 직후 상태가 미인증인 것을 잡는다. 그 상태로 로그인이 막히는지는 보지 않는다.
+     *
+     * <p>메일은 보내지 않고 아웃박스에만 적는다. 가입 트랜잭션에서 나가는 호출이 없다는 것이
+     * BL-0004가 고친 것이므로, 알림 클라이언트가 불리지 않았다는 쪽을 함께 단정한다 —
+     * 여기서 부르면 알림 서비스의 응답 시간이 다시 트랜잭션 길이가 된다.
+     */
     @Test
-    void registerLeavesMemberUnverifiedAndRequestsMail() {
+    void registerLeavesMemberUnverifiedAndQueuesMail() {
         var member = registrationUseCase.register("flow@impati.dev", "Flow", "flow-password");
 
         assertThat(member.status()).isEqualTo("PENDING_VERIFICATION");
-        verify(notificationClient).requestEmailVerification(eq(member.id()), eq("flow@impati.dev"), anyString());
+        verifyNoInteractions(notificationClient);
+        var row = jdbc.queryForMap(
+                "select email, status, attempts from verification_mails where member_id = ?", member.id());
+        assertThat(row.get("EMAIL")).isEqualTo("flow@impati.dev");
+        assertThat(row.get("STATUS")).isEqualTo("PENDING");
+        assertThat(row.get("ATTEMPTS")).isEqualTo(0);
     }
 
     /**
@@ -232,9 +246,15 @@ class MemberAuthTest {
         assertThat(lifetime).isEqualTo(Duration.ofMinutes(5));
     }
 
-    /** 원문 토큰은 저장되지 않는다. DB에는 해시만 있어야 한다. */
+    /**
+     * 인증 테이블과 세션 테이블에는 해시만 있어야 한다.
+     *
+     * <p>아웃박스는 예외이며 그것이 BL-0004가 만든 유일한 새 노출이다. 발송을 나중으로 미루면
+     * 보낼 원문을 어딘가 들고 있어야 하기 때문이다. 대신 종단 상태가 되면 지운다 —
+     * 그것을 확인하는 것은 {@code VerificationMailDispatchTest}다.
+     */
     @Test
-    void storesOnlyHashedTokens() {
+    void storesOnlyHashedTokensOutsideTheOutbox() {
         var member = registrationUseCase.register("hash@impati.dev", "Hash", "hash-password");
         var raw = rawTokenOf(member.id());
         registrationUseCase.verifyEmail(raw);
@@ -250,6 +270,9 @@ class MemberAuthTest {
                 Integer.class,
                 secureTokens.hash(login.sessionToken())))
                 .isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "select count(*) from verification_mails where token = ?", Integer.class, raw))
+                .isEqualTo(1);
     }
 
     private Integer countVerifications(String tokenHash) {
@@ -260,14 +283,18 @@ class MemberAuthTest {
     /**
      * 발급된 원문 토큰을 가져온다.
      *
-     * <p>서비스는 원문을 돌려주지 않고 해시만 저장하므로 테스트는 메일 요청으로 넘어간 값을
-     * 가로챈다. 운영에서 토큰을 알 수 있는 경로가 메일뿐이라는 사실과 같은 구조다.
+     * <p>서비스는 원문을 돌려주지 않고 인증 테이블에는 해시만 남으므로, 보내려고 아웃박스에
+     * 적어둔 값을 읽는다. 운영에서 토큰을 알 수 있는 경로가 메일뿐이라는 사실과 같은 구조다 —
+     * 여기서 읽는 것이 곧 메일에 실릴 값이다.
+     *
+     * <p>재발송은 항목을 하나 더 만들므로 가장 최근 것을 가져온다.
      */
     private String rawTokenOf(String memberId) {
-        var captor = ArgumentCaptor.forClass(String.class);
-        verify(notificationClient, atLeastOnce())
-                .requestEmailVerification(eq(memberId), anyString(), captor.capture());
-        return captor.getValue();
+        return jdbc.queryForObject(
+                "select token from verification_mails where member_id = ? order by seq desc limit 1",
+                String.class,
+                memberId
+        );
     }
 
     private static String catchMessage(Runnable action) {
