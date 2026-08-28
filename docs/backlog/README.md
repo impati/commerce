@@ -27,20 +27,19 @@ make todo
 
 위에서부터 먼저 한다. 이 순서는 항목 파일에 적지 않는다 — 순서는 바뀌고 항목은 남는다.
 
-1과 5~8은 이전에 정한 순서이고 상대 순서를 그대로 두었다. 2~4는 BL-0004 인터뷰에서 갈라져 나온 알림 전달 건들이고, 9~10은 결제 정합성 작업(BL-0034·0032·0041·0042)에서 나온 것들이다.
+4~7은 이전에 정한 순서이고 상대 순서를 그대로 두었다. 1~3은 [BL-0004](done/bl-0004-member-service-outbox.md)에서 갈라져 나온 알림 전달 건들이고, 8~9는 결제 정합성 작업(BL-0034·0032·0041·0042)에서 나온 것들이다.
 
 | 순서 | 항목 | 왜 이 순서인가 |
 | --- | --- | --- |
-| 1 | [BL-0004](bl-0004-member-service-outbox.md) 인증 메일이 가입 트랜잭션 안에 있다 | 알림 장애가 커넥션 풀을 통해 로그인 장애로 번진다 |
-| 2 | [BL-0048](bl-0048-notification-receive-idempotency.md) 알림 수신 멱등 | BL-0004가 재시도를 붙이는 순간 중복 발송 창이 열린다. 보내는 쪽은 재시도할 수 있어야 하고 거르는 것은 받는 쪽 일이다 |
-| 3 | [BL-0047](bl-0047-notification-dispatch-has-no-claim.md) 알림 발송의 단일 인스턴스 가정 | 위와 증상은 같고 원인이 다르다. 점유 방식은 [ADR-0009](../adr/0009-reconcile-unconfirmed-payments.md)에 이미 있다 |
-| 4 | [BL-0046](bl-0046-order-notification-loss.md) 주문 알림 유실 | BL-0004에서 갈라낸 나머지 절반. 수신측이 멱등해진 뒤에 붙이는 것이 안전하다 |
-| 5 | [BL-0005](bl-0005-token-storage-to-cookie.md) 프론트 토큰 보관을 쿠키로 | XSS로 토큰이 읽힌다 |
-| 6 | [BL-0006](bl-0006-local-profile-smoke.md) local 프로파일 스모크 | 하네스가 못 보는 구간이다. 급하지 않다 |
-| 7 | [BL-0007](bl-0007-password-policy-to-domain.md) 비밀번호 정책을 도메인으로 | 클래스 리뷰에서 나왔다. 지금 동작에는 문제가 없다 |
-| 8 | [BL-0008](bl-0008-duplicate-signup-conflict-response.md) 동시 가입 경합 응답 | 위와 같다 |
-| 9 | [BL-0036](bl-0036-clients-leak-protocol-errors.md) + [BL-0037](bl-0037-downstream-failure-reported-as-conflict.md) 오류 변환과 상태 코드 | 원인이 하나다 — 하위 서비스 장애가 `conflict`로 옮겨져 409로 나가고, 전송 실패는 아예 변환되지 않는다. 담을 종류(`unavailable`, `outcomeUnknown`)는 [BL-0034](done/bl-0034-checkout-payment-integrity.md)와 [BL-0039](done/bl-0039-resolve-unknown-payment-outcome.md)에서 이미 생겼으므로 남은 것은 클라이언트 다섯에 적용하는 일이다. **한 작업으로 묶어 새 번호를 딴다** |
-| 10 | [BL-0030](bl-0030-policy-verification-gaps.md) 정책 규칙 검증 공백 | 상품 노출 전체와 체크아웃 R1~R4. 크지만 기계적이라 앞의 것들이 끝난 뒤가 낫다 |
+| 1 | [BL-0048](bl-0048-notification-receive-idempotency.md) 알림 수신 멱등 | BL-0004가 발신 재시도를 붙여 중복 발송 창이 열려 있다. 보내는 쪽은 재시도할 수 있어야 하고 거르는 것은 받는 쪽 일이다 |
+| 2 | [BL-0047](bl-0047-notification-dispatch-has-no-claim.md) 알림 발송의 단일 인스턴스 가정 | 위와 증상은 같고 원인이 다르다. 점유 방식은 [ADR-0009](../adr/0009-reconcile-unconfirmed-payments.md)에 이미 있다 |
+| 3 | [BL-0046](bl-0046-order-notification-loss.md) 주문 알림 유실 | BL-0004에서 갈라낸 나머지 절반. 수신측이 멱등해진 뒤에 붙이는 것이 안전하다 |
+| 4 | [BL-0005](bl-0005-token-storage-to-cookie.md) 프론트 토큰 보관을 쿠키로 | XSS로 토큰이 읽힌다 |
+| 5 | [BL-0006](bl-0006-local-profile-smoke.md) local 프로파일 스모크 | 하네스가 못 보는 구간이다. 급하지 않다 |
+| 6 | [BL-0007](bl-0007-password-policy-to-domain.md) 비밀번호 정책을 도메인으로 | 클래스 리뷰에서 나왔다. 지금 동작에는 문제가 없다 |
+| 7 | [BL-0008](bl-0008-duplicate-signup-conflict-response.md) 동시 가입 경합 응답 | 위와 같다 |
+| 8 | [BL-0036](bl-0036-clients-leak-protocol-errors.md) + [BL-0037](bl-0037-downstream-failure-reported-as-conflict.md) 오류 변환과 상태 코드 | 원인이 하나다 — 하위 서비스 장애가 `conflict`로 옮겨져 409로 나가고, 전송 실패는 아예 변환되지 않는다. 담을 종류(`unavailable`, `outcomeUnknown`)는 [BL-0034](done/bl-0034-checkout-payment-integrity.md)와 [BL-0039](done/bl-0039-resolve-unknown-payment-outcome.md)에서 이미 생겼으므로 남은 것은 클라이언트 다섯에 적용하는 일이다. **한 작업으로 묶어 새 번호를 딴다** |
+| 9 | [BL-0030](bl-0030-policy-verification-gaps.md) 정책 규칙 검증 공백 | 상품 노출 전체와 체크아웃 R1~R4. 크지만 기계적이라 앞의 것들이 끝난 뒤가 낫다 |
 
 ## 순서를 정하지 않은 항목
 
