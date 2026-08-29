@@ -34,10 +34,11 @@
 | [0006](pd-0006-cart-composition.md) | 장바구니 구성 | 유효 |
 | [0007](pd-0007-product-exposure-and-search.md) | 상품 노출과 검색 | 유효 |
 | [0008](pd-0008-payment-capture.md) | 결제 확정 | 대체됨 ([0011](pd-0011-payment-authorization-and-capture.md)) |
-| [0009](pd-0009-notification-delivery.md) | 알림 기록과 발송 | 유효 |
+| [0009](pd-0009-notification-delivery.md) | 알림 기록과 발송 | 대체됨 ([0016](pd-0016-notification-delivery.md)) |
 | [0010](pd-0010-shipment-progress.md) | 배송 진행 | 대체됨 ([0013](pd-0013-shipment-progress-and-cancellation.md)) |
 | [0011](pd-0011-payment-authorization-and-capture.md) | 결제 승인과 매입 | 유효 |
 | [0012](pd-0012-checkout-and-compensation.md) | 체크아웃 성립과 실패 보상 | 유효 |
 | [0013](pd-0013-shipment-progress-and-cancellation.md) | 배송 진행과 취소 | 유효 |
 | [0014](pd-0014-login-rejection-and-session-lifetime.md) | 로그인 거절과 세션 수명 | 유효 |
 | [0015](pd-0015-unconfirmed-payment-reconciliation.md) | 결제 미확인 주문의 정리 | 유효 |
+| [0016](pd-0016-notification-delivery.md) | 알림 기록과 발송 | 유효 |
