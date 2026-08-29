@@ -82,7 +82,7 @@ public class NotificationExecutor implements NotificationUseCase {
         this.maxAttempts = maxAttempts;
     }
 
-    @Transactional
+    /** {@code @Transactional}을 붙이지 않는다. 저장소 호출이 하나뿐이라 묶을 것이 없다. */
     @Override
     public NotificationDetails record(String eventType, String memberId, String subject, String body) {
         var notification = new Notification(eventType, memberId, subject, body);
