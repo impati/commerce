@@ -38,7 +38,7 @@ public class InternalNotificationController {
     @PostMapping("/email-verifications")
     NotificationResponse requestEmailVerification(@RequestBody EmailVerificationMailRequest request) {
         return NotificationResponseMapper.from(notificationUseCase.requestEmailVerification(
-                request.memberId(), request.email(), request.token()));
+                request.memberId(), request.email(), request.token(), request.idempotencyKey()));
     }
 
     /**
