@@ -71,3 +71,4 @@ make todo
 | [BL-0038](bl-0038-captured-order-leaves-uncommitted-reservation.md) 매입 후 미확정 예약 | BL-0025와 반대 방향으로 처리해야 한다 ([PD-0012-R9](../policy/pd-0012-checkout-and-compensation.md)) |
 | [BL-0044](bl-0044-session-resolve-ignores-member-status.md) 세션 확인이 회원 상태를 무시 | 차단·탈퇴를 붙이는 순간 조용히 성립한다 |
 | [BL-0049](bl-0049-scheduler-test-isolation-is-opt-out.md) 테스트의 스케줄러 격리가 규율에 달려 있다 | 이미 네 곳에서 샜다. 하네스 자신의 신뢰성 문제다 |
+| [BL-0050](bl-0050-order-notification-receive-idempotency.md) 주문 알림 수신 멱등 | [BL-0048](bl-0048-notification-receive-idempotency.md)에서 뺀 나머지 절반. 키를 만들 주체가 미정이다 |
