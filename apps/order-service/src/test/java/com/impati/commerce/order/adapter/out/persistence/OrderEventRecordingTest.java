@@ -24,7 +24,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @SpringBootTest(properties = {
         "spring.datasource.url=jdbc:h2:mem:order-events-record;DB_CLOSE_DELAY=-1",
-        "orders.payment-reconcile-interval=3600000"
+        "orders.payment-reconcile-interval=3600000",
+        // 릴레이도 끈다. 이 테스트는 사건이 PENDING으로 남아 있는 것을 단정하는데, 릴레이가
+        // 집어가면 attempts와 next_attempt_after가 움직여 단정이 깨진다.
+        "orders.event-publish-interval=3600000"
 })
 class OrderEventRecordingTest {
     @Autowired

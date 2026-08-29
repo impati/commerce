@@ -20,7 +20,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>인메모리 맵과 달리 조회는 새 객체를 만들어 돌려준다. 저장하지 않은 변경은 사라진다.
  */
-@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:order-repo;DB_CLOSE_DELAY=-1")
+@SpringBootTest(properties = {
+        "spring.datasource.url=jdbc:h2:mem:order-repo;DB_CLOSE_DELAY=-1",
+        // 사건 발행 릴레이를 끈다 (BL-0049: 끄는 것이 규율에 달려 있다).
+        "orders.event-publish-interval=3600000"
+})
 class JdbcOrderRepositoryTest {
     @Autowired
     private OrderRepository orderRepository;

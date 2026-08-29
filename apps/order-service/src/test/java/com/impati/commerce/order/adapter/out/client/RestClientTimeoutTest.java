@@ -27,7 +27,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  */
 @SpringBootTest(properties = {
         "spring.datasource.url=jdbc:h2:mem:order-timeout;DB_CLOSE_DELAY=-1",
-        "clients.http.read-timeout=300ms"
+        "clients.http.read-timeout=300ms",
+        // 사건 발행 릴레이를 끈다 (BL-0049: 끄는 것이 규율에 달려 있다).
+        "orders.event-publish-interval=3600000",
+        "orders.payment-reconcile-interval=3600000"
 })
 class RestClientTimeoutTest {
     private static ServerSocket silentServer;
