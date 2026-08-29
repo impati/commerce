@@ -23,9 +23,9 @@ class JdbcNotificationRepositoryTest {
     /** 알림 목록은 기록 순서를 유지해야 한다. id가 랜덤이므로 정렬 컬럼이 없으면 순서가 깨진다. */
     @Test
     void keepsInsertionOrder() {
-        var first = new Notification("OrderPaid", "mem_order", "first", "body 1");
-        var second = new Notification("ShipmentCreated", "mem_order", "second", "body 2");
-        var third = new Notification("OrderDelivered", "mem_order", "third", "body 3");
+        var first = Notification.recorded("OrderPaid", "mem_order", "first", "body 1", "evt_order_1");
+        var second = Notification.recorded("ShipmentCreated", "mem_order", "second", "body 2", "evt_order_2");
+        var third = Notification.recorded("OrderDelivered", "mem_order", "third", "body 3", "evt_order_3");
 
         notificationRepository.save(first);
         notificationRepository.save(second);
@@ -102,16 +102,20 @@ class JdbcNotificationRepositoryTest {
     }
 
     /**
-     * 키가 없는 알림은 여럿이어도 제약에 걸리지 않는다.
+     * 기록만 남기는 알림도 키로 걸러진다.
      *
-     * <p>기록만 남기는 알림에는 아직 키가 없다. 유니크 제약이 NULL을 같게 본다면 두 번째
-     * 주문 알림부터 기록이 실패한다.
+     * <p>예전에는 이 경로에 키가 없어 유니크 제약이 NULL을 서로 다르게 보는 성질에 기대고
+     * 있었다. 두 경로가 모두 키를 요구하게 되면서 그 예외가 사라졌다 (ADR-0012).
      */
     @Test
-    void allowsManyNotificationsWithoutAnIdempotencyKey() {
-        notificationRepository.save(new Notification("OrderPaid", "mem_nokey", "one", "body"));
-        notificationRepository.save(new Notification("OrderPaid", "mem_nokey", "two", "body"));
+    void keepsOneRowPerIdempotencyKeyForRecordedNotifications() {
+        var first = notificationRepository.saveIfAbsent(
+                Notification.recorded("OrderPaid", "mem_dedup", "one", "body", "evt_dedup"));
+        var again = notificationRepository.saveIfAbsent(
+                Notification.recorded("OrderPaid", "mem_dedup", "two", "body", "evt_dedup"));
 
-        assertThat(notificationRepository.findByMemberId("mem_nokey")).hasSize(2);
+        assertThat(again.id()).isEqualTo(first.id());
+        assertThat(again.subject()).isEqualTo("one");
+        assertThat(notificationRepository.findByMemberId("mem_dedup")).hasSize(1);
     }
 }

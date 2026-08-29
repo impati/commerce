@@ -178,7 +178,15 @@ public final class ApiContracts {
     public record CheckoutResponse(OrderResponse order, PaymentResponse payment, ShipmentResponse shipment) {
     }
 
-    public record NotificationEventRequest(String eventType, String memberId, String subject, String body) {
+    /**
+     * POST /internal/notifications/events — 주문 사건에서 나온 알림 기록 요청.
+     *
+     * <p>{@code idempotencyKey}는 발신자가 부여한 중복 판정 키이며 필수다. 발신자는 응답을 못
+     * 받으면 처리 여부를 알 수 없고 그 상태에서 할 수 있는 선택은 재시도뿐이므로, 중복을
+     * 없애는 것은 결과를 아는 수신측의 일이다 (ADR-0012).
+     */
+    public record NotificationEventRequest(
+            String eventType, String memberId, String subject, String body, String idempotencyKey) {
     }
 
     /** POST /members/verifications — 이메일 소유 인증 토큰. 단일 사용이며 짧은 만료를 갖는다. */

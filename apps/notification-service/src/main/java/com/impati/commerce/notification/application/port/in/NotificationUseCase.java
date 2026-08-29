@@ -4,8 +4,14 @@ import java.util.List;
 
 /** 알림으로 할 수 있는 일. */
 public interface NotificationUseCase {
-    /** 기록만 한다. 발송은 별도로 일어난다 (PD-0009-R1). */
-    NotificationDetails record(String eventType, String memberId, String subject, String body);
+    /**
+     * 기록만 한다. 발송은 별도로 일어난다 (PD-0009-R1).
+     *
+     * <p>{@code idempotencyKey}가 같은 요청이 다시 오면 새로 적지 않고 먼저 적힌 것을
+     * 돌려준다 (ADR-0012). 그래서 부르는 쪽은 결과를 모를 때 마음 놓고 다시 부를 수 있다.
+     */
+    NotificationDetails record(
+            String eventType, String memberId, String subject, String body, String idempotencyKey);
 
     /**
      * 인증 메일을 아웃박스에 적는다.

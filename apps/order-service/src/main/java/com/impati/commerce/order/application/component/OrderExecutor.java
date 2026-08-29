@@ -145,13 +145,15 @@ public class OrderExecutor implements OrderUseCase {
                 "OrderPaid",
                 memberId,
                 "Order paid",
-                "Order " + order.id() + " has been paid."
+                "Order " + order.id() + " has been paid.",
+                order.id() + ":OrderPaid"
         ));
         notificationClient.notify(new NotificationEventRequest(
                 "ShipmentCreated",
                 memberId,
                 "Shipment ready",
-                "Tracking number: " + shipment.trackingNumber()
+                "Tracking number: " + shipment.trackingNumber(),
+                order.id() + ":ShipmentCreated"
         ));
         return new CheckoutResult(OrderMapper.toDetails(order), payment, shipment);
     }
@@ -229,7 +231,8 @@ public class OrderExecutor implements OrderUseCase {
                 "OrderCancelled",
                 memberId,
                 "Order cancelled",
-                "Order " + order.id() + " was cancelled: " + cause.getMessage()
+                "Order " + order.id() + " was cancelled: " + cause.getMessage(),
+                order.id() + ":OrderCancelled"
         ));
     }
 
@@ -291,7 +294,8 @@ public class OrderExecutor implements OrderUseCase {
                 "OrderDelivered",
                 order.memberId(),
                 "Order delivered",
-                "Order " + order.id() + " has been delivered."
+                "Order " + order.id() + " has been delivered.",
+                order.id() + ":OrderDelivered"
         ));
         return OrderMapper.toDetails(order);
     }
