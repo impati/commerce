@@ -13,6 +13,17 @@ import java.util.List;
 public interface NotificationRepository {
     void save(Notification notification);
 
+    /**
+     * 같은 멱등 키의 알림이 없을 때만 기록하고, 저장된 것을 돌려준다 (ADR-0011).
+     *
+     * <p>이미 있으면 새로 만들지 않고 <b>먼저 기록된 것</b>을 돌려준다. 그것이 멱등 수신의
+     * 정의다 — 두 번째 요청은 첫 번째의 결과를 본다.
+     *
+     * <p>승자를 정하는 것은 조회가 아니라 유니크 제약이다. 조회로 먼저 확인하고 없으면 넣는
+     * 방식은 동시에 들어온 두 요청이 둘 다 "없음"을 읽는 경합을 남긴다.
+     */
+    Notification saveIfAbsent(Notification notification);
+
     /** 기록된 순서를 유지한다. */
     List<Notification> findAll();
 

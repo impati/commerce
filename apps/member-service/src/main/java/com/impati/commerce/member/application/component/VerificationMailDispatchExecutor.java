@@ -121,7 +121,7 @@ public class VerificationMailDispatchExecutor implements VerificationMailDispatc
      */
     private boolean dispatch(VerificationMail mail) {
         try {
-            notificationClient.requestEmailVerification(mail.memberId(), mail.email(), mail.token());
+            notificationClient.requestEmailVerification(mail.memberId(), mail.email(), mail.token(), mail.id());
             mail.markSent();
         } catch (RuntimeException failure) {
             mail.markFailed(failure.getMessage(), maxAttempts);

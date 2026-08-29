@@ -17,6 +17,7 @@ import java.util.List;
 @Component
 public class NotificationExecutor implements NotificationUseCase {
     private static final Logger log = LoggerFactory.getLogger(NotificationExecutor.class);
+
     private static final int MAX_ATTEMPTS = 3;
     private static final int DISPATCH_BATCH = 20;
 
@@ -48,6 +49,10 @@ public class NotificationExecutor implements NotificationUseCase {
      * <p>여기서 바로 발송하면 메일 시스템 장애가 가입 실패가 된다. 기록만 커밋하고 발송은
      * {@link #dispatchPending()}이 별도로 가져간다.
      *
+     * <p>같은 멱등 키로 다시 오면 먼저 적힌 것을 그대로 돌려준다. 부르는 쪽은 응답을 못 받았을
+     * 때 재시도할 수밖에 없으므로, 그 재시도가 메일 두 통이 되지 않게 하는 것이 여기의 일이다
+     * (ADR-0011).
+     *
      * <p>토큰은 쿼리가 아니라 프래그먼트에 담는다. 프래그먼트는 브라우저가 서버로 보내지 않으므로
      * 정적 호스트와 중간 프록시의 접근 로그에 남지 않는다. 쿼리에 담으면 토큰보다 오래 사는
      * 로그에 평문으로 쌓이고, 링크 스캐너처럼 JS를 실행하지 않는 요청은 토큰을 소진하지도 않은
@@ -55,16 +60,17 @@ public class NotificationExecutor implements NotificationUseCase {
      */
     @Transactional
     @Override
-    public NotificationDetails requestEmailVerification(String memberId, String email, String token) {
+    public NotificationDetails requestEmailVerification(
+            String memberId, String email, String token, String idempotencyKey) {
         var notification = Notification.mail(
                 "EmailVerificationRequested",
                 memberId,
                 email,
                 "이메일 주소를 확인해주세요",
-                "아래 링크로 이메일 소유를 확인해주세요.\n" + verificationBaseUrl + "#token=" + token
+                "아래 링크로 이메일 소유를 확인해주세요.\n" + verificationBaseUrl + "#token=" + token,
+                idempotencyKey
         );
-        notificationRepository.save(notification);
-        return NotificationMapper.toDetails(notification);
+        return NotificationMapper.toDetails(notificationRepository.saveIfAbsent(notification));
     }
 
     /**

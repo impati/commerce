@@ -63,7 +63,7 @@ class VerificationMailDispatchExecutorTest {
         assertThat(summary.claimed()).isEqualTo(1);
         assertThat(summary.sent()).isZero();
         verify(notificationClient, times(1))
-                .requestEmailVerification("mem_1", "user@impati.dev", "raw-token");
+                .requestEmailVerification("mem_1", "user@impati.dev", "raw-token", mail.id());
     }
 
     /** 한 건의 저장 실패가 나머지 항목을 막지 않는다. 그 건은 PENDING으로 남아 다음 주기가 가져간다. */

@@ -7,5 +7,11 @@ package com.impati.commerce.member.application.port.out;
  * 요청만 하고 메일 벤더를 알지 못한다.
  */
 public interface NotificationClient {
-    void requestEmailVerification(String memberId, String email, String token);
+    /**
+     * 인증 메일 발송을 요청한다.
+     *
+     * <p>{@code idempotencyKey}로 아웃박스 행 id를 넘긴다. 재시도는 같은 키로 가므로
+     * notification-service가 중복을 걸러낸다 (ADR-0011).
+     */
+    void requestEmailVerification(String memberId, String email, String token, String idempotencyKey);
 }

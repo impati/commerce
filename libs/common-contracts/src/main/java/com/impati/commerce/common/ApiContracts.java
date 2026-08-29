@@ -219,8 +219,14 @@ public final class ApiContracts {
     public record AccessTokenResponse(String accessToken, String accessTokenExpiresAt) {
     }
 
-    /** POST /notifications/email-verifications — member-service가 notification-service에 보낸다. */
-    public record EmailVerificationMailRequest(String memberId, String email, String token) {
+    /**
+     * POST /notifications/email-verifications — member-service가 notification-service에 보낸다.
+     *
+     * <p>{@code idempotencyKey}는 발신자가 부여한다. 같은 키로 다시 오면 알림을 새로 만들지 않고
+     * 먼저 기록된 것을 돌려준다 (ADR-0011). member-service는 아웃박스 행 id를 쓰므로 재시도는
+     * 같은 키로, 사용자가 요청한 재발송은 새 키로 온다.
+     */
+    public record EmailVerificationMailRequest(String memberId, String email, String token, String idempotencyKey) {
     }
 
     /** 로컬 데모에서 발송함을 들여다보기 위한 응답. 운영 프로파일에는 조회 경로가 없다. */

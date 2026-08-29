@@ -37,7 +37,8 @@ class VerificationLinkTest {
      */
     @Test
     void putsTokenInFragment() {
-        notificationUseCase.requestEmailVerification("mem_link", "link@impati.dev", "tok_link");
+        notificationUseCase.requestEmailVerification(
+                "mem_link", "link@impati.dev", "tok_link", "vmail_link");
 
         assertThat(bodyOf("link@impati.dev"))
                 .contains("https://shop.impati.dev/verify#token=tok_link");
@@ -51,7 +52,8 @@ class VerificationLinkTest {
      */
     @Test
     void neverPutsTokenInQueryString() {
-        notificationUseCase.requestEmailVerification("mem_query", "query@impati.dev", "tok_query");
+        notificationUseCase.requestEmailVerification(
+                "mem_query", "query@impati.dev", "tok_query", "vmail_query");
 
         assertThat(bodyOf("query@impati.dev")).doesNotContain("?token=");
     }

@@ -18,6 +18,9 @@ import static org.mockito.Mockito.doThrow;
  *
  * <p>스케줄러가 배경에서 대기 항목을 집어가면 결과가 흔들리므로 주기를 아주 길게 둔다.
  * 발송은 테스트가 직접 호출한다.
+ *
+ * <p>멱등 키는 테스트마다 다르게 준다. 같은 값을 쓰면 유니크 제약에 걸려 두 번째 테스트가
+ * 자기 알림을 만들지 못한다 — 그것이 바로 이 제약이 하는 일이다 (ADR-0011).
  */
 @SpringBootTest(properties = {
         "spring.datasource.url=jdbc:h2:mem:notification-outbox;DB_CLOSE_DELAY=-1",
@@ -35,7 +38,8 @@ class OutboxTest {
     void recordsPendingWithoutSending() {
         doNothing().when(mailSender).send(anyString(), anyString(), anyString());
 
-        notificationUseCase.requestEmailVerification("mem_pending", "pending@impati.dev", "tok_pending");
+        notificationUseCase.requestEmailVerification(
+                "mem_pending", "pending@impati.dev", "tok_pending", "vmail_pending");
 
         var entry = outboxOf("pending@impati.dev");
         assertThat(entry.deliveryStatus()).isEqualTo("PENDING");
@@ -47,7 +51,8 @@ class OutboxTest {
     @Test
     void dispatchMarksSent() {
         doNothing().when(mailSender).send(anyString(), anyString(), anyString());
-        notificationUseCase.requestEmailVerification("mem_sent", "sent@impati.dev", "tok_sent");
+        notificationUseCase.requestEmailVerification(
+                "mem_sent", "sent@impati.dev", "tok_sent", "vmail_sent");
 
         notificationUseCase.dispatchPending();
 
@@ -56,12 +61,15 @@ class OutboxTest {
         assertThat(entry.attempts()).isEqualTo(1);
     }
 
-    /** [PD-0009-R4] 발송 실패가 기록으로 남는다. 예외를 삼켜 사라지게 하지 않는다. 3회를 채우면 실패로 확정된다. */
+    /**
+     * [PD-0009-R4] 발송 실패가 기록으로 남는다. 예외를 삼켜 사라지게 하지 않는다. 3회를 채우면 실패로 확정된다.
+     */
     @Test
     void keepsFailureVisibleAndRetriesUntilLimit() {
         doThrow(new IllegalStateException("smtp down"))
                 .when(mailSender).send(anyString(), anyString(), anyString());
-        notificationUseCase.requestEmailVerification("mem_fail", "fail@impati.dev", "tok_fail");
+        notificationUseCase.requestEmailVerification(
+                "mem_fail", "fail@impati.dev", "tok_fail", "vmail_fail");
 
         notificationUseCase.dispatchPending();
         assertThat(outboxOf("fail@impati.dev").deliveryStatus()).isEqualTo("PENDING");

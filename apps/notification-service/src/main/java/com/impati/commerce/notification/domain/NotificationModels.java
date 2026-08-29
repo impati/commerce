@@ -30,6 +30,16 @@ public final class NotificationModels {
      */
     public static final class Notification {
         private final String id;
+
+        /**
+         * 발신자가 부여한 중복 판정 키. 같은 키의 알림은 하나만 존재한다 (ADR-0011).
+         *
+         * <p>기록만 남기는 알림은 아직 키가 없어 {@code null}이다. 없는 것을 임의의 값으로
+         * 채우지 않는다 — 랜덤 키는 유니크 제약을 통과하므로 멱등한 척하면서 아무것도 거르지
+         * 못한다. 주문 알림 경로에 키를 붙이는 것은 별도 항목이다.
+         */
+        private final String idempotencyKey;
+
         private final String eventType;
         private final String memberId;
         private final String subject;
@@ -40,29 +50,51 @@ public final class NotificationModels {
         private int attempts;
         private String lastError;
 
-        /** 기록만 남기는 알림. */
+        /** 기록만 남기는 알림. 중복 판정 대상이 아니므로 키가 없다. */
         public Notification(String eventType, String memberId, String subject, String body) {
-            this(Ids.newId("ntf"), eventType, memberId, subject, body,
+            this(Ids.newId("ntf"), null, eventType, memberId, subject, body,
                     Channel.NONE, null, DeliveryStatus.SKIPPED, 0, null);
         }
 
-        /** 메일로 보내야 하는 알림. 기록 시점에는 PENDING이고 발송은 분리된다. */
+        /**
+         * 메일로 보내야 하는 알림. 기록 시점에는 PENDING이고 발송은 분리된다.
+         *
+         * <p>멱등 키를 요구한다. 없으면 거절하는 이유는, 선택값으로 두면 키를 빠뜨린 호출자가
+         * 조용히 중복 발송으로 돌아가고 그 사실이 사용자에게 메일이 두 통 도착할 때까지
+         * 드러나지 않기 때문이다 (ADR-0011).
+         */
         public static Notification mail(
                 String eventType,
                 String memberId,
                 String recipient,
                 String subject,
-                String body
+                String body,
+                String idempotencyKey
         ) {
             if (recipient == null || recipient.isBlank()) {
                 throw DomainException.validation("mail recipient is required");
             }
-            return new Notification(Ids.newId("ntf"), eventType, memberId, subject, body,
-                    Channel.MAIL, recipient, DeliveryStatus.PENDING, 0, null);
+            if (idempotencyKey == null || idempotencyKey.isBlank()) {
+                throw DomainException.validation("idempotency key is required");
+            }
+            return new Notification(
+                    Ids.newId("ntf"),
+                    idempotencyKey,
+                    eventType,
+                    memberId,
+                    subject,
+                    body,
+                    Channel.MAIL,
+                    recipient,
+                    DeliveryStatus.PENDING,
+                    0,
+                    null
+            );
         }
 
         private Notification(
                 String id,
+                String idempotencyKey,
                 String eventType,
                 String memberId,
                 String subject,
@@ -75,6 +107,7 @@ public final class NotificationModels {
         ) {
             this.id = id;
             this.eventType = eventType;
+            this.idempotencyKey = idempotencyKey;
             this.memberId = memberId;
             this.subject = subject;
             this.body = body;
@@ -88,6 +121,7 @@ public final class NotificationModels {
         /** 저장된 상태에서 복원한다. 영속화 어댑터만 쓴다. */
         public static Notification restore(
                 String id,
+                String idempotencyKey,
                 String eventType,
                 String memberId,
                 String subject,
@@ -98,12 +132,16 @@ public final class NotificationModels {
                 int attempts,
                 String lastError
         ) {
-            return new Notification(id, eventType, memberId, subject, body,
+            return new Notification(id, idempotencyKey, eventType, memberId, subject, body,
                     channel, recipient, deliveryStatus, attempts, lastError);
         }
 
         public String id() {
             return id;
+        }
+
+        public String idempotencyKey() {
+            return idempotencyKey;
         }
 
         public String eventType() {
@@ -140,6 +178,10 @@ public final class NotificationModels {
 
         public String lastError() {
             return lastError;
+        }
+
+        public boolean isSent() {
+            return deliveryStatus == DeliveryStatus.SENT;
         }
 
         public void markSent() {
