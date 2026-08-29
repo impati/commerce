@@ -5,7 +5,9 @@ import com.impati.commerce.order.application.port.out.OrderRepository;
 import com.impati.commerce.order.domain.OrderModels.Address;
 import com.impati.commerce.order.domain.OrderModels.Order;
 import com.impati.commerce.order.domain.OrderModels.OrderEvent;
+import com.impati.commerce.order.domain.OrderModels.OrderEventType;
 import com.impati.commerce.order.domain.OrderModels.OrderLine;
+import com.impati.commerce.order.domain.OrderModels.PublishStatus;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -115,6 +117,50 @@ public class JdbcOrderRepository implements OrderRepository {
             ) values (
                 :id, :type, :order_id, :member_id, :payload, :publish_status, :attempts, :last_error
             )
+            """;
+
+    private static final String EVENT_COLUMNS = """
+            id, type, order_id, member_id, payload, publish_status, attempts, last_error
+            """;
+
+    /**
+     * 발행할 수 있는 사건을 한 문장으로 집는다 (ADR-0011과 같은 방식).
+     *
+     * <p><b>배타성은 하위 질의의 {@code for update skip locked}가 만든다.</b> 조건이 하위 질의
+     * 안에 있으면 바깥 {@code where}에 남는 것은 {@code id in (...)}뿐이고, 다른 인스턴스가
+     * 먼저 점유하고 커밋해도 그 재검사를 통과한다 — id는 여전히 그 목록에 있기 때문이다.
+     * {@code skip locked}가 있으면 남이 붙잡은 행을 건너뛰므로 진 쪽이 빈손이 되지 않는다.
+     */
+    private static final String CLAIM_FOR_PUBLISH = """
+            update order_events
+               set tx_id = :tx_id,
+                   next_attempt_after = :retry_after
+             where id in (
+                   select id
+                     from order_events
+                    where publish_status = 'PENDING'
+                      and (next_attempt_after is null or next_attempt_after <= :now)
+                    order by seq
+                    limit :limit
+                      for update skip locked
+             )
+            """;
+
+    /**
+     * 방금 집은 묶음을 읽는다.
+     *
+     * <p>상태로도 거른다. 점유 식별자만으로 거르면 식별자가 재사용됐을 때 예전 주기의 종단된
+     * 사건이 딸려 나온다 (BL-0010).
+     */
+    private static final String SELECT_CLAIMED_EVENTS = "select " + EVENT_COLUMNS
+            + " from order_events where tx_id = :tx_id and publish_status = 'PENDING' order by seq";
+
+    private static final String UPDATE_EVENT_PUBLISH = """
+            update order_events
+               set publish_status = :publish_status,
+                   attempts = :attempts,
+                   last_error = :last_error
+             where id = :id
             """;
 
     private final NamedParameterJdbcTemplate jdbc;
@@ -243,6 +289,45 @@ public class JdbcOrderRepository implements OrderRepository {
             return Optional.empty();
         }
         return findById(orderId);
+    }
+
+    @Override
+    @Transactional
+    public List<OrderEvent> claimForPublish(String publishId, int batchSize, Duration retryDelay) {
+        var now = now();
+        var claimed = jdbc.update(CLAIM_FOR_PUBLISH, new MapSqlParameterSource()
+                .addValue("tx_id", publishId)
+                .addValue("now", now)
+                .addValue("retry_after", now.plus(retryDelay))
+                .addValue("limit", batchSize));
+        if (claimed == 0) {
+            return List.of();
+        }
+        return jdbc.query(
+                SELECT_CLAIMED_EVENTS, new MapSqlParameterSource("tx_id", publishId), eventRowMapper());
+    }
+
+    @Override
+    @Transactional
+    public void savePublishResult(OrderEvent event) {
+        jdbc.update(UPDATE_EVENT_PUBLISH, new MapSqlParameterSource()
+                .addValue("id", event.id())
+                .addValue("publish_status", event.publishStatus().name())
+                .addValue("attempts", event.attempts())
+                .addValue("last_error", event.lastError()));
+    }
+
+    private RowMapper<OrderEvent> eventRowMapper() {
+        return (rs, rowNum) -> OrderEvent.restore(
+                rs.getString("id"),
+                OrderEventType.valueOf(rs.getString("type")),
+                rs.getString("order_id"),
+                rs.getString("member_id"),
+                payloadCodec.decode(rs.getString("payload")),
+                PublishStatus.valueOf(rs.getString("publish_status")),
+                rs.getInt("attempts"),
+                rs.getString("last_error")
+        );
     }
 
     private OffsetDateTime now() {
