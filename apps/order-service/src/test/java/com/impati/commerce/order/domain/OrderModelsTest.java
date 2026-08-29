@@ -47,7 +47,7 @@ class OrderModelsTest {
         order.attachReservation("rsv_demo");
         order.attachPayment("pay_demo");
         order.markPaid();
-        order.attachShipment("shp_demo");
+        order.attachShipment("shp_demo", "TRK-shp_demo");
         order.markDelivered();
 
         assertThat(order.total()).isEqualTo(Money.krw(58000));
@@ -65,7 +65,7 @@ class OrderModelsTest {
     @Test
     void orderWithoutPaymentCannotBeMarkedUnknown() {
         var order = newOrder();
-        order.cancel();
+        order.cancel("test");
 
         assertThatThrownBy(order::markPaymentOutcomeUnknown)
                 .isInstanceOf(DomainException.class);
@@ -76,7 +76,7 @@ class OrderModelsTest {
     void resolvingTheMarkLeavesTheOrderCancelled() {
         var order = newOrder();
         order.attachPayment("pay_resolve");
-        order.cancel();
+        order.cancel("test");
         order.markPaymentOutcomeUnknown();
 
         order.resolvePaymentOutcome();

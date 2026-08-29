@@ -131,6 +131,7 @@ class PaymentReconciliationTest {
         server = customizer.getServer();
         server.reset();
         jdbc.update("delete from order_lines");
+        jdbc.update("delete from order_events");
         jdbc.update("delete from orders");
     }
 
@@ -339,7 +340,7 @@ class PaymentReconciliationTest {
     private Order markedOrder(String paymentId) {
         var order = newOrder();
         order.attachPayment(paymentId);
-        order.cancel();
+        order.cancel("test");
         order.markPaymentOutcomeUnknown();
         orderRepository.save(order);
         return order;

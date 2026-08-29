@@ -32,6 +32,7 @@
 | [0009](0009-reconcile-unconfirmed-payments.md) | 결제 미확인 주문을 점유 임차로 정리한다 | 승인됨 |
 | [0010](0010-verification-mail-outbox.md) | 인증 메일 발송을 아웃박스로 분리한다 | 승인됨 |
 | [0011](0011-deliver-verification-mail-once.md) | 인증 메일을 한 번만 보낸다 | 승인됨 |
+| [0012](0012-order-events-as-outbox.md) | 주문 상태 전이를 사건으로 커밋하고 발행한다 | 승인됨 |
 
 ## ADR이 없는 합의
 

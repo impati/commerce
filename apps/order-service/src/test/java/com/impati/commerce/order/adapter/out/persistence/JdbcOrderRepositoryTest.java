@@ -57,7 +57,7 @@ class JdbcOrderRepositoryTest {
 
         order.markPaid();
         orderRepository.save(order);
-        order.attachShipment("shp_round");
+        order.attachShipment("shp_round", "TRK-shp_round");
         orderRepository.save(order);
 
         var loaded = orderRepository.findById(order.id()).orElseThrow();
@@ -90,7 +90,7 @@ class JdbcOrderRepositoryTest {
     void keepsAndFindsTheUnknownPaymentOutcomeMark() {
         var order = newOrder();
         order.attachPayment("pay_unknown");
-        order.cancel();
+        order.cancel("test");
         order.markPaymentOutcomeUnknown();
         orderRepository.save(order);
 
@@ -104,7 +104,7 @@ class JdbcOrderRepositoryTest {
     void resolvedOrderLeavesTheUnknownPaymentOutcomeList() {
         var order = newOrder();
         order.attachPayment("pay_resolved");
-        order.cancel();
+        order.cancel("test");
         order.markPaymentOutcomeUnknown();
         orderRepository.save(order);
 
@@ -195,7 +195,7 @@ class JdbcOrderRepositoryTest {
     private Order markedOrder(String paymentId) {
         var order = newOrder();
         order.attachPayment(paymentId);
-        order.cancel();
+        order.cancel("test");
         order.markPaymentOutcomeUnknown();
         orderRepository.save(order);
         return order;

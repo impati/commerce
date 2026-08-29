@@ -136,7 +136,7 @@ public class OrderExecutor implements OrderUseCase {
 
         // 매입이 끝났다. 여기부터는 아무것도 되돌리지 않는다 (PD-0012-R8).
         order.markPaid();
-        order.attachShipment(shipment.id());
+        order.attachShipment(shipment.id(), shipment.trackingNumber());
         orderRepository.save(order);
 
         commitReservationQuietly(order, reservationId);
@@ -214,7 +214,7 @@ public class OrderExecutor implements OrderUseCase {
                 && cause instanceof DomainException domain
                 && domain.code().equals("outcome_unknown");
         var cancelled = compensate("cancel-order", order.id(), () -> {
-            order.cancel();
+            order.cancel(cause.getMessage());
             if (captureOutcomeUnknown) {
                 // 매입 여부를 모른 채 취소한다. 환불이 필요한지 나중에 결제에 물어야 한다.
                 order.markPaymentOutcomeUnknown();

@@ -4,6 +4,7 @@ import com.impati.commerce.common.ApiContracts.Money;
 import com.impati.commerce.order.application.port.out.OrderRepository;
 import com.impati.commerce.order.domain.OrderModels.Address;
 import com.impati.commerce.order.domain.OrderModels.Order;
+import com.impati.commerce.order.domain.OrderModels.OrderEvent;
 import com.impati.commerce.order.domain.OrderModels.OrderLine;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -108,12 +109,23 @@ public class JdbcOrderRepository implements OrderRepository {
     private static final String SELECT_LINES =
             "select " + LINE_COLUMNS + " from order_lines where order_id = :order_id order by line_no";
 
+    private static final String INSERT_EVENT = """
+            insert into order_events (
+                id, type, order_id, member_id, payload, publish_status, attempts, last_error
+            ) values (
+                :id, :type, :order_id, :member_id, :payload, :publish_status, :attempts, :last_error
+            )
+            """;
+
     private final NamedParameterJdbcTemplate jdbc;
     private final Clock clock;
+    private final OrderEventPayloadCodec payloadCodec;
 
-    public JdbcOrderRepository(NamedParameterJdbcTemplate jdbc, Clock clock) {
+    public JdbcOrderRepository(
+            NamedParameterJdbcTemplate jdbc, Clock clock, OrderEventPayloadCodec payloadCodec) {
         this.jdbc = jdbc;
         this.clock = clock;
+        this.payloadCodec = payloadCodec;
     }
 
     /**
@@ -135,6 +147,14 @@ public class JdbcOrderRepository implements OrderRepository {
         for (var index = 0; index < lines.size(); index++) {
             jdbc.update(INSERT_LINE, lineParams(order.id(), index, lines.get(index)));
         }
+
+        // 사건을 같은 트랜잭션에 쓴다 (ADR-0012). 여기가 원자성이 성립하는 자리다 — 주문 행이
+        // 커밋되면 그 전이의 사건도 커밋됐고, 롤백되면 둘 다 없다. 비우는 것까지 해야 다음
+        // save가 같은 사건을 다시 쓰지 않는다.
+        for (var event : order.pendingEvents()) {
+            jdbc.update(INSERT_EVENT, eventParams(event));
+        }
+        order.clearPendingEvents();
     }
 
     @Override
@@ -162,6 +182,18 @@ public class JdbcOrderRepository implements OrderRepository {
                 .addValue("ship_city", address.city())
                 .addValue("ship_postal_code", address.postalCode())
                 .addValue("ship_default_address", address.defaultAddress());
+    }
+
+    private MapSqlParameterSource eventParams(OrderEvent event) {
+        return new MapSqlParameterSource()
+                .addValue("id", event.id())
+                .addValue("type", event.type().name())
+                .addValue("order_id", event.orderId())
+                .addValue("member_id", event.memberId())
+                .addValue("payload", payloadCodec.encode(event.payload()))
+                .addValue("publish_status", event.publishStatus().name())
+                .addValue("attempts", event.attempts())
+                .addValue("last_error", event.lastError());
     }
 
     private MapSqlParameterSource lineParams(String orderId, int lineNo, OrderLine line) {
