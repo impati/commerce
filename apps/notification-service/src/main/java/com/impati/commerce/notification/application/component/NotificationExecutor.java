@@ -80,12 +80,15 @@ public class NotificationExecutor implements NotificationUseCase {
      * 때 재시도할 수밖에 없으므로, 그 재시도가 메일 두 통이 되지 않게 하는 것이 여기의 일이다
      * (ADR-0011).
      *
+     * <p>{@code @Transactional}을 붙이지 않는다. 저장소 호출이 하나뿐이라 묶을 것이 없고,
+     * {@link NotificationRepository#saveIfAbsent}는 제약 위반 뒤에 이어서 읽어야 하므로
+     * 트랜잭션 안에서 돌면 안 된다.
+     *
      * <p>토큰은 쿼리가 아니라 프래그먼트에 담는다. 프래그먼트는 브라우저가 서버로 보내지 않으므로
      * 정적 호스트와 중간 프록시의 접근 로그에 남지 않는다. 쿼리에 담으면 토큰보다 오래 사는
      * 로그에 평문으로 쌓이고, 링크 스캐너처럼 JS를 실행하지 않는 요청은 토큰을 소진하지도 않은
      * 채 로그만 남긴다. 근거는 ADR-0006.
      */
-    @Transactional
     @Override
     public NotificationDetails requestEmailVerification(
             String memberId, String email, String token, String idempotencyKey) {

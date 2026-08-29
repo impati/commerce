@@ -23,6 +23,10 @@ public interface NotificationRepository {
      *
      * <p>승자를 정하는 것은 조회가 아니라 유니크 제약이다. 조회로 먼저 확인하고 없으면 넣는
      * 방식은 동시에 들어온 두 요청이 둘 다 "없음"을 읽는 경합을 남긴다.
+     *
+     * <p><b>구현은 이 호출을 하나의 트랜잭션으로 묶지 않는다.</b> 제약 위반 뒤에 이어서 읽어야
+     * 하는데, 실패한 문장이 트랜잭션을 abort 상태로 만드는 DB에서는 그 읽기가 함께 실패한다.
+     * 중복을 처리하려고 만든 경로가 정확히 중복일 때 깨진다.
      */
     Notification saveIfAbsent(Notification notification);
 

@@ -13,8 +13,7 @@ public interface NotificationUseCase {
      * <p>{@code idempotencyKey}가 같은 요청이 다시 오면 새로 적지 않고 먼저 적힌 것을
      * 돌려준다 (ADR-0011). 그래서 부르는 쪽은 결과를 모를 때 마음 놓고 다시 부를 수 있다.
      */
-    NotificationDetails requestEmailVerification(
-            String memberId, String email, String token, String idempotencyKey);
+    NotificationDetails requestEmailVerification(String memberId, String email, String token, String idempotencyKey);
 
     /** 아직 보내지 않은 것을 보낸다. 이번 주기에 발송이 확정된 건수를 돌려준다. */
     int dispatchPending();

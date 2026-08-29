@@ -117,8 +117,14 @@ public class JdbcNotificationRepository implements NotificationRepository {
         }
     }
 
+    /**
+     * 트랜잭션으로 묶지 않는다.
+     *
+     * <p>제약 위반 뒤에 이어서 읽어야 하는데, 실패한 문장이 트랜잭션을 abort 상태로 만드는
+     * DB에서는 그 읽기가 함께 실패한다. 중복을 처리하려고 만든 경로가 정확히 중복일 때 깨진다.
+     * 문장이 각각 커밋되면 INSERT 실패가 아무것도 오염시키지 않는다.
+     */
     @Override
-    @Transactional
     public Notification saveIfAbsent(Notification notification) {
         try {
             jdbc.update(INSERT, params(notification));
