@@ -1,6 +1,7 @@
 package com.impati.commerce.order.adapter.out.persistence;
 
 import com.impati.commerce.common.ApiContracts.Money;
+import com.impati.commerce.order.application.component.OrderChanges;
 import com.impati.commerce.order.application.port.out.OrderRepository;
 import com.impati.commerce.order.domain.OrderModels.Address;
 import com.impati.commerce.order.domain.OrderModels.Order;
@@ -34,12 +35,15 @@ class OrderEventRecordingTest {
     private OrderRepository orderRepository;
 
     @Autowired
+    private OrderChanges orderChanges;
+
+    @Autowired
     private JdbcTemplate jdbc;
 
     @Test
     void recordsCreationAsAnEvent() {
         var order = newOrder();
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         assertThat(typesOf(order.id())).containsExactly("ORDER_CREATED");
         assertThat(payloadOf(order.id(), "ORDER_CREATED"))
@@ -50,17 +54,17 @@ class OrderEventRecordingTest {
     @Test
     void recordsEachStatusTransitionInOrder() {
         var order = newOrder();
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         order.attachPayment("pay_evt");
         order.markPaid();
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         order.attachShipment("shp_evt", "TRK-77");
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         order.markDelivered();
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         assertThat(typesOf(order.id()))
                 .containsExactly("ORDER_CREATED", "ORDER_PAID", "SHIPMENT_CREATED", "ORDER_DELIVERED");
@@ -76,9 +80,9 @@ class OrderEventRecordingTest {
     @Test
     void doesNotRewriteAlreadyCommittedEvents() {
         var order = newOrder();
-        orderRepository.save(order);
-        orderRepository.save(order);
-        orderRepository.save(order);
+        orderChanges.commit(order);
+        orderChanges.commit(order);
+        orderChanges.commit(order);
 
         assertThat(typesOf(order.id())).containsExactly("ORDER_CREATED");
     }
@@ -87,12 +91,12 @@ class OrderEventRecordingTest {
     @Test
     void restoredOrderCarriesNoPendingEvents() {
         var order = newOrder();
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         var loaded = orderRepository.findById(order.id()).orElseThrow();
-        assertThat(loaded.pendingEvents()).isEmpty();
+        assertThat(loaded.hasPendingEvents()).isFalse();
 
-        orderRepository.save(loaded);
+        orderChanges.commit(loaded);
         assertThat(typesOf(order.id())).containsExactly("ORDER_CREATED");
     }
 
@@ -100,7 +104,7 @@ class OrderEventRecordingTest {
     @Test
     void recordsEventsAsPending() {
         var order = newOrder();
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         var row = jdbc.queryForMap(
                 "select publish_status, attempts, next_attempt_after, tx_id, member_id"
@@ -121,10 +125,10 @@ class OrderEventRecordingTest {
     @Test
     void recordsCancellationReason() {
         var order = newOrder();
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         order.cancel("payment declined");
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         assertThat(payloadOf(order.id(), "ORDER_CANCELLED")).contains("\"reason\":\"payment declined\"");
     }

@@ -4,6 +4,7 @@ import com.impati.commerce.common.ApiContracts.Money;
 import com.impati.commerce.common.ApiContracts.NotificationEventRequest;
 import com.impati.commerce.order.application.port.in.OrderEventPublishUseCase;
 import com.impati.commerce.order.application.port.out.NotificationClient;
+import com.impati.commerce.order.application.component.OrderChanges;
 import com.impati.commerce.order.application.port.out.OrderRepository;
 import com.impati.commerce.order.domain.OrderModels.Address;
 import com.impati.commerce.order.domain.OrderModels.Order;
@@ -48,6 +49,9 @@ class OrderEventPublishTest {
     private OrderRepository orderRepository;
 
     @Autowired
+    private OrderChanges orderChanges;
+
+    @Autowired
     private JdbcTemplate jdbc;
 
     @MockBean
@@ -67,7 +71,7 @@ class OrderEventPublishTest {
         var order = savedOrder();
         order.attachPayment("pay_pub");
         order.markPaid();
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         var settled = orderEventPublishUseCase.publishPending();
 
@@ -82,7 +86,7 @@ class OrderEventPublishTest {
         var order = savedOrder();
         order.attachPayment("pay_key");
         order.markPaid();
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         orderEventPublishUseCase.publishPending();
 
@@ -121,7 +125,7 @@ class OrderEventPublishTest {
         var order = savedOrder();
         order.attachPayment("pay_fail");
         order.markPaid();
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         // 첫 주기가 두 사건을 집는다. ORDER_CREATED는 알림이 없어 곧바로 종단되고,
         // ORDER_PAID만 실패로 남는다.
@@ -157,9 +161,9 @@ class OrderEventPublishTest {
         var order = savedOrder();
         order.attachPayment("pay_iso");
         order.markPaid();
-        orderRepository.save(order);
+        orderChanges.commit(order);
         order.attachShipment("shp_iso", "TRK-ISO");
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         doThrow(new IllegalStateException("only paid fails"))
                 .when(notificationClient)
@@ -178,7 +182,7 @@ class OrderEventPublishTest {
     void rendersCancellationReasonFromTheEvent() {
         var order = savedOrder();
         order.cancel("payment declined");
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         orderEventPublishUseCase.publishPending();
 
@@ -220,7 +224,7 @@ class OrderEventPublishTest {
                 List.of(new OrderLine("sku_tee_white_m", "prd_tee", "Tee", "White M", 1, Money.krw(29_000))),
                 new Address("adr_pub", "home", "Demo Customer", "010", "1 Main", "Seoul", "04524", true)
         );
-        orderRepository.save(order);
+        orderChanges.commit(order);
         return order;
     }
 }

@@ -5,6 +5,7 @@ import com.impati.commerce.common.ApiContracts.ErrorResponse;
 import com.impati.commerce.common.ApiContracts.Money;
 import com.impati.commerce.common.ApiContracts.PaymentResponse;
 import com.impati.commerce.order.application.port.in.PaymentReconciliationUseCase;
+import com.impati.commerce.order.application.component.OrderChanges;
 import com.impati.commerce.order.application.port.out.OrderRepository;
 import com.impati.commerce.order.domain.OrderModels.Address;
 import com.impati.commerce.order.domain.OrderModels.Order;
@@ -109,6 +110,9 @@ class PaymentReconciliationTest {
 
     @Autowired
     private OrderRepository orderRepository;
+
+    @Autowired
+    private OrderChanges orderChanges;
 
     @Autowired
     private MockServerRestClientCustomizer customizer;
@@ -289,7 +293,7 @@ class PaymentReconciliationTest {
     void unmarkedOrderIsNotACandidate() {
         var order = newOrder();
         order.attachPayment("pay_untouched");
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         var summary = paymentReconciliationUseCase.reconcileUnknownPaymentOutcomes();
 
@@ -344,7 +348,7 @@ class PaymentReconciliationTest {
         order.attachPayment(paymentId);
         order.cancel("test");
         order.markPaymentOutcomeUnknown();
-        orderRepository.save(order);
+        orderChanges.commit(order);
         return order;
     }
 

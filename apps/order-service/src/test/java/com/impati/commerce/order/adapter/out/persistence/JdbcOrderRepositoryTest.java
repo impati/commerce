@@ -1,6 +1,7 @@
 package com.impati.commerce.order.adapter.out.persistence;
 
 import com.impati.commerce.common.ApiContracts.Money;
+import com.impati.commerce.order.application.component.OrderChanges;
 import com.impati.commerce.order.application.port.out.OrderRepository;
 import com.impati.commerce.order.domain.OrderModels.Address;
 import com.impati.commerce.order.domain.OrderModels.Order;
@@ -30,13 +31,16 @@ class JdbcOrderRepositoryTest {
     private OrderRepository orderRepository;
 
     @Autowired
+    private OrderChanges orderChanges;
+
+    @Autowired
     private JdbcTemplate jdbc;
 
     @Test
     void roundTripsOrderWithLinesAndAddress() {
         var order = newOrder();
         order.attachReservation("rsv_round");
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         var loaded = orderRepository.findById(order.id()).orElseThrow();
 
@@ -55,14 +59,14 @@ class JdbcOrderRepositoryTest {
     @Test
     void savesStatusTransitionsOnTheSameRow() {
         var order = newOrder();
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         order.attachPayment("pay_round");
 
         order.markPaid();
-        orderRepository.save(order);
+        orderChanges.commit(order);
         order.attachShipment("shp_round", "TRK-shp_round");
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         var loaded = orderRepository.findById(order.id()).orElseThrow();
         assertThat(loaded.status()).isEqualTo("FULFILLING");
@@ -75,7 +79,7 @@ class JdbcOrderRepositoryTest {
     @Test
     void discardsChangesThatWereNotSaved() {
         var order = newOrder();
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         order.attachPayment("pay_unsaved");
 
@@ -96,7 +100,7 @@ class JdbcOrderRepositoryTest {
         order.attachPayment("pay_unknown");
         order.cancel("test");
         order.markPaymentOutcomeUnknown();
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         assertThat(orderRepository.findById(order.id()).orElseThrow().paymentOutcomeUnknown()).isTrue();
         assertThat(flagColumn(order.id(), "payment_outcome_unknown")).isTrue();
@@ -110,10 +114,10 @@ class JdbcOrderRepositoryTest {
         order.attachPayment("pay_resolved");
         order.cancel("test");
         order.markPaymentOutcomeUnknown();
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         order.resolvePaymentOutcome();
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         assertThat(flagColumn(order.id(), "payment_outcome_unknown")).isFalse();
         assertThat(orderRepository.findPaymentReconciliationCandidates(100)).doesNotContain(order.id());
@@ -123,7 +127,7 @@ class JdbcOrderRepositoryTest {
     @Test
     void ordinaryOrderIsNotMarked() {
         var order = newOrder();
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         assertThat(flagColumn(order.id(), "payment_outcome_unknown")).isFalse();
         assertThat(orderRepository.findPaymentReconciliationCandidates(100)).doesNotContain(order.id());
@@ -162,7 +166,7 @@ class JdbcOrderRepositoryTest {
     @Test
     void unmarkedOrderCannotBeClaimed() {
         var order = newOrder();
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         assertThat(orderRepository.claimForPaymentReconciliation(order.id(), Duration.ofMinutes(1))).isEmpty();
     }
@@ -179,7 +183,7 @@ class JdbcOrderRepositoryTest {
         orderRepository.claimForPaymentReconciliation(order.id(), Duration.ofMinutes(1));
         var claimedAt = column(order.id(), "payment_reconcile_after");
 
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         assertThat(column(order.id(), "payment_reconcile_after")).isEqualTo(claimedAt);
     }
@@ -191,7 +195,7 @@ class JdbcOrderRepositoryTest {
         orderRepository.claimForPaymentReconciliation(order.id(), Duration.ofMinutes(1));
 
         order.resolvePaymentOutcome();
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         assertThat(column(order.id(), "payment_reconcile_after")).isNull();
     }
@@ -201,7 +205,7 @@ class JdbcOrderRepositoryTest {
         order.attachPayment(paymentId);
         order.cancel("test");
         order.markPaymentOutcomeUnknown();
-        orderRepository.save(order);
+        orderChanges.commit(order);
         return order;
     }
 
@@ -217,7 +221,7 @@ class JdbcOrderRepositoryTest {
         var order = newOrder();
         order.attachPayment("pay_column");
         order.markPaid();
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         assertThat(column(order.id(), "ship_address_id")).isEqualTo("addr_demo");
         assertThat(column(order.id(), "ship_alias")).isEqualTo("home");
@@ -234,7 +238,7 @@ class JdbcOrderRepositoryTest {
     @Test
     void writesEachLineFieldToItsOwnColumn() {
         var order = newOrder();
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         var first = jdbc.queryForMap(
                 "select sku_id, product_id, product_name, sku_name, quantity, unit_amount, unit_currency"

@@ -3,7 +3,7 @@ package com.impati.commerce.order.application.component;
 import com.impati.commerce.common.Ids;
 import com.impati.commerce.order.application.port.in.OrderEventPublishUseCase;
 import com.impati.commerce.order.application.port.out.OrderEventPublisher;
-import com.impati.commerce.order.application.port.out.OrderRepository;
+import com.impati.commerce.order.application.port.out.OrderEventRepository;
 import com.impati.commerce.order.domain.OrderModels.OrderEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,7 +31,7 @@ public class OrderEventPublishExecutor implements OrderEventPublishUseCase {
      */
     private static final Duration WORST_CASE_PER_EVENT = Duration.ofSeconds(4);
 
-    private final OrderRepository orderRepository;
+    private final OrderEventRepository orderEventRepository;
     private final OrderEventPublisher orderEventPublisher;
     private final int batchSize;
     private final Duration retryDelay;
@@ -50,7 +50,7 @@ public class OrderEventPublishExecutor implements OrderEventPublishUseCase {
      * 전제가 무너지므로 설정 두 값의 조합으로 깨뜨릴 수 없게 막는다.
      */
     public OrderEventPublishExecutor(
-            OrderRepository orderRepository,
+            OrderEventRepository orderEventRepository,
             OrderEventPublisher orderEventPublisher,
             @Value("${orders.event-publish-batch-size:10}") int batchSize,
             @Value("${orders.event-publish-retry-delay:60s}") Duration retryDelay,
@@ -74,7 +74,7 @@ public class OrderEventPublishExecutor implements OrderEventPublishUseCase {
                     "orders.event-publish-retry-delay must cover the whole batch: batch-size "
                             + batchSize + " needs at least " + leaseNeeded + " but was " + retryDelay);
         }
-        this.orderRepository = orderRepository;
+        this.orderEventRepository = orderEventRepository;
         this.orderEventPublisher = orderEventPublisher;
         this.batchSize = batchSize;
         this.retryDelay = retryDelay;
@@ -93,7 +93,7 @@ public class OrderEventPublishExecutor implements OrderEventPublishUseCase {
     @Override
     public int publishPending() {
         var publishId = Ids.newId("pub");
-        var claimed = orderRepository.claimForPublish(publishId, batchSize, retryDelay);
+        var claimed = orderEventRepository.claimForPublish(publishId, batchSize, retryDelay);
         var settled = 0;
         for (var event : claimed) {
             try {
@@ -121,7 +121,7 @@ public class OrderEventPublishExecutor implements OrderEventPublishUseCase {
             log.warn("order event publish failed id={} type={} attempts={}",
                     event.id(), event.type(), event.attempts());
         }
-        orderRepository.savePublishResult(event);
+        orderEventRepository.savePublishResult(event);
         return event.isPublished();
     }
 }

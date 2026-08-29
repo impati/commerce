@@ -30,7 +30,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * checkout saga를 조율한다.
  *
- * <p>협력자가 일곱인 것은 이 서비스가 saga 조율자이기 때문이다. 각 협력자를 별도 포트로 두어
+ * <p>협력자가 여덟인 것은 이 서비스가 saga 조율자이기 때문이다. 각 협력자를 별도 포트로 두어
  * 어떤 서비스에 의존하는지가 생성자에 그대로 드러나게 한다.
  *
  * <p>순서의 핵심은 <b>매입이 마지막 되돌릴 수 있는 단계보다 뒤에 있다</b>는 것이다
@@ -42,6 +42,7 @@ public class OrderExecutor implements OrderUseCase {
     private static final Logger log = LoggerFactory.getLogger(OrderExecutor.class);
 
     private final OrderRepository orderRepository;
+    private final OrderChanges orderChanges;
     private final MemberClient memberClient;
     private final CartClient cartClient;
     private final CatalogClient catalogClient;
@@ -51,6 +52,7 @@ public class OrderExecutor implements OrderUseCase {
 
     public OrderExecutor(
             OrderRepository orderRepository,
+            OrderChanges orderChanges,
             MemberClient memberClient,
             CartClient cartClient,
             CatalogClient catalogClient,
@@ -59,6 +61,7 @@ public class OrderExecutor implements OrderUseCase {
             ShippingClient shippingClient
     ) {
         this.orderRepository = orderRepository;
+        this.orderChanges = orderChanges;
         this.memberClient = memberClient;
         this.cartClient = cartClient;
         this.catalogClient = catalogClient;
@@ -89,7 +92,7 @@ public class OrderExecutor implements OrderUseCase {
             );
         }).toList();
         var order = new Order(memberId, orderLines, address);
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         String reservationId = null;
         String paymentId = null;
@@ -104,7 +107,7 @@ public class OrderExecutor implements OrderUseCase {
                             .toList()
             )).id();
             order.attachReservation(reservationId);
-            orderRepository.save(order);
+            orderChanges.commit(order);
 
             paymentId = paymentClient.authorizePayment(new AuthorizePaymentRequest(
                     order.id(),
@@ -113,7 +116,7 @@ public class OrderExecutor implements OrderUseCase {
                     paymentToken
             )).id();
             order.attachPayment(paymentId);
-            orderRepository.save(order);
+            orderChanges.commit(order);
 
             shipment = shippingClient.createShipment(new CreateShipmentRequest(
                     order.id(),
@@ -132,7 +135,7 @@ public class OrderExecutor implements OrderUseCase {
         // 매입이 끝났다. 여기부터는 아무것도 되돌리지 않는다 (PD-0012-R8).
         order.markPaid();
         order.attachShipment(shipment.id(), shipment.trackingNumber());
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         commitReservationQuietly(order, reservationId);
         clearCartQuietly(order, memberId);
@@ -204,7 +207,7 @@ public class OrderExecutor implements OrderUseCase {
                 // 매입 여부를 모른 채 취소한다. 환불이 필요한지 나중에 결제에 물어야 한다.
                 order.markPaymentOutcomeUnknown();
             }
-            orderRepository.save(order);
+            orderChanges.commit(order);
         }, cause);
     }
 
@@ -261,7 +264,7 @@ public class OrderExecutor implements OrderUseCase {
     public OrderDetails markDelivered(String orderId) {
         var order = getOrder(orderId);
         order.markDelivered();
-        orderRepository.save(order);
+        orderChanges.commit(order);
         return OrderMapper.toDetails(order);
     }
 

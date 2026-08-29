@@ -1,7 +1,7 @@
 package com.impati.commerce.order.application.component;
 
 import com.impati.commerce.order.application.port.out.OrderEventPublisher;
-import com.impati.commerce.order.application.port.out.OrderRepository;
+import com.impati.commerce.order.application.port.out.OrderEventRepository;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -67,7 +67,7 @@ class OrderEventPublishConfigTest {
 
     private OrderEventPublishExecutor executor(int batchSize, Duration retryDelay, int maxAttempts) {
         return new OrderEventPublishExecutor(
-                mock(OrderRepository.class), mock(OrderEventPublisher.class),
+                mock(OrderEventRepository.class), mock(OrderEventPublisher.class),
                 batchSize, retryDelay, maxAttempts);
     }
 }

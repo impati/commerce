@@ -2,7 +2,8 @@ package com.impati.commerce.order.adapter.out.persistence;
 
 import com.impati.commerce.common.ApiContracts.Money;
 import com.impati.commerce.common.Ids;
-import com.impati.commerce.order.application.port.out.OrderRepository;
+import com.impati.commerce.order.application.component.OrderChanges;
+import com.impati.commerce.order.application.port.out.OrderEventRepository;
 import com.impati.commerce.order.domain.OrderModels.Address;
 import com.impati.commerce.order.domain.OrderModels.Order;
 import com.impati.commerce.order.domain.OrderModels.OrderEvent;
@@ -42,7 +43,10 @@ class OrderEventClaimExclusivityTest {
     private static final int BATCH = 3;
 
     @Autowired
-    private OrderRepository orderRepository;
+    private OrderEventRepository orderEventRepository;
+
+    @Autowired
+    private OrderChanges orderChanges;
 
     @Test
     void twoConcurrentClaimsNeverOverlap() throws Exception {
@@ -50,13 +54,13 @@ class OrderEventClaimExclusivityTest {
         try {
             for (var round = 0; round < ROUNDS; round++) {
                 for (var index = 0; index < ORDERS_PER_ROUND; index++) {
-                    orderRepository.save(newOrder("mem_exclusive_" + round + "_" + index));
+                    orderChanges.commit(newOrder("mem_exclusive_" + round + "_" + index));
                 }
 
                 var start = new CountDownLatch(1);
                 Callable<List<String>> claim = () -> {
                     start.await();
-                    return orderRepository
+                    return orderEventRepository
                             .claimForPublish(Ids.newId("pub"), BATCH, Duration.ofSeconds(600))
                             .stream()
                             .map(OrderEvent::id)

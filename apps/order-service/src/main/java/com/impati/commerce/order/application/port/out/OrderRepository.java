@@ -1,21 +1,22 @@
 package com.impati.commerce.order.application.port.out;
 
 import com.impati.commerce.order.domain.OrderModels.Order;
-import com.impati.commerce.order.domain.OrderModels.OrderEvent;
 
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 
 /**
- * 주문 저장소 포트. 구현은 {@code adapter/out/persistence}에 둔다.
+ * 주문 조회 포트. 구현은 {@code adapter/out/persistence}에 둔다.
  *
- * <p>저장은 aggregate 전체를 덮어쓴다. 조회로 얻은 {@link Order}를 변형한 것만으로
- * 저장됐다고 가정하지 말고 {@link #save}를 명시적으로 부른다.
+ * <p><b>저장이 여기 없다.</b> 주문의 상태 변경과 그로부터 나온 사건은 함께 성립해야 하는
+ * 응집 단위이고, 그 단위를 {@code OrderChanges}가 소유한다 (ADR-0012). 쓰기를 여기 두면
+ * 사건 없이 저장하는 경로가 열리고 규칙이 문장으로만 남는다.
+ *
+ * <p>조회로 얻은 {@link Order}를 변형한 것만으로 저장됐다고 가정하지 말 것. 변경했으면
+ * {@code OrderChanges}에 명시적으로 넘긴다.
  */
 public interface OrderRepository {
-    void save(Order order);
-
     Optional<Order> findById(String orderId);
 
     /**
@@ -42,22 +43,4 @@ public interface OrderRepository {
      */
     Optional<Order> claimForPaymentReconciliation(String orderId, Duration retryDelay);
 
-    /**
-     * 지금 발행할 수 있는 사건을 한 번에 점유하고 그 묶음을 돌려준다 (ADR-0012).
-     *
-     * <p>이름이 {@code find}가 아닌 이유는 <b>쓰는 조회</b>이기 때문이다. 다음 시도 시각을
-     * {@code retryDelay} 뒤로 밀어 다른 인스턴스가 같은 사건을 집지 못하게 하고, 그 밀어둔
-     * 시각이 실패했을 때의 재시도 간격이 된다 — 실패 경로에 쓰기가 없어야 하므로 성공을
-     * 전제하지 않는다.
-     *
-     * <p>{@code publishId}는 이 주기가 집은 묶음을 가리킨다. 같은 값으로 두 번 부르지 않는다.
-     *
-     * <p>한 번에 집는 수를 제한하는 것은 밀린 건수가 한 주기의 길이를 정하지 않게 하려는
-     * 것이다. 그 건수가 커지는 시점이 정확히 소비자 장애 중이다. 임차는 이 묶음 전체를
-     * 처리하는 동안 유지돼야 하므로 {@code retryDelay}는 배치 길이보다 넉넉해야 한다.
-     */
-    List<OrderEvent> claimForPublish(String publishId, int batchSize, Duration retryDelay);
-
-    /** 발행 결과를 기록한다. 사건의 사실 부분은 바뀌지 않으므로 발행 상태만 쓴다. */
-    void savePublishResult(OrderEvent event);
 }

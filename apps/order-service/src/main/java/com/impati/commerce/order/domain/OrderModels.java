@@ -407,23 +407,27 @@ public final class OrderModels {
         }
 
         /**
-         * 아직 저장되지 않은 사건. 저장소가 주문 행과 같은 트랜잭션에서 쓴다.
+         * 아직 넘기지 않은 사건을 <b>가져가며 비운다</b>.
+         *
+         * <p>읽기와 비우기가 한 연산인 이유는 둘을 나누면 한쪽만 하는 조합이 생기기 때문이다 —
+         * 읽고 안 비우면 다음 커밋에서 같은 사건이 다시 쓰이고, 안 읽고 비우면 사건이 조용히
+         * 사라진다. {@code checkout}은 한 주문을 여러 번 커밋하므로 두 경로 다 실재한다.
+         *
+         * <p>이름이 {@code get}이 아닌 것은 이 조회가 쓰기이기 때문이다. 조회로 보이는 것이
+         * 몰래 바꾸는 상황을 이름으로 없앤다.
          *
          * <p>복원한 주문은 비어 있다. {@link #restore}가 상태 전이를 거치지 않고 status를 그대로
          * 세우기 때문이며, 이미 일어난 일을 다시 사건으로 만들면 소비자가 두 번 본다.
          */
-        public List<OrderEvent> pendingEvents() {
-            return List.copyOf(pendingEvents);
+        public List<OrderEvent> drainPendingEvents() {
+            var drained = List.copyOf(pendingEvents);
+            pendingEvents.clear();
+            return drained;
         }
 
-        /**
-         * 커밋된 사건을 비운다. 영속화 어댑터만 쓴다.
-         *
-         * <p>비우지 않으면 다음 {@link #save}에서 같은 사건이 다시 쓰인다. {@code checkout}은 한
-         * 주문을 여러 번 저장하므로 이 경로가 실재한다.
-         */
-        public void clearPendingEvents() {
-            pendingEvents.clear();
+        /** 아직 넘기지 않은 사건이 있는가. 비우지 않는다. */
+        public boolean hasPendingEvents() {
+            return !pendingEvents.isEmpty();
         }
     }
 }

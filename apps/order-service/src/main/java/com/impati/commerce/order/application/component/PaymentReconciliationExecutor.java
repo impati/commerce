@@ -33,6 +33,7 @@ public class PaymentReconciliationExecutor implements PaymentReconciliationUseCa
     private static final String REFUNDED = "REFUNDED";
 
     private final OrderRepository orderRepository;
+    private final OrderChanges orderChanges;
     private final PaymentClient paymentClient;
     private final int batchSize;
     private final Duration retryDelay;
@@ -47,6 +48,7 @@ public class PaymentReconciliationExecutor implements PaymentReconciliationUseCa
      */
     public PaymentReconciliationExecutor(
             OrderRepository orderRepository,
+            OrderChanges orderChanges,
             PaymentClient paymentClient,
             @Value("${orders.payment-reconcile-batch-size:50}") int batchSize,
             @Value("${orders.payment-reconcile-retry-delay:60s}") Duration retryDelay
@@ -60,6 +62,7 @@ public class PaymentReconciliationExecutor implements PaymentReconciliationUseCa
                     "orders.payment-reconcile-retry-delay must be positive but was " + retryDelay);
         }
         this.orderRepository = orderRepository;
+        this.orderChanges = orderChanges;
         this.paymentClient = paymentClient;
         this.batchSize = batchSize;
         this.retryDelay = retryDelay;
@@ -122,6 +125,6 @@ public class PaymentReconciliationExecutor implements PaymentReconciliationUseCa
                     "unexpected payment status for reconciliation: " + payment.status());
         }
         order.resolvePaymentOutcome();
-        orderRepository.save(order);
+        orderChanges.commit(order);
     }
 }
