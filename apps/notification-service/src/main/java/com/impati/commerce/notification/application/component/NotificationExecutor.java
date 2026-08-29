@@ -141,8 +141,15 @@ public class NotificationExecutor implements NotificationUseCase {
         var claimed = notificationRepository.claimForDispatch(dispatchId, batchSize, retryDelay);
         var settled = 0;
         for (var notification : claimed) {
-            if (deliverOnce(notification)) {
-                settled++;
+            try {
+                if (deliverOnce(notification)) {
+                    settled++;
+                }
+            } catch (RuntimeException failure) {
+                // 결과를 적는 것까지 실패한 경우다. 점유가 이미 시각을 밀어두었으므로 이 건은
+                // 최소 간격 뒤에 다시 집힌다 — 여기서 복구할 것이 없고, 나머지 건을 계속한다.
+                log.error("notification dispatch aborted, claim keeps the backoff id={}",
+                        notification.id(), failure);
             }
         }
         if (!claimed.isEmpty()) {
