@@ -43,11 +43,11 @@ public class JdbcNotificationRepository implements NotificationRepository {
             """;
 
     /**
-     * 멱등 키와 다음 시도 시각은 갱신하지 않는다.
+     * 멱등 키와 점유 컬럼은 갱신하지 않는다.
      *
-     * <p>키는 기록 시점에 정해지고 바뀌지 않는다. 다음 시도 시각은 작업 큐의 사정이라
-     * 애그리거트가 모르며, {@link #claimForDispatch}만 정한다 — 여기서 함께 덮으면 저장 한 번에
-     * 점유가 지워져 다른 인스턴스가 곧바로 같은 건을 집는다.
+     * <p>키는 기록 시점에 정해지고 바뀌지 않는다. 점유는 작업 큐의 사정이라 애그리거트가
+     * 모르며 {@link #claimForDispatch}만 정한다 — 여기서 함께 덮으면 저장 한 번에 점유가
+     * 지워져 다른 인스턴스가 곧바로 같은 건을 집는다.
      */
     private static final String UPDATE = """
             update notifications
@@ -59,32 +59,35 @@ public class JdbcNotificationRepository implements NotificationRepository {
 
     private static final String SELECT_ALL = "select " + COLUMNS + " from notifications order by seq";
 
-    private static final String SELECT_BY_ID = "select " + COLUMNS + " from notifications where id = :id";
-
     private static final String SELECT_BY_IDEMPOTENCY_KEY = "select " + COLUMNS
             + " from notifications where idempotency_key = :idempotency_key";
 
     private static final String SELECT_BY_MEMBER = "select " + COLUMNS
             + " from notifications where member_id = :member_id order by seq";
 
-    private static final String SELECT_DISPATCH_CANDIDATES = """
-            select id
-              from notifications
-             where channel = 'MAIL'
-               and delivery_status = 'PENDING'
-               and (next_attempt_after is null or next_attempt_after <= :now)
-             order by seq
-             limit :limit
-            """;
-
+    /**
+     * 보낼 수 있는 것들을 한 문장으로 집는다.
+     *
+     * <p>대상 선택을 하위 질의로 분리한 이유는 {@code update ... limit}을 지원하지 않는 DB가
+     * 있기 때문이다. 갱신된 행 수가 이 주기가 집은 건수다.
+     */
     private static final String CLAIM_FOR_DISPATCH = """
             update notifications
-               set next_attempt_after = :retry_after
-             where id = :id
-               and channel = 'MAIL'
-               and delivery_status = 'PENDING'
-               and (next_attempt_after is null or next_attempt_after <= :now)
+               set tx_id = :tx_id,
+                   next_attempt_after = :retry_after
+             where id in (
+                   select id
+                     from notifications
+                    where channel = 'MAIL'
+                      and delivery_status = 'PENDING'
+                      and (next_attempt_after is null or next_attempt_after <= :now)
+                    order by seq
+                    limit :limit
+             )
             """;
+
+    private static final String SELECT_CLAIMED = "select " + COLUMNS
+            + " from notifications where tx_id = :tx_id order by seq";
 
     private static final RowMapper<Notification> ROW_MAPPER = (rs, rowNum) -> Notification.restore(
             rs.getString("id"),
@@ -148,27 +151,18 @@ public class JdbcNotificationRepository implements NotificationRepository {
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public List<String> findDispatchCandidates(int batchSize) {
-        return jdbc.queryForList(SELECT_DISPATCH_CANDIDATES, new MapSqlParameterSource()
-                .addValue("now", now())
-                .addValue("limit", batchSize), String.class);
-    }
-
-    @Override
     @Transactional
-    public Optional<Notification> claimForDispatch(String notificationId, Duration retryDelay) {
+    public List<Notification> claimForDispatch(String dispatchId, int batchSize, Duration retryDelay) {
         var now = now();
         var claimed = jdbc.update(CLAIM_FOR_DISPATCH, new MapSqlParameterSource()
-                .addValue("id", notificationId)
+                .addValue("tx_id", dispatchId)
                 .addValue("now", now)
-                .addValue("retry_after", now.plus(retryDelay)));
+                .addValue("retry_after", now.plus(retryDelay))
+                .addValue("limit", batchSize));
         if (claimed == 0) {
-            return Optional.empty();
+            return List.of();
         }
-        return jdbc.query(SELECT_BY_ID, new MapSqlParameterSource("id", notificationId), ROW_MAPPER)
-                .stream()
-                .findFirst();
+        return jdbc.query(SELECT_CLAIMED, new MapSqlParameterSource("tx_id", dispatchId), ROW_MAPPER);
     }
 
     private Optional<Notification> findByIdempotencyKey(String idempotencyKey) {
