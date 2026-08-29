@@ -19,4 +19,4 @@
 
 가입 트랜잭션이 notification-service의 응답 시간에 묶이지 않는다. 발송 실패가 유실되지 않고 재시도되며, 그 재시도가 프로세스 재시작을 넘어 살아남는다. 재시도 한도를 넘긴 것은 상태로 남아 관측된다.
 
-order-service → notification-service 구간은 원인이 달라 [BL-0046](bl-0046-order-notification-loss.md)으로 분리했다.
+order-service → notification-service 구간은 원인이 달라 [BL-0052](../bl-0052-order-notification-delivered-once.md)으로 분리했다.

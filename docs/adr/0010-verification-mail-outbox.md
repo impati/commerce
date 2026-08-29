@@ -73,7 +73,7 @@
 
 ### 공용 아웃박스 라이브러리로 뺀다 — 지금은 아님
 
-order-service도 같은 것이 필요하므로([BL-0046](../backlog/bl-0046-order-notification-loss.md)) 중복이 생긴다. 그러나 페이로드가 다르고 사례가 둘뿐이다. 라이브러리가 Flyway 위치와 테이블 이름을 강제하게 되는 것도 비용이다. 세 번째가 나올 때 뺀다.
+order-service도 같은 것이 필요하므로([BL-0052](../backlog/bl-0052-order-notification-delivered-once.md)) 중복이 생긴다. 그러나 페이로드가 다르고 사례가 둘뿐이다. 라이브러리가 Flyway 위치와 테이블 이름을 강제하게 되는 것도 비용이다. 세 번째가 나올 때 뺀다.
 
 ## 결과
 
@@ -89,7 +89,7 @@ order-service도 같은 것이 필요하므로([BL-0046](../backlog/bl-0046-orde
 
 ## 재검토 조건
 
-- order-service에도 아웃박스가 생길 때 ([BL-0046](../backlog/bl-0046-order-notification-loss.md)). 세 번째 사례이므로 공용 라이브러리 선택지가 다시 열린다.
+- order-service에도 아웃박스가 생길 때 ([BL-0052](../backlog/bl-0052-order-notification-delivered-once.md)). 세 번째 사례이므로 공용 라이브러리 선택지가 다시 열린다.
 - 수신측이 멱등해질 때 ([BL-0048](../backlog/bl-0048-notification-receive-idempotency.md)). 중복을 감수한다는 전제가 사라진다.
 - 메시지 브로커가 들어올 때. 발송 대상이 HTTP에서 브로커로 바뀌고 재시도 책임이 옮겨간다.
 - 인증 메일 외의 발송이 member-service에 생길 때. 페이로드가 한 종류라는 전제가 깨지므로 표현 방식을 다시 본다.

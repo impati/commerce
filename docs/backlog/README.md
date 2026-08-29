@@ -27,11 +27,11 @@ make todo
 
 위에서부터 먼저 한다. 이 순서는 항목 파일에 적지 않는다 — 순서는 바뀌고 항목은 남는다.
 
-2~5는 이전에 정한 순서이고 상대 순서를 그대로 두었다. 1은 [BL-0004](done/bl-0004-member-service-outbox.md)에서 갈라져 나온 알림 전달 건이고, 6~7은 결제 정합성 작업(BL-0034·0032·0041·0042)에서 나온 것들이다.
+2~5는 이전에 정한 순서이고 상대 순서를 그대로 두었다. 1은 BL-0046과 BL-0050을 합친 항목이고, 6~7은 결제 정합성 작업(BL-0034·0032·0041·0042)에서 나온 것들이다.
 
 | 순서 | 항목 | 왜 이 순서인가 |
 | --- | --- | --- |
-| 1 | [BL-0046](bl-0046-order-notification-loss.md) 주문 알림 유실 | BL-0004에서 갈라낸 나머지 절반. 수신측이 멱등해졌으므로 이제 붙일 수 있다 |
+| 1 | [BL-0052](bl-0052-order-notification-delivered-once.md) 주문 알림 유실·중복 | BL-0004와 BL-0048이 member 쪽에서 닫은 것을 order 쪽에서 닫는다. 유실과 중복이 한 결정에 걸려 있다 |
 | 2 | [BL-0005](bl-0005-token-storage-to-cookie.md) 프론트 토큰 보관을 쿠키로 | XSS로 토큰이 읽힌다 |
 | 3 | [BL-0006](bl-0006-local-profile-smoke.md) local 프로파일 스모크 | 하네스가 못 보는 구간이다. 급하지 않다 |
 | 4 | [BL-0007](bl-0007-password-policy-to-domain.md) 비밀번호 정책을 도메인으로 | 클래스 리뷰에서 나왔다. 지금 동작에는 문제가 없다 |
@@ -69,5 +69,4 @@ make todo
 | [BL-0038](bl-0038-captured-order-leaves-uncommitted-reservation.md) 매입 후 미확정 예약 | BL-0025와 반대 방향으로 처리해야 한다 ([PD-0012-R9](../policy/pd-0012-checkout-and-compensation.md)) |
 | [BL-0044](bl-0044-session-resolve-ignores-member-status.md) 세션 확인이 회원 상태를 무시 | 차단·탈퇴를 붙이는 순간 조용히 성립한다 |
 | [BL-0049](bl-0049-scheduler-test-isolation-is-opt-out.md) 테스트의 스케줄러 격리가 규율에 달려 있다 | 이미 네 곳에서 샜다. 하네스 자신의 신뢰성 문제다 |
-| [BL-0050](bl-0050-order-notification-receive-idempotency.md) 주문 알림 수신 멱등 | [BL-0048](done/bl-0048-notification-receive-idempotency.md)에서 뺀 나머지 절반. 키를 만들 주체가 미정이다 |
 | [BL-0051](bl-0051-separate-notification-dispatch-worker.md) 알림 발송을 API 프로세스에서 분리 | 정확성이 아니라 구성의 문제. 스케일 축과 자원 격리. [BL-0012](bl-0012-split-runtime-modules.md)와 잇닿아 있다 |
