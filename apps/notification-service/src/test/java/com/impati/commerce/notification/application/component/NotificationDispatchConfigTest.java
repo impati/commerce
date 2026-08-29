@@ -42,6 +42,26 @@ class NotificationDispatchConfigTest {
                 .hasMessageContaining("max-attempts");
     }
 
+    /**
+     * 임차가 배치 전체를 덮지 못하면 뜨지 않는다 (PD-0016-R6).
+     *
+     * <p>한 번에 집은 건을 다 처리하기 전에 임차가 만료되면 아직 처리 중인 건을 다른
+     * 인스턴스가 집는다. 일괄 점유의 전제가 이 관계이므로 설정 조합으로 깨뜨릴 수 없어야 한다.
+     * 건당 최악 8초 기준으로 20건은 160초가 필요하다.
+     */
+    @Test
+    void rejectsRetryDelayShorterThanTheBatchTakes() {
+        assertThatThrownBy(() -> executor(20, VALID_DELAY, 3))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("cover the whole batch");
+    }
+
+    /** 관계를 만족하면 뜬다. 검증이 정상 조합까지 막으면 서비스가 아예 안 뜬다. */
+    @Test
+    void acceptsRetryDelayThatCoversTheBatch() {
+        executor(5, VALID_DELAY, 3);
+    }
+
     private NotificationExecutor executor(int batchSize, Duration retryDelay, int maxAttempts) {
         return new NotificationExecutor(
                 mock(NotificationRepository.class),

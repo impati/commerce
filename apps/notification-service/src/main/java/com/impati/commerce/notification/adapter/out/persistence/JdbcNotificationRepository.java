@@ -70,6 +70,11 @@ public class JdbcNotificationRepository implements NotificationRepository {
      *
      * <p>대상 선택을 하위 질의로 분리한 이유는 {@code update ... limit}을 지원하지 않는 DB가
      * 있기 때문이다. 갱신된 행 수가 이 주기가 집은 건수다.
+     *
+     * <p><b>{@code for update skip locked}가 배타성을 만든다.</b> 조건이 하위 질의 안에 있으면
+     * 바깥 {@code where}는 {@code id in (...)}뿐이라, 다른 인스턴스가 먼저 점유하고 커밋해도
+     * 그 재검사를 통과해 같은 행을 다시 갱신한다. 그러면 두 인스턴스가 같은 묶음을 손에 들고
+     * 나란히 발송한다. 이 절이 있으면 남이 붙잡은 행을 건너뛰고 다른 행을 집는다.
      */
     private static final String CLAIM_FOR_DISPATCH = """
             update notifications
@@ -83,11 +88,18 @@ public class JdbcNotificationRepository implements NotificationRepository {
                       and (next_attempt_after is null or next_attempt_after <= :now)
                     order by seq
                     limit :limit
+                      for update skip locked
              )
             """;
 
+    /**
+     * 방금 집은 묶음을 읽는다.
+     *
+     * <p>상태로도 거른다. 점유 식별자만으로 거르면 식별자가 재사용됐을 때 예전 주기의 종단된
+     * 행이 딸려 나온다 (BL-0010).
+     */
     private static final String SELECT_CLAIMED = "select " + COLUMNS
-            + " from notifications where tx_id = :tx_id order by seq";
+            + " from notifications where tx_id = :tx_id and delivery_status = 'PENDING' order by seq";
 
     private static final RowMapper<Notification> ROW_MAPPER = (rs, rowNum) -> Notification.restore(
             rs.getString("id"),

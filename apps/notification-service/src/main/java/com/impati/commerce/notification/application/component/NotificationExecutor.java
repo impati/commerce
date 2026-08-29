@@ -20,6 +20,15 @@ import java.util.List;
 public class NotificationExecutor implements NotificationUseCase {
     private static final Logger log = LoggerFactory.getLogger(NotificationExecutor.class);
 
+    /**
+     * 한 건을 처리하는 최악 시간.
+     *
+     * <p>수락 조회와 발송 두 번의 외부 호출이고, 각각 common-http 기본 타임아웃(연결 1초 ·
+     * 읽기 3초)에 묶여 있다. 임차가 배치 전체를 덮는지 판정하는 기준이며, 타임아웃 기본값이
+     * 바뀌면 이 값도 함께 움직여야 한다.
+     */
+    private static final Duration WORST_CASE_PER_ITEM = Duration.ofSeconds(8);
+
     private final NotificationRepository notificationRepository;
     private final MailSender mailSender;
     private final String verificationBaseUrl;
@@ -34,12 +43,16 @@ public class NotificationExecutor implements NotificationUseCase {
      * 0이면 점유가 즉시 만료돼 백오프가 사라지고, 인스턴스가 여럿일 때 배타성도 함께 사라진다.
      * {@code maxAttempts}가 0이면 첫 시도에서 곧바로 포기한다. 셋 다 <b>조용히 잘못 도는</b>
      * 실패이며 그 결과는 인증 메일이 안 가거나 두 번 가는 것이다.
+     *
+     * <p>넷째로 <b>임차가 배치 전체를 덮는지</b> 본다 (PD-0016-R6). 한 번에 집은 건을 다
+     * 처리하기 전에 임차가 만료되면 아직 처리 중인 건을 다른 인스턴스가 집는다. 이 관계가
+     * 깨지면 일괄 점유의 전제가 무너지므로 설정 두 값의 조합으로 깨뜨릴 수 없게 막는다.
      */
     public NotificationExecutor(
             NotificationRepository notificationRepository,
             MailSender mailSender,
             @Value("${notifications.verification-base-url}") String verificationBaseUrl,
-            @Value("${notifications.dispatch-batch-size:20}") int batchSize,
+            @Value("${notifications.dispatch-batch-size:5}") int batchSize,
             @Value("${notifications.dispatch-retry-delay:60s}") Duration retryDelay,
             @Value("${notifications.dispatch-max-attempts:3}") int maxAttempts
     ) {
@@ -54,6 +67,12 @@ public class NotificationExecutor implements NotificationUseCase {
         if (maxAttempts <= 0) {
             throw new IllegalArgumentException(
                     "notifications.dispatch-max-attempts must be positive but was " + maxAttempts);
+        }
+        var leaseNeeded = WORST_CASE_PER_ITEM.multipliedBy(batchSize);
+        if (retryDelay.compareTo(leaseNeeded) < 0) {
+            throw new IllegalArgumentException(
+                    "notifications.dispatch-retry-delay must cover the whole batch: batch-size "
+                            + batchSize + " needs at least " + leaseNeeded + " but was " + retryDelay);
         }
         this.notificationRepository = notificationRepository;
         this.mailSender = mailSender;
