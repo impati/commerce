@@ -34,6 +34,8 @@ import org.springframework.test.web.client.match.MockRestRequestMatchers;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
+import org.springframework.jdbc.core.JdbcTemplate;
+
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -64,7 +66,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         // 정리 스케줄러를 사실상 끈다. 이 테스트는 결제 미확인으로 표시된 주문을 남기고 그것이
         // 후보 조회에 있는지 단정하는데, 정리기가 그 사이에 점유하면 후보에서 빠져 단정이 깨진다.
         // 컨텍스트는 JVM 수명 내내 살아 있으므로 다른 테스트가 도는 동안에도 계속 틴다.
-        "orders.payment-reconcile-interval=3600000"
+        "orders.payment-reconcile-interval=3600000",
+        // 사건 발행 릴레이도 끈다. 이 테스트는 checkout이 부르는 호출만 단정하는데, 릴레이가
+        // 배경에서 아웃박스를 비우면 stub하지 않은 알림 호출이 끼어든다.
+        "orders.event-publish-interval=3600000"
 })
 @AutoConfigureMockMvc
 class CheckoutSagaTest {
@@ -108,6 +113,9 @@ class CheckoutSagaTest {
     @Autowired
     private OrderRepository orderRepository;
 
+    @Autowired
+    private JdbcTemplate jdbc;
+
     private MockRestServiceServer server;
 
     /** 재고 예약 요청 본문에서 뽑아낸 주문 id. 실패 경로에서 주문 상태를 다시 조회하는 데 쓴다. */
@@ -146,10 +154,6 @@ class CheckoutSagaTest {
         server.expect(times(1), requestTo(CART_URL + "/internal/carts/clear"))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withSuccess());
-        // OrderPaid, ShipmentCreated
-        server.expect(times(2), requestTo(NOTIFICATION_URL + "/internal/notifications/events"))
-                .andExpect(method(HttpMethod.POST))
-                .andRespond(withSuccess());
 
         mockMvc.perform(checkout("card_test_success"))
                 .andExpect(status().isOk())
@@ -159,6 +163,11 @@ class CheckoutSagaTest {
                 .andExpect(jsonPath("$.order.inventoryReservationId").value(RESERVATION_ID))
                 .andExpect(jsonPath("$.order.total.amount").value(UNIT_PRICE * QUANTITY))
                 .andExpect(jsonPath("$.payment.status").value("CAPTURED"));
+
+        // 알림은 checkout이 부르지 않는다. 사건이 아웃박스에 커밋되고 릴레이가 가져간다
+        // (ADR-0012). 예전에는 알림 stub 횟수가 이 성질을 잡았다.
+        assertThat(eventTypesOf(reservedOrderId.get()))
+                .containsExactly("ORDER_CREATED", "ORDER_PAID", "SHIPMENT_CREATED");
     }
 
     /**
@@ -178,7 +187,6 @@ class CheckoutSagaTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(json(new ErrorResponse("payment_declined", "card was declined"))));
         stubReleaseReservation();
-        stubCancelledNotification();
         // 배송 생성·취소, 승인 취소, 매입, 예약 확정, 장바구니 비움은 stub하지 않는다.
         // 호출되면 예상하지 않은 요청으로 테스트가 깨진다.
 
@@ -205,7 +213,6 @@ class CheckoutSagaTest {
                 .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
         stubCancelPayment();
         stubReleaseReservation();
-        stubCancelledNotification();
         // 매입과 배송 취소는 stub하지 않는다. 배송은 만들어지지 않았으므로 취소할 것이 없다.
 
         // 어댑터가 프로토콜 오류를 도메인 언어로 옮기므로 409다. 옮기지 않으면 raw 예외가 올라온다.
@@ -235,7 +242,6 @@ class CheckoutSagaTest {
                 .andRespond(withSuccess(json(shipment("CANCELLED")), MediaType.APPLICATION_JSON));
         stubCancelPayment();
         stubReleaseReservation();
-        stubCancelledNotification();
 
         mockMvc.perform(checkout("card_test_success"))
                 .andExpect(status().isConflict());
@@ -264,9 +270,6 @@ class CheckoutSagaTest {
         server.expect(times(1), requestTo(CART_URL + "/internal/carts/clear"))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withSuccess());
-        server.expect(times(2), requestTo(NOTIFICATION_URL + "/internal/notifications/events"))
-                .andExpect(method(HttpMethod.POST))
-                .andRespond(withSuccess());
         // 배송 취소, 승인 취소, 예약 해제는 stub하지 않는다. 되돌리면 테스트가 깨진다.
 
         mockMvc.perform(checkout("card_test_success"))
@@ -277,6 +280,9 @@ class CheckoutSagaTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("FULFILLING"))
                 .andExpect(jsonPath("$.paymentId").value(PAYMENT_ID));
+
+        // 취소되지 않았으므로 취소 사건도 없다 (PD-0012-R11).
+        assertThat(eventTypesOf(reservedOrderId.get())).doesNotContain("ORDER_CANCELLED");
     }
 
     /**
@@ -304,9 +310,6 @@ class CheckoutSagaTest {
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withSuccess());
         server.expect(times(1), requestTo(CART_URL + "/internal/carts/clear"))
-                .andExpect(method(HttpMethod.POST))
-                .andRespond(withSuccess());
-        server.expect(times(2), requestTo(NOTIFICATION_URL + "/internal/notifications/events"))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withSuccess());
         // 배송 취소·승인 취소·예약 해제는 stub하지 않는다. 되돌리면 테스트가 깨진다.
@@ -343,7 +346,6 @@ class CheckoutSagaTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(json(new ErrorResponse("conflict", "captured payment cannot be cancelled"))));
         stubReleaseReservation();
-        stubCancelledNotification();
 
         mockMvc.perform(checkout("card_test_success"))
                 .andExpect(status().isBadGateway());
@@ -370,7 +372,6 @@ class CheckoutSagaTest {
                 });
         stubCancelPayment();
         stubReleaseReservation();
-        stubCancelledNotification();
 
         mockMvc.perform(checkout("card_test_success"))
                 .andExpect(status().isBadGateway());
@@ -394,6 +395,14 @@ class CheckoutSagaTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("CANCELLED"))
                 .andExpect(jsonPath("$.inventoryReservationId").value(RESERVATION_ID));
+
+        // 취소가 성공했을 때만 취소 사건이 쌓인다 (PD-0012-R11). 한 번만 쌓이는 것도 함께 본다.
+        assertThat(eventTypesOf(reservedOrderId.get())).containsOnlyOnce("ORDER_CANCELLED");
+    }
+
+    private List<String> eventTypesOf(String orderId) {
+        return jdbc.queryForList(
+                "select type from order_events where order_id = ? order by seq", String.class, orderId);
     }
 
     private void stubAuthorize(String paymentToken) {
@@ -418,12 +427,6 @@ class CheckoutSagaTest {
 
     private void stubReleaseReservation() {
         server.expect(times(1), requestTo(INVENTORY_URL + "/internal/reservations/" + RESERVATION_ID + "/release"))
-                .andExpect(method(HttpMethod.POST))
-                .andRespond(withSuccess());
-    }
-
-    private void stubCancelledNotification() {
-        server.expect(times(1), requestTo(NOTIFICATION_URL + "/internal/notifications/events"))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withSuccess());
     }
