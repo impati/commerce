@@ -3,10 +3,15 @@ package com.impati.commerce.notification.application.component;
 import com.impati.commerce.notification.application.port.in.NotificationUseCase;
 import com.impati.commerce.notification.application.port.in.OutboxEntry;
 import com.impati.commerce.notification.application.port.out.MailSender;
+import com.impati.commerce.notification.support.MutableClock;
+import com.impati.commerce.notification.support.TestClockConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
+
+import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -24,11 +29,16 @@ import static org.mockito.Mockito.doThrow;
  */
 @SpringBootTest(properties = {
         "spring.datasource.url=jdbc:h2:mem:notification-outbox;DB_CLOSE_DELAY=-1",
-        "notifications.dispatch-interval=3600000"
+        "notifications.dispatch-interval=3600000",
+        "notifications.dispatch-retry-delay=60s"
 })
+@Import(TestClockConfig.class)
 class OutboxTest {
     @Autowired
     private NotificationUseCase notificationUseCase;
+
+    @Autowired
+    private MutableClock clock;
 
     @MockBean
     private MailSender mailSender;
@@ -36,7 +46,7 @@ class OutboxTest {
     /** [PD-0009-R1] 기록만으로는 발송되지 않는다. 메일 시스템 장애가 가입 실패가 되지 않게 하는 성질이다. */
     @Test
     void recordsPendingWithoutSending() {
-        doNothing().when(mailSender).send(anyString(), anyString(), anyString());
+        doNothing().when(mailSender).send(anyString(), anyString(), anyString(), anyString());
 
         notificationUseCase.requestEmailVerification(
                 "mem_pending", "pending@impati.dev", "tok_pending", "vmail_pending");
@@ -50,7 +60,7 @@ class OutboxTest {
     /** [PD-0009-R1] 기록된 알림이 별도 발송으로 나가는 것을 잡는다. 발송 주기는 보지 않는다. */
     @Test
     void dispatchMarksSent() {
-        doNothing().when(mailSender).send(anyString(), anyString(), anyString());
+        doNothing().when(mailSender).send(anyString(), anyString(), anyString(), anyString());
         notificationUseCase.requestEmailVerification(
                 "mem_sent", "sent@impati.dev", "tok_sent", "vmail_sent");
 
@@ -63,11 +73,14 @@ class OutboxTest {
 
     /**
      * [PD-0009-R4] 발송 실패가 기록으로 남는다. 예외를 삼켜 사라지게 하지 않는다. 3회를 채우면 실패로 확정된다.
+     *
+     * <p>주기 사이에 시계를 미는 이유는 점유가 다음 시도 시각을 밀어두기 때문이다. 밀지 않으면
+     * 두 번째 주기가 같은 건을 집지 못해 시도 횟수가 늘지 않는다 (ADR-0011).
      */
     @Test
     void keepsFailureVisibleAndRetriesUntilLimit() {
         doThrow(new IllegalStateException("smtp down"))
-                .when(mailSender).send(anyString(), anyString(), anyString());
+                .when(mailSender).send(anyString(), anyString(), anyString(), anyString());
         notificationUseCase.requestEmailVerification(
                 "mem_fail", "fail@impati.dev", "tok_fail", "vmail_fail");
 
@@ -75,7 +88,9 @@ class OutboxTest {
         assertThat(outboxOf("fail@impati.dev").deliveryStatus()).isEqualTo("PENDING");
         assertThat(outboxOf("fail@impati.dev").attempts()).isEqualTo(1);
 
+        clock.advance(Duration.ofSeconds(120));
         notificationUseCase.dispatchPending();
+        clock.advance(Duration.ofSeconds(120));
         notificationUseCase.dispatchPending();
 
         var exhausted = outboxOf("fail@impati.dev");

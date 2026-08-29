@@ -11,6 +11,10 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 
@@ -38,7 +42,13 @@ public class JdbcNotificationRepository implements NotificationRepository {
             )
             """;
 
-    /** 멱등 키는 갱신하지 않는다. 기록 시점에 정해지고 바뀌지 않는다. */
+    /**
+     * 멱등 키와 다음 시도 시각은 갱신하지 않는다.
+     *
+     * <p>키는 기록 시점에 정해지고 바뀌지 않는다. 다음 시도 시각은 작업 큐의 사정이라
+     * 애그리거트가 모르며, {@link #claimForDispatch}만 정한다 — 여기서 함께 덮으면 저장 한 번에
+     * 점유가 지워져 다른 인스턴스가 곧바로 같은 건을 집는다.
+     */
     private static final String UPDATE = """
             update notifications
                set delivery_status = :delivery_status,
@@ -49,20 +59,31 @@ public class JdbcNotificationRepository implements NotificationRepository {
 
     private static final String SELECT_ALL = "select " + COLUMNS + " from notifications order by seq";
 
+    private static final String SELECT_BY_ID = "select " + COLUMNS + " from notifications where id = :id";
+
     private static final String SELECT_BY_IDEMPOTENCY_KEY = "select " + COLUMNS
             + " from notifications where idempotency_key = :idempotency_key";
 
     private static final String SELECT_BY_MEMBER = "select " + COLUMNS
             + " from notifications where member_id = :member_id order by seq";
 
-    private static final String SELECT_PENDING_MAIL = """
-            select
-            """ + COLUMNS + """
+    private static final String SELECT_DISPATCH_CANDIDATES = """
+            select id
               from notifications
              where channel = 'MAIL'
                and delivery_status = 'PENDING'
+               and (next_attempt_after is null or next_attempt_after <= :now)
              order by seq
              limit :limit
+            """;
+
+    private static final String CLAIM_FOR_DISPATCH = """
+            update notifications
+               set next_attempt_after = :retry_after
+             where id = :id
+               and channel = 'MAIL'
+               and delivery_status = 'PENDING'
+               and (next_attempt_after is null or next_attempt_after <= :now)
             """;
 
     private static final RowMapper<Notification> ROW_MAPPER = (rs, rowNum) -> Notification.restore(
@@ -80,9 +101,11 @@ public class JdbcNotificationRepository implements NotificationRepository {
     );
 
     private final NamedParameterJdbcTemplate jdbc;
+    private final Clock clock;
 
-    public JdbcNotificationRepository(NamedParameterJdbcTemplate jdbc) {
+    public JdbcNotificationRepository(NamedParameterJdbcTemplate jdbc, Clock clock) {
         this.jdbc = jdbc;
+        this.clock = clock;
     }
 
     @Override
@@ -120,8 +143,26 @@ public class JdbcNotificationRepository implements NotificationRepository {
 
     @Override
     @Transactional(readOnly = true)
-    public List<Notification> findPendingMail(int limit) {
-        return jdbc.query(SELECT_PENDING_MAIL, new MapSqlParameterSource("limit", limit), ROW_MAPPER);
+    public List<String> findDispatchCandidates(int batchSize) {
+        return jdbc.queryForList(SELECT_DISPATCH_CANDIDATES, new MapSqlParameterSource()
+                .addValue("now", now())
+                .addValue("limit", batchSize), String.class);
+    }
+
+    @Override
+    @Transactional
+    public Optional<Notification> claimForDispatch(String notificationId, Duration retryDelay) {
+        var now = now();
+        var claimed = jdbc.update(CLAIM_FOR_DISPATCH, new MapSqlParameterSource()
+                .addValue("id", notificationId)
+                .addValue("now", now)
+                .addValue("retry_after", now.plus(retryDelay)));
+        if (claimed == 0) {
+            return Optional.empty();
+        }
+        return jdbc.query(SELECT_BY_ID, new MapSqlParameterSource("id", notificationId), ROW_MAPPER)
+                .stream()
+                .findFirst();
     }
 
     private Optional<Notification> findByIdempotencyKey(String idempotencyKey) {
@@ -146,5 +187,9 @@ public class JdbcNotificationRepository implements NotificationRepository {
                 .addValue("delivery_status", notification.deliveryStatus().name())
                 .addValue("attempts", notification.attempts())
                 .addValue("last_error", notification.lastError());
+    }
+
+    private OffsetDateTime now() {
+        return OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
     }
 }

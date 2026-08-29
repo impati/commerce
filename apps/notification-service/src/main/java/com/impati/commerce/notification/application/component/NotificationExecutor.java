@@ -12,27 +12,54 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.util.List;
 
 @Component
 public class NotificationExecutor implements NotificationUseCase {
     private static final Logger log = LoggerFactory.getLogger(NotificationExecutor.class);
 
-    private static final int MAX_ATTEMPTS = 3;
-    private static final int DISPATCH_BATCH = 20;
-
     private final NotificationRepository notificationRepository;
     private final MailSender mailSender;
     private final String verificationBaseUrl;
+    private final int batchSize;
+    private final Duration retryDelay;
+    private final int maxAttempts;
 
+    /**
+     * 설정값이 잘못되면 기동을 실패시킨다.
+     *
+     * <p>{@code batchSize}가 0이면 후보가 항상 비어 아무것도 집지 않는다. {@code retryDelay}가
+     * 0이면 점유가 즉시 만료돼 백오프가 사라지고, 인스턴스가 여럿일 때 배타성도 함께 사라진다.
+     * {@code maxAttempts}가 0이면 첫 시도에서 곧바로 포기한다. 셋 다 <b>조용히 잘못 도는</b>
+     * 실패이며 그 결과는 인증 메일이 안 가거나 두 번 가는 것이다.
+     */
     public NotificationExecutor(
             NotificationRepository notificationRepository,
             MailSender mailSender,
-            @Value("${notifications.verification-base-url}") String verificationBaseUrl
+            @Value("${notifications.verification-base-url}") String verificationBaseUrl,
+            @Value("${notifications.dispatch-batch-size:20}") int batchSize,
+            @Value("${notifications.dispatch-retry-delay:60s}") Duration retryDelay,
+            @Value("${notifications.dispatch-max-attempts:3}") int maxAttempts
     ) {
+        if (batchSize <= 0) {
+            throw new IllegalArgumentException(
+                    "notifications.dispatch-batch-size must be positive but was " + batchSize);
+        }
+        if (retryDelay == null || retryDelay.isZero() || retryDelay.isNegative()) {
+            throw new IllegalArgumentException(
+                    "notifications.dispatch-retry-delay must be positive but was " + retryDelay);
+        }
+        if (maxAttempts <= 0) {
+            throw new IllegalArgumentException(
+                    "notifications.dispatch-max-attempts must be positive but was " + maxAttempts);
+        }
         this.notificationRepository = notificationRepository;
         this.mailSender = mailSender;
         this.verificationBaseUrl = verificationBaseUrl;
+        this.batchSize = batchSize;
+        this.retryDelay = retryDelay;
+        this.maxAttempts = maxAttempts;
     }
 
     @Transactional
@@ -76,25 +103,66 @@ public class NotificationExecutor implements NotificationUseCase {
     /**
      * 아웃박스를 비운다.
      *
-     * <p>한 건의 실패가 다음 건을 막지 않게 건별로 처리한다. 실패는 attempts와 last_error로
-     * 남고, 한도를 넘으면 FAILED가 되어 조회로 드러난다. 예외를 삼켜 사라지게 하지 않는다.
+     * <p>후보를 훑고 건별로 점유해 보낸다. 점유를 배치 전체에 미리 걸지 않는 이유는, 점유가
+     * 덮어야 하는 시간이 그 한 건의 작업 시간이면 되기 때문이다 (ADR-0009). 미리 걸면 배치가
+     * 길어질 때 앞쪽 건의 점유가 처리 중에 만료돼 다른 인스턴스가 같은 메일을 또 보낸다.
+     *
+     * <p>한 건의 실패가 다음 건을 막지 않는다. 실패는 attempts와 last_error로 남고, 한도를
+     * 넘으면 FAILED가 되어 조회로 드러난다. 예외를 삼켜 사라지게 하지 않는다.
      */
     @Override
     public int dispatchPending() {
-        var pending = notificationRepository.findPendingMail(DISPATCH_BATCH);
-        var sent = 0;
-        for (var notification : pending) {
-            try {
-                mailSender.send(notification.recipient(), notification.subject(), notification.body());
-                notification.markSent();
-                sent++;
-            } catch (RuntimeException failure) {
-                notification.markFailed(failure.getMessage(), MAX_ATTEMPTS);
-                log.warn("mail delivery failed id={} attempts={}", notification.id(), notification.attempts());
+        var candidates = notificationRepository.findDispatchCandidates(batchSize);
+        var settled = 0;
+        for (var notificationId : candidates) {
+            var claimed = notificationRepository.claimForDispatch(notificationId, retryDelay);
+            if (claimed.isEmpty()) {
+                continue;
             }
-            notificationRepository.save(notification);
+            if (deliverOnce(claimed.get())) {
+                settled++;
+            }
         }
-        return sent;
+        return settled;
+    }
+
+    /**
+     * 한 통을 보내고 결과를 기록한다.
+     *
+     * <p>보내기 전에 벤더가 이미 수락했는지 묻는다. 이전 시도가 벤더까지 도달한 뒤 결과를
+     * 적기 전에 끊겼으면 그 알림은 PENDING으로 남아 있는데, 그것을 다시 보내면 중복이다.
+     * 수락돼 있으면 보내지 않고 종단시킨다.
+     *
+     * <p>수락 여부를 <b>모르면 이 주기는 보내지 않는다.</b> 모르는 상태에서 보내는 쪽을 고르면
+     * 조회 장애가 곧 중복 발송이 된다. 점유가 다음 시도 시각을 이미 밀어두었으므로 이 건은
+     * 최소 간격 뒤에 다시 판단되고, 그동안 시도 횟수를 쓰지 않는다 — 보내보지 않았으므로
+     * 실패한 것이 아니다.
+     */
+    private boolean deliverOnce(Notification notification) {
+        boolean accepted;
+        try {
+            accepted = mailSender.wasAccepted(notification.id());
+        } catch (RuntimeException failure) {
+            log.warn("mail acceptance unknown, not sending this cycle id={}", notification.id(), failure);
+            return false;
+        }
+        if (accepted) {
+            log.info("mail already accepted by vendor, settling without resend id={}", notification.id());
+            notification.markSent();
+            notificationRepository.save(notification);
+            return true;
+        }
+
+        try {
+            mailSender.send(
+                    notification.recipient(), notification.subject(), notification.body(), notification.id());
+            notification.markSent();
+        } catch (RuntimeException failure) {
+            notification.markFailed(failure.getMessage(), maxAttempts);
+            log.warn("mail delivery failed id={} attempts={}", notification.id(), notification.attempts());
+        }
+        notificationRepository.save(notification);
+        return notification.isSent();
     }
 
     @Transactional(readOnly = true)
