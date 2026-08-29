@@ -27,17 +27,22 @@ make todo
 
 위에서부터 먼저 한다. 이 순서는 항목 파일에 적지 않는다 — 순서는 바뀌고 항목은 남는다.
 
-2~5는 이전에 정한 순서이고 상대 순서를 그대로 두었다. 1은 BL-0046과 BL-0050을 합친 항목이고, 6~7은 결제 정합성 작업(BL-0034·0032·0041·0042)에서 나온 것들이다.
+1~4는 한 줄기다. 주문 이벤트를 아웃박스에 커밋하고(1), 인프라를 세우고(2), 실행 단위를 나눈 뒤(3), 발행을 카프카로 갈아끼운다(4). 순서는 저장소 자신의 결정에서 나온다 — [ADR-0010](../adr/0010-verification-mail-outbox.md)이 "브로커는 아웃박스의 대안이 아니라 아웃박스 뒤에 오는 것"이라고 정했고, API 모듈이 브로커 의존성을 갖지 않으려면 분리가 카프카보다 앞이어야 한다.
+
+5~8은 이전에 정한 순서이고 상대 순서를 그대로 두었다. 9~10은 결제 정합성 작업(BL-0034·0032·0041·0042)에서 나온 것들이다.
 
 | 순서 | 항목 | 왜 이 순서인가 |
 | --- | --- | --- |
-| 1 | [BL-0052](bl-0052-order-notification-delivered-once.md) 주문 알림 유실·중복 | BL-0004와 BL-0048이 member 쪽에서 닫은 것을 order 쪽에서 닫는다. 유실과 중복이 한 결정에 걸려 있다 |
-| 2 | [BL-0005](bl-0005-token-storage-to-cookie.md) 프론트 토큰 보관을 쿠키로 | XSS로 토큰이 읽힌다 |
-| 3 | [BL-0006](bl-0006-local-profile-smoke.md) local 프로파일 스모크 | 하네스가 못 보는 구간이다. 급하지 않다 |
-| 4 | [BL-0007](bl-0007-password-policy-to-domain.md) 비밀번호 정책을 도메인으로 | 클래스 리뷰에서 나왔다. 지금 동작에는 문제가 없다 |
-| 5 | [BL-0008](bl-0008-duplicate-signup-conflict-response.md) 동시 가입 경합 응답 | 위와 같다 |
-| 6 | [BL-0036](bl-0036-clients-leak-protocol-errors.md) + [BL-0037](bl-0037-downstream-failure-reported-as-conflict.md) 오류 변환과 상태 코드 | 원인이 하나다 — 하위 서비스 장애가 `conflict`로 옮겨져 409로 나가고, 전송 실패는 아예 변환되지 않는다. 담을 종류(`unavailable`, `outcomeUnknown`)는 [BL-0034](done/bl-0034-checkout-payment-integrity.md)와 [BL-0039](done/bl-0039-resolve-unknown-payment-outcome.md)에서 이미 생겼으므로 남은 것은 클라이언트 다섯에 적용하는 일이다. **한 작업으로 묶어 새 번호를 딴다** |
-| 7 | [BL-0030](bl-0030-policy-verification-gaps.md) 정책 규칙 검증 공백 | 상품 노출 전체와 체크아웃 R1~R4. 크지만 기계적이라 앞의 것들이 끝난 뒤가 낫다 |
+| 1 | [BL-0052](bl-0052-order-notification-delivered-once.md) 주문 이벤트 아웃박스 | BL-0004와 BL-0048이 member 쪽에서 닫은 것을 order 쪽에서 닫는다. 유실과 중복이 한 결정에 걸려 있고, 카프카의 전제이기도 하다 |
+| 2 | [BL-0053](bl-0053-infrastructure-as-containers.md) 인프라 컨테이너 + 실 DB | 점유가 H2에서만 검증돼 있다. BL-0014를 대체한다 |
+| 3 | [BL-0054](bl-0054-split-api-and-worker-modules.md) API/워커 모듈 분리 | 카프카 의존성이 API 모듈에 박히기 전에 나눠야 한다. BL-0012·BL-0051을 대체한다 |
+| 4 | [BL-0055](bl-0055-publish-order-events-to-kafka.md) 이벤트 발행을 카프카로 | 1에서 완성한 포트의 어댑터를 갈아끼운다 |
+| 5 | [BL-0005](bl-0005-token-storage-to-cookie.md) 프론트 토큰 보관을 쿠키로 | XSS로 토큰이 읽힌다 |
+| 6 | [BL-0006](bl-0006-local-profile-smoke.md) local 프로파일 스모크 | 하네스가 못 보는 구간이다. 급하지 않다 |
+| 7 | [BL-0007](bl-0007-password-policy-to-domain.md) 비밀번호 정책을 도메인으로 | 클래스 리뷰에서 나왔다. 지금 동작에는 문제가 없다 |
+| 8 | [BL-0008](bl-0008-duplicate-signup-conflict-response.md) 동시 가입 경합 응답 | 위와 같다 |
+| 9 | [BL-0036](bl-0036-clients-leak-protocol-errors.md) + [BL-0037](bl-0037-downstream-failure-reported-as-conflict.md) 오류 변환과 상태 코드 | 원인이 하나다 — 하위 서비스 장애가 `conflict`로 옮겨져 409로 나가고, 전송 실패는 아예 변환되지 않는다. 담을 종류(`unavailable`, `outcomeUnknown`)는 [BL-0034](done/bl-0034-checkout-payment-integrity.md)와 [BL-0039](done/bl-0039-resolve-unknown-payment-outcome.md)에서 이미 생겼으므로 남은 것은 클라이언트 다섯에 적용하는 일이다. **한 작업으로 묶어 새 번호를 딴다** |
+| 10 | [BL-0030](bl-0030-policy-verification-gaps.md) 정책 규칙 검증 공백 | 상품 노출 전체와 체크아웃 R1~R4. 크지만 기계적이라 앞의 것들이 끝난 뒤가 낫다 |
 
 ## 순서를 정하지 않은 항목
 
@@ -48,9 +53,7 @@ make todo
 | [BL-0009](bl-0009-split-money-per-domain.md) Money 도메인별 분리 | 합의는 됐고 둘 위치가 미정 |
 | [BL-0010](bl-0010-identifier-collision-risk.md) 식별자 생성 방식 | PK라 미루면 비싸진다 |
 | [BL-0011](bl-0011-flow-encapsulation-direction.md) 흐름 캡슐화 방향 | 설계 방향 결정. ADR 대상 |
-| [BL-0012](bl-0012-split-runtime-modules.md) 실행 모듈 분리 | 보안이 아니라 실행 단위 구성 문제 ([ADR-0002](../adr/0002-network-segmentation-as-trust-boundary.md)) |
 | [BL-0013](bl-0013-test-isolation-strategy.md) 테스트 격리 방식 | 지금은 작성자 규율에 의존 |
-| [BL-0014](bl-0014-verify-docker-compose-path.md) docker-compose 경로 검증 | 한 번도 실행해보지 않았다 |
 | [BL-0015](bl-0015-pre-commit-scans-working-tree.md) pre-commit이 working tree를 본다 | 알려진 한계였다 |
 | [BL-0016](bl-0016-display-card-price-mismatch.md) 지면 카드 가격 | 알려진 한계였다 |
 | [BL-0018](bl-0018-normalize-email-case.md) 이메일 대소문자 정규화 | 기존 결정을 뒤집는 교환. 관측치가 필요하다 ([PD-0001](../policy/pd-0001-signup-and-email-verification.md)) |
@@ -69,4 +72,3 @@ make todo
 | [BL-0038](bl-0038-captured-order-leaves-uncommitted-reservation.md) 매입 후 미확정 예약 | BL-0025와 반대 방향으로 처리해야 한다 ([PD-0012-R9](../policy/pd-0012-checkout-and-compensation.md)) |
 | [BL-0044](bl-0044-session-resolve-ignores-member-status.md) 세션 확인이 회원 상태를 무시 | 차단·탈퇴를 붙이는 순간 조용히 성립한다 |
 | [BL-0049](bl-0049-scheduler-test-isolation-is-opt-out.md) 테스트의 스케줄러 격리가 규율에 달려 있다 | 이미 네 곳에서 샜다. 하네스 자신의 신뢰성 문제다 |
-| [BL-0051](bl-0051-separate-notification-dispatch-worker.md) 알림 발송을 API 프로세스에서 분리 | 정확성이 아니라 구성의 문제. 스케일 축과 자원 격리. [BL-0012](bl-0012-split-runtime-modules.md)와 잇닿아 있다 |
