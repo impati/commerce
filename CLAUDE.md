@@ -80,7 +80,7 @@ make verify
 - **`XxxRequest`/`XxxResponse`는 응용 계층 DTO 네이밍이다.** 도메인은 이 이름을 쓰지 않고 필드 타입으로도 갖지 않는다. 도메인 ↔ 계약 변환은 응용 계층의 매퍼가 맡는다. 선례: [OrderMapper](apps/order-service/src/main/java/com/impati/commerce/order/application/component/OrderMapper.java), [MemberModels.Address](apps/member-service/src/main/java/com/impati/commerce/member/domain/MemberModels.java). 예외는 `Money` 하나이며, 공용 값 타입을 어디에 둘지는 아직 정하지 않았다.
 - 에러는 `DomainException` 팩토리(`validation`/`notFound`/`conflict`/`paymentDeclined`)로 던지고, HTTP 상태 매핑은 각 서비스 `support/ApiExceptionHandler`가 담당한다. 컨트롤러에서 상태 코드를 직접 만들지 않는다.
 - **게이트웨이가 노출하지 않을 경로는 `/internal` 아래에 두고 `Internal*Controller`가 담는다.** 기준은 "누가 부르는가"가 아니라 "게이트웨이가 브라우저에 노출하는가"다 — 게이트웨이도 내부 경로를 부른다. 이 프리픽스는 등급을 선언할 뿐 아무것도 막지 않으며, 막는 것은 배포 토폴로지다. 근거는 [docs/adr/0003](docs/adr/0003-internal-path-prefix.md), 경계 전체는 [docs/adr/0002](docs/adr/0002-network-segmentation-as-trust-boundary.md)에 있다.
-- 패키지 구조는 `adapter/in/web`, `adapter/out/client`, `adapter/out/persistence`, `application`, `domain`, `support`를 따른다. 새 서비스도 같은 모양으로 만든다.
+- 패키지 구조는 `adapter/in/web`, `adapter/out/client`, `adapter/out/publisher`, `adapter/out/persistence`, `application`, `domain`, `support`를 따른다. 새 서비스도 같은 모양으로 만든다. **나가는 어댑터는 무엇을 부르는지가 아니라 무엇으로 부르는지로 이름 짓는다** — 모듈도 패키지도 클래스도 그렇다. `HttpOrderEventPublisher`이고 `NotifyingOrderEventPublisher`가 아니다. 대상을 이름에 넣으면 전송 수단이 늘 때 형제끼리 결이 갈린다 (ADR-0015).
 - **실행 단위를 나눈 서비스는 `core`·`api`·`worker` 셋이다.** 절단면은 `adapter/in`이며 — 컨트롤러는 api, 스케줄러는 worker, 나머지는 core — 그 경계는 "진입점을 `adapter/in`에 모은다"는 위 규칙이 이미 그어둔 것이다. **API의 클래스패스에 워커 코드가 없는 것이 요점**이라 프로파일로 가르지 않는다. 지금은 order와 notification 둘이고, 근거는 [ADR-0014](docs/adr/0014-split-api-and-worker-modules.md).
 - **`application`은 `port/in`·`port/out`·`component` 셋으로 나눈다** — 무엇을 할 수 있나(`XxxUseCase`와 입출력 타입), 바깥에 무엇을 요구하나(`XxxRepository`/`XxxClient`/능력 이름), 그것을 실행하는 것(`XxxExecutor`, `@Component`). 매퍼는 `component`에 package-private으로 둔다. 상세는 [docs/architecture.md](docs/architecture.md)에 있다. **포트 이름에 수단을 넣지 않는다** — `PasswordHasher`이고 `BCryptHasher`가 아니다. 수단이 이름에 박히면 갈아끼울 때 호출하는 쪽이 전부 바뀐다.
 - **포트 필드 이름은 타입 이름의 camelCase다** — `orderRepository`, `paymentClient`, `paymentGateway`. 호출부에서 경계가 보여야 하기 때문이다: `orderRepository.save(...)`는 넘지 않고 `paymentClient.authorize(...)`는 넘는다. 넘는 호출에는 타임아웃·부분 실패·보상이 따라붙는다. api-gateway의 원시 `RestClient`는 포트가 아니므로 대상이 아니다.
@@ -164,6 +164,8 @@ git 저장소이지만 이력이 `first commit` 하나뿐이다. 되돌릴 지�
 룰을 바꿨으면 아래 이력에 한 줄 남긴다.
 
 ## 변경 이력
+
+- 2026-08-30 — 나가는 어댑터를 무엇으로 부르는지로 이름 짓는 규칙을 패키지 규칙에 붙이고 `adapter/out/publisher`를 목록에 넣었다. 계기: 사건 발행자의 모듈(`http`)·패키지(`client`)·클래스(`Notifying`) 이름이 셋 다 달랐다. 대상을 이름에 넣으면 전송 수단이 늘 때 형제끼리 결이 갈린다 — `KafkaOrderEventPublisher`가 `adapter.out.client`에 놓일 수는 없다 (BL-0060).
 
 - 2026-08-30 — order와 notification의 실행 단위를 API와 워커로 나눴다(`core`·`api`·`worker`). 계기: 스케줄러가 API와 같은 프로세스에서 돌아 스케일 축이 어긋났고, 카프카가 들어오면 브로커 의존성이 API 모듈에 박힌다. 절단면은 `adapter/in`이며 새로 만든 경계가 아니라 진입점 규칙이 이미 그어둔 것이다 (BL-0054).
 

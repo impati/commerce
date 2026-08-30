@@ -35,6 +35,7 @@
 | [0012](0012-order-events-as-outbox.md) | 주문 상태 전이를 사건으로 커밋하고 발행한다 | 승인됨 |
 | [0013](0013-real-database-in-the-harness.md) | 실제 DB 위에서 검증한다 | 승인됨 |
 | [0014](0014-split-api-and-worker-modules.md) | 실행 단위를 API와 워커로 나눈다 | 승인됨 |
+| [0015](0015-outbound-adapters-per-collaborator.md) | 나가는 어댑터를 협력자별 모듈로 나눈다 | 승인됨 |
 
 ## ADR이 없는 합의
 

@@ -33,8 +33,8 @@ make todo
 
 | 순서 | 항목 | 왜 이 순서인가 |
 | --- | --- | --- |
-| 1 | [BL-0060](bl-0060-move-outbound-adapters-to-their-units.md) 나가는 어댑터를 쓰는 단위로 | BL-0054가 실행 단위만 나눴다. 카프카 앞에 해야 브로커 의존이 자리 잡기 전에 옮긴다 |
-| 2 | [BL-0055](bl-0055-publish-order-events-to-kafka.md) 이벤트 발행을 카프카로 | BL-0052가 완성한 포트의 어댑터를 갈아끼운다 |
+| 1 | [BL-0055](bl-0055-publish-order-events-to-kafka.md) 이벤트 발행을 카프카로 | BL-0052가 완성한 포트의 어댑터를 갈아끼운다 |
+| 2 | [BL-0061](bl-0061-single-rest-client-builder.md) 빌더 주입을 없앤다 | BL-0060에서 실제로 깨졌다. 세 서비스가 이미 어기고 있고 클라이언트가 둘이 되는 순간 드러난다 |
 | 3 | [BL-0005](bl-0005-token-storage-to-cookie.md) 프론트 토큰 보관을 쿠키로 | XSS로 토큰이 읽힌다 |
 | 4 | [BL-0006](bl-0006-local-profile-smoke.md) local 프로파일 스모크 | 하네스가 못 보는 구간이다. 급하지 않다 |
 | 5 | [BL-0007](bl-0007-password-policy-to-domain.md) 비밀번호 정책을 도메인으로 | 클래스 리뷰에서 나왔다. 지금 동작에는 문제가 없다 |
