@@ -204,6 +204,8 @@ services:
         condition: service_healthy
       notification-api:
         condition: service_started
+      payment-service:
+        condition: service_started
 
   notification-api:
     build:
