@@ -51,15 +51,26 @@ public class JdbcOrderEventRepository implements OrderEventRepository {
      * 뒤를 보내면 순서가 깨진다. {@code next_attempt_after}가 null인 것은 아직 시도한 적이
      * 없다는 뜻이라 지금이 시도할 때이므로 {@code :now}로 채운다.
      *
+     * <p><b>{@code FAILED}가 하나라도 있으면 그 주문을 빼는 이유.</b> 한도를 넘긴 사건은 더 이상
+     * {@code PENDING}이 아니므로, 상태를 {@code where}에서 걸러버리면 <b>그 사건이 후보 계산에서
+     * 사라진다.</b> 그러면 못 나간 앞 사건을 건너뛴 채 뒤 사건이 나가고, 소비자는 결제 없는 배송을
+     * 본다. 한 주기 안의 멈춤은 실행자가 하지만 주기를 넘는 멈춤은 여기서만 만들 수 있다 —
+     * 다음 주기는 테이블을 새로 읽으므로 "앞에 못 나간 것이 있다"를 데이터가 말해줘야 한다.
+     *
+     * <p>막힌 주문은 사람이 원인을 고치고 그 행을 되돌리기 전까지 멈춘다. 조용히 건너뛰는 것은
+     * 소리 없는 손상이고, 막혀서 {@code FAILED} 건수로 드러나는 편이 낫다 (ADR-0016).
+     *
      * <p>여기서는 잠그지 않는다. {@code group by}가 있는 잠금 읽기를 피하는 것이기도 하고,
      * 배타성은 다음 문장의 조건부 UPDATE가 만들기 때문이다.
      */
     private static final String SELECT_CLAIMABLE_ORDERS = """
             select order_id
               from order_events
-             where publish_status = 'PENDING'
+             where publish_status in ('PENDING', 'FAILED')
              group by order_id
-            having max(coalesce(next_attempt_after, :now)) <= :now
+            having sum(case when publish_status = 'FAILED' then 1 else 0 end) = 0
+               and sum(case when publish_status = 'PENDING' then 1 else 0 end) > 0
+               and max(coalesce(next_attempt_after, :now)) <= :now
              order by min(seq)
              limit :limit
             """;

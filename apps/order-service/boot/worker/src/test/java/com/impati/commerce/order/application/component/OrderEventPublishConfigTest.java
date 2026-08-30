@@ -20,6 +20,9 @@ class OrderEventPublishConfigTest {
     /** 출하되는 값. 주문 3 × 사건 5 × 4초 = 60초를 덮는다. */
     private static final Duration VALID_DELAY = Duration.ofSeconds(90);
 
+    /** 발행 타임아웃의 출하 기본값. 건당 최악 시간이 이 값이다. */
+    private static final Duration SEND_TIMEOUT = Duration.ofSeconds(4);
+
     /** 0이면 점유가 아무것도 집지 못한다. */
     @Test
     void rejectsNonPositiveOrdersPerCycle() {
@@ -66,9 +69,35 @@ class OrderEventPublishConfigTest {
         assertThatCode(() -> executor(3, VALID_DELAY, 5)).doesNotThrowAnyException();
     }
 
+    /**
+     * 발행 타임아웃을 올리면 임차 검사가 함께 엄해진다.
+     *
+     * <p>건당 최악 시간을 상수로 두면 이 둘이 어긋난다 — 타임아웃만 올라가고 검사는 옛 값을
+     * 쓰므로, 임차가 배치를 못 덮는 설정으로 기동이 성공한다.
+     */
+    @Test
+    void aLongerSendTimeoutTightensTheLeaseCheck() {
+        assertThatThrownBy(() -> executor(3, VALID_DELAY, 5, Duration.ofSeconds(10)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("cover the whole batch");
+    }
+
+    /** 0이면 발행이 기다리지 않는 셈이고, 임차 계산도 0이 되어 검사가 무력해진다. */
+    @Test
+    void rejectsNonPositiveSendTimeout() {
+        assertThatThrownBy(() -> executor(3, VALID_DELAY, 5, Duration.ZERO))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("send-timeout");
+    }
+
     private OrderEventPublishExecutor executor(int orderBatchSize, Duration retryDelay, int maxAttempts) {
+        return executor(orderBatchSize, retryDelay, maxAttempts, SEND_TIMEOUT);
+    }
+
+    private OrderEventPublishExecutor executor(
+            int orderBatchSize, Duration retryDelay, int maxAttempts, Duration sendTimeout) {
         return new OrderEventPublishExecutor(
                 mock(OrderEventRepository.class), mock(OrderEventPublisher.class),
-                orderBatchSize, retryDelay, maxAttempts);
+                orderBatchSize, retryDelay, maxAttempts, sendTimeout);
     }
 }

@@ -28,15 +28,6 @@ public class OrderEventPublishExecutor implements OrderEventPublishUseCase {
     private static final Logger log = LoggerFactory.getLogger(OrderEventPublishExecutor.class);
 
     /**
-     * 한 건을 처리하는 최악 시간.
-     *
-     * <p>발행 한 번의 외부 호출이고 common-http 기본 타임아웃(연결 1초 · 읽기 3초)에 묶여 있다.
-     * 임차가 배치 전체를 덮는지 판정하는 기준이며, 타임아웃 기본값이 바뀌거나 발행이 호출을
-     * 하나 더 하게 되면 이 값도 함께 움직여야 한다.
-     */
-    private static final Duration WORST_CASE_PER_EVENT = Duration.ofSeconds(4);
-
-    /**
      * 한 주문이 가질 수 있는 사건의 수.
      *
      * <p>사건은 상태 전이에서 나오고 전이는 한 방향이므로 종류마다 한 번이다. 점유 단위가
@@ -61,14 +52,20 @@ public class OrderEventPublishExecutor implements OrderEventPublishUseCase {
      *
      * <p>넷째로 <b>임차가 배치 전체를 덮는지</b> 본다. 한 번에 집은 건을 다 처리하기 전에
      * 임차가 만료되면 아직 처리 중인 건을 다른 인스턴스가 집는다. 그러면 같은 주문을 둘이
-     * 갖게 되어 순서 보장이 무너지므로 설정 두 값의 조합으로 깨뜨릴 수 없게 막는다.
+     * 갖게 되어 순서 보장이 무너지므로 설정 값의 조합으로 깨뜨릴 수 없게 막는다.
+     *
+     * <p><b>건당 최악 시간은 발행의 타임아웃이다.</b> 상수로 두지 않고 같은 설정을 받는 이유는
+     * 두 값이 어긋날 수 있기 때문이다 — 발행 타임아웃을 올리면 한 건이 그만큼 오래 걸릴 수
+     * 있는데, 임차 계산이 옛 값을 쓰면 검사를 통과한 채로 임차가 배치를 못 덮는다. 그 결과가
+     * 정확히 이 검사가 막으려는 상황이다.
      */
     public OrderEventPublishExecutor(
             OrderEventRepository orderEventRepository,
             OrderEventPublisher orderEventPublisher,
             @Value("${orders.event-publish-orders-per-cycle:10}") int orderBatchSize,
             @Value("${orders.event-publish-retry-delay:60s}") Duration retryDelay,
-            @Value("${orders.event-publish-max-attempts:5}") int maxAttempts
+            @Value("${orders.event-publish-max-attempts:5}") int maxAttempts,
+            @Value("${commerce.kafka.send-timeout:4s}") Duration worstCasePerEvent
     ) {
         if (orderBatchSize <= 0) {
             throw new IllegalArgumentException(
@@ -82,7 +79,11 @@ public class OrderEventPublishExecutor implements OrderEventPublishUseCase {
             throw new IllegalArgumentException(
                     "orders.event-publish-max-attempts must be positive but was " + maxAttempts);
         }
-        var leaseNeeded = WORST_CASE_PER_EVENT.multipliedBy((long) orderBatchSize * MAX_EVENTS_PER_ORDER);
+        if (worstCasePerEvent.isNegative() || worstCasePerEvent.isZero()) {
+            throw new IllegalArgumentException(
+                    "commerce.kafka.send-timeout must be positive but was " + worstCasePerEvent);
+        }
+        var leaseNeeded = worstCasePerEvent.multipliedBy((long) orderBatchSize * MAX_EVENTS_PER_ORDER);
         if (retryDelay.compareTo(leaseNeeded) < 0) {
             throw new IllegalArgumentException(
                     "orders.event-publish-retry-delay must cover the whole batch: orders-per-cycle "

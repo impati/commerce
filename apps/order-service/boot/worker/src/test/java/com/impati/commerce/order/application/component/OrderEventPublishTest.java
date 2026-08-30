@@ -202,6 +202,47 @@ class OrderEventPublishTest {
     }
 
     /**
+     * 종단된 사건이 그 주문의 뒤 사건을 <b>영구히</b> 막는다 (ADR-0016).
+     *
+     * <p>주기 안의 멈춤만으로는 부족하다. 한도를 넘겨 FAILED가 되면 그 사건은 더 이상 PENDING이
+     * 아니고, 다음 주기는 테이블을 새로 읽으므로 <b>"앞에 못 나간 것이 있다"는 사실이 사라진다.</b>
+     * 그러면 뒤 사건이 자유롭게 나가고 소비자는 결제 없는 배송을 본다.
+     *
+     * <p>막는 것이 후보 질의의 일인 이유가 이것이다 — 멈춤이 코드에만 있고 데이터에 없으면
+     * 주기를 넘기지 못한다.
+     */
+    @Test
+    void aFailedEventBlocksTheRestOfThatOrderForever() {
+        doThrow(new IllegalStateException("poison message"))
+                .when(orderEventPublisher)
+                .publish(org.mockito.ArgumentMatchers.argThat(
+                        event -> event != null && event.type() == OrderEventType.ORDER_PAID));
+
+        var order = savedOrder();
+        order.attachPayment("pay_poison");
+        order.markPaid();
+        orderChanges.commit(order);
+        order.attachShipment("shp_poison", "TRK-POISON");
+        orderChanges.commit(order);
+
+        // 한도(3)까지 실패시킨다. 매 주기 백오프를 풀어 다음 주기를 흉내 낸다.
+        for (var attempt = 0; attempt < 3; attempt++) {
+            releaseBackoff();
+            orderEventPublishUseCase.publishPending();
+        }
+        assertThat(statusOf(order.id(), "ORDER_PAID")).isEqualTo("FAILED");
+
+        // 종단된 뒤로도 뒤 사건은 나가지 않는다. 여기가 본론이다.
+        releaseBackoff();
+        assertThat(orderEventPublishUseCase.publishPending())
+                .as("FAILED가 남은 주문은 후보가 되면 안 된다")
+                .isZero();
+        assertThat(statusOf(order.id(), "SHIPMENT_CREATED"))
+                .as("앞 사건이 영영 못 나갔으면 뒤 사건도 나가면 안 된다")
+                .isEqualTo("PENDING");
+    }
+
+    /**
      * 한 주문의 실패가 다른 주문을 막지 않는다.
      *
      * <p>순서를 지켜야 하는 범위가 주문 안이므로 주문 사이에는 서로 영향이 없다. 이것까지
