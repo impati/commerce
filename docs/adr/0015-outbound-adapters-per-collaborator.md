@@ -131,3 +131,13 @@ API 프로세스의 얼굴이지 갈아끼울 대상이 아니다.
 부수 효과로 두 모듈이 영속화 모듈 목록에서 빠졌다. 저장하는 것이 없는데 목록에 있던 이유는
 테스트가 데이터베이스를 요구해서였고, 그대로 두면 클라이언트가 jdbc·flyway·mysql을 자기를
 부르는 실행 단위로 끌고 간다. 이 작업이 없애려던 결합이다.
+### 전송 수단으로 짓는 이름을 패키지와 클래스까지 적용한다
+
+모듈만 `infra/publisher/http`로 짓고 나머지는 그대로 두었더니 이름이 셋으로 갈렸다 — 모듈은
+전송 수단, 패키지는 `adapter.out.client`, 클래스는 대상(`NotifyingOrderEventPublisher`).
+
+패키지를 `adapter.out.publisher`로, 클래스를 `HttpOrderEventPublisher`로 옮긴다. BL-0055가
+`KafkaOrderEventPublisher`를 만들 때 그것이 `adapter.out.client`에 놓일 수는 없으므로 어차피
+만들 자리다. 지금 만들면 카프카 커밋이 "옮기기"와 "추가"를 겸하지 않는다.
+
+CLAUDE.md의 패키지 규칙에 `adapter/out/publisher`를 넣고 명명 근거를 한 줄로 남겼다.

@@ -1,4 +1,4 @@
-package com.impati.commerce.order.adapter.out.client;
+package com.impati.commerce.order.adapter.out.publisher;
 
 import com.impati.commerce.common.ApiContracts.NotificationEventRequest;
 import com.impati.commerce.order.application.port.out.NotificationClient;
@@ -25,12 +25,12 @@ import java.util.Optional;
  * 때문이며, 브로커에서 그 값이 순서 보장의 단위가 된다.
  */
 @Component
-public class NotifyingOrderEventPublisher implements OrderEventPublisher {
-    private static final Logger log = LoggerFactory.getLogger(NotifyingOrderEventPublisher.class);
+public class HttpOrderEventPublisher implements OrderEventPublisher {
+    private static final Logger log = LoggerFactory.getLogger(HttpOrderEventPublisher.class);
 
     private final NotificationClient notificationClient;
 
-    public NotifyingOrderEventPublisher(NotificationClient notificationClient) {
+    public HttpOrderEventPublisher(NotificationClient notificationClient) {
         this.notificationClient = notificationClient;
     }
 
