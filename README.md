@@ -23,18 +23,17 @@ Java 21 + Spring Boot 3.2 기반 이커머스 마이크로서비스 레퍼런스
 
 ## 실행
 
-DB가 먼저 떠 있어야 합니다. 여덟 서비스가 MySQL 하나를 공유하고 서비스마다 데이터베이스를 나눕니다.
+여덟 서비스가 MySQL 하나를 공유하고 서비스마다 데이터베이스를 나눕니다. **`make boot-all`이 DB까지 챙깁니다** — 떠 있지 않으면 띄우고 준비될 때까지 기다립니다.
 
 ```bash
-docker compose up -d mysql
-make build
 make boot-all
 make demo
 make stop
 ```
 
-`make boot-all`은 전체 bootJar를 만든 뒤 각 서비스를 로컬 프로세스로 실행합니다.
-초기화는 `docker compose down -v`로 볼륨까지 지웁니다.
+`make boot-all`은 bootJar를 만든 뒤 각 서비스를 로컬 프로세스로 실행합니다. 초기화는 `docker compose down -v`입니다.
+
+호스트 포트는 **3316**입니다. 3306은 흔한 포트라 다른 프로젝트의 MySQL과 부딪힙니다. 그 포트를 이미 다른 것이 쓰고 있으면 `make boot-all`은 **남의 DB에 마이그레이션을 돌리지 않으려고 멈춥니다.**
 API Gateway는 `http://localhost:8080` 입니다.
 
 ## 검증

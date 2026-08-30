@@ -21,9 +21,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  * 그 아래 버전은 제약을 파싱만 하고 <b>강제하지 않는다</b>. 조용히 통과하는 검증은 없는 것보다
  * 나쁘므로 이미지를 고정한다.
  *
- * <p>연결 시간대를 UTC로 고정한다. 저장 타입이 {@code datetime(6)}이라 시간대를 담지 않으므로,
- * 세션 시간대가 다르면 {@code OffsetDateTime}을 쓰고 읽을 때 값이 옮겨진다. 점유가 시각 비교로
- * 배타성을 만들기 때문에 그 어긋남은 곧 배타성이 깨지는 것이다.
+ * <p>연결 시간대를 UTC로 고정한다. 저장 타입이 {@code datetime(6)}이라 시간대를 담지 않아 저장된
+ * 값의 해석이 연결 설정에 달리기 때문이다. 일관되게 틀리는 것 자체는 해가 없지만 — 쓰기와 읽기가
+ * 같은 변환을 거친다 — 운영과 다른 값을 쓰면 여기서 검증한 것이 거기서 성립한다는 근거가 약해진다.
  */
 public final class TestDatabase {
     private static final DockerImageName IMAGE = DockerImageName.parse("mysql:8.0.36");

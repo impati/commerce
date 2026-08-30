@@ -106,7 +106,7 @@ make verify
 - DB를 쓰는 서비스는 [build.gradle](build.gradle)의 `configure([...])` 목록에도 넣어야 jdbc/flyway/mysql과 테스트 지원 모듈이 붙는다.
 - `@SpringBootTest` 컨텍스트와 in-memory DB는 테스트 간에 공유된다. **빈 저장소를 가정하는 테스트를 쓰지 말고** 테스트가 자기 데이터를 직접 만들게 한다. 고정 id를 여러 테스트에서 쓰면 PK 충돌이 난다.
 - **데이터베이스 격리는 자동이다.** `libs:test-database`가 클래스패스에 있으면 모든 테스트 컨텍스트가 자기 데이터베이스를 받는다. 테스트가 아무것도 선언하지 않아도 되며, **빠뜨릴 수 없는 것이 요점이다** — 붙이지 않으면 로컬 개발 DB로 떨어져 실제 데이터를 건드린다. 컨테이너에서 빼야 하는 테스트에는 `@RequiresDatabase`로 태그만 단다. `src/test/resources/application.properties`를 만들면 **main 쪽 파일을 가려서** `clients.*.url`이 사라지고 컨텍스트가 뜨지 않는다.
-- **로컬 실행은 `docker compose up -d mysql`로 DB를 띄운 뒤 한다.** 초기화는 컨테이너와 볼륨을 지우는 것이다. `.data/` 파일 DB는 더 이상 쓰지 않는다.
+- **로컬 실행은 `make boot-all` 하나로 한다.** 스크립트가 DB를 챙긴다 — 안 떠 있으면 띄우고, 호스트 포트(3316)를 다른 것이 쓰고 있으면 **남의 DB에 마이그레이션을 돌리지 않으려고 멈춘다.** 초기화는 `docker compose down -v`이며 `.data/` 파일 DB는 더 이상 쓰지 않는다.
 - **점유 경로만 `READ_COMMITTED`로 낮춘다.** MySQL 기본값에서 `for update` 범위 읽기가 갭 락을 잡아 큐 테이블의 삽입과 교착한다. 전역으로 낮추면 애그리거트를 여러 테이블에서 읽는 조회들이 스냅샷 일관성을 잃으므로 범위를 그 경로로 묶는다 (ADR-0013).
 - **JDBC는 이름 바인딩만 쓴다.** `NamedParameterJdbcTemplate` + `MapSqlParameterSource`를 쓰고, 위치 기반 `?`와 `select *`는 쓰지 않는다. 위치 바인딩은 타입이 같은 인접 컬럼의 값이 뒤바뀌어도 컴파일러도 DB도 잡지 못한다.
 - **컬럼 매핑은 왕복 테스트로 검증되지 않는다.** 저장 후 조회해서 비교하면 쓰기와 읽기가 같은 방향으로 틀렸을 때 그대로 통과한다. 컬럼 값을 직접 읽는 테스트를 함께 둔다. 배경은 [problem/002](problem/002-positional-jdbc-binding.md)에 있다.

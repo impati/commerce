@@ -84,18 +84,22 @@ curl -sS -X POST http://localhost:8080/checkout -H 'Content-Type: application/js
 
 ## 데이터가 남는 범위
 
-저장소가 있는 8개 서비스가 모두 H2 파일 DB를 쓴다. 프로세스를 전부 재시작해도 상품, 재고, 회원, 장바구니, 주문, 결제, 배송, 알림이 그대로 남는다. api-gateway와 display-service는 저장소가 없다.
+저장소가 있는 8개 서비스가 MySQL 하나를 공유하고 서비스마다 데이터베이스를 나눠 쓴다. api-gateway와 display-service는 저장소가 없다.
+
+**`make boot-all`이 DB를 함께 챙긴다.** compose의 mysql이 떠 있지 않으면 띄우고 준비될 때까지 기다린다. `make stop`은 서비스만 내리므로 프로세스를 전부 재시작해도 상품, 재고, 회원, 장바구니, 주문, 결제, 배송, 알림이 그대로 남는다.
 
 ```bash
-ls .data/            # 서비스마다 .mv.db 파일 하나
-rm -rf .data         # 초기화 (make stop 후에)
+docker compose exec mysql mysql -uroot -proot -e "show databases;"   # 서비스마다 하나
+docker compose down -v                                              # 초기화 (make stop 후에)
 ```
 
-`.data/`는 상대경로이므로 저장소 루트에서 실행해야 그 자리에 생긴다. 스키마는 각 서비스의 `src/main/resources/db/migration`에 있고 Flyway가 기동 시 적용한다.
+스키마는 각 서비스의 `src/main/resources/db/migration`에 있고 Flyway가 기동 시 적용한다.
 
 시드 데이터는 저장소가 비어 있을 때만 들어간다. 재시작해도 상품이 6개로 늘거나 재고가 두 배가 되지 않는다.
 
-데이터를 비우고 처음부터 보려면 `make stop` 후 `rm -rf .data`를 실행하고 다시 띄운다.
+데이터를 비우고 처음부터 보려면 `make stop` 후 `docker compose down -v`를 실행하고 다시 띄운다.
+
+**호스트 포트는 3316이다.** 3306은 흔한 포트라 다른 프로젝트의 MySQL과 부딪힌다. 바꾸려면 `MYSQL_PORT`(compose)와 `DB_PORT`(서비스)를 함께 지정한다.
 
 ## 로그와 종료
 
@@ -115,7 +119,9 @@ make stop
 | `Partial — demo: ...`가 뜬다 | 나열된 리소스의 서비스만 죽었다. `.run/<service>.log`를 본다 |
 | `did not become healthy` | 포트 충돌이 대부분이다. `lsof -i :8080` 등으로 확인 |
 | 상품이 비어 있다 | catalog-service가 죽었거나 태그가 어긋났다 |
-| 재시작했는데 예전 데이터가 남아 있다 | 정상이다. `.data/`의 파일 DB에 남는다. 초기화는 `make stop` 후 `rm -rf .data` |
+| 재시작했는데 예전 데이터가 남아 있다 | 정상이다. MySQL에 남는다. 초기화는 `make stop` 후 `docker compose down -v` |
+| `3316를 이미 다른 프로세스가 쓰고 있다` | 다른 프로젝트의 DB가 그 포트에 있다. 남의 DB에 마이그레이션을 돌리지 않으려고 멈춘 것이다. 그것을 내리거나 `MYSQL_PORT`·`DB_PORT`를 옮긴다 |
+| `Communications link failure` | DB가 아직 접속을 안 받는다. `docker compose ps`로 mysql이 healthy인지 본다 |
 | 재고가 이상하다 | 체크아웃한 만큼 차감된 실제 값이다. 시드 합계는 100이다 |
 | `jq: command not found` | `make demo`가 jq를 쓴다. `brew install jq` |
 
