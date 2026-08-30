@@ -99,10 +99,15 @@ if [[ "${SKIP_BUILD:-false}" != "true" ]]; then
   ./gradlew bootJar
 fi
 
+# 이름·모듈 경로·포트를 따로 받는다.
+#
+# 실행 단위가 서비스와 1:1이 아니게 됐다 — order와 notification은 api와 worker 둘이고, 모듈
+# 경로(order-service/api)와 산출물 이름(order-api)이 다르다 (ADR-0014).
 start_service() {
   local service="$1"
-  local port="$2"
-  local jar="apps/${service}/build/libs/${service}-0.1.0.jar"
+  local module="$2"
+  local port="$3"
+  local jar="apps/${module}/build/libs/${service}-0.1.0.jar"
   local log="$RUN_DIR/${service}.log"
   local pid_file="$RUN_DIR/${service}.pid"
 
@@ -130,16 +135,18 @@ wait_health() {
   exit 1
 }
 
-start_service member-service 8101
-start_service catalog-service 8102
-start_service display-service 8103
-start_service inventory-service 8104
-start_service cart-service 8105
-start_service payment-service 8106
-start_service shipping-service 8107
-start_service notification-service 8109
-start_service order-service 8108
-start_service api-gateway 8080
+start_service member-service member-service 8101
+start_service catalog-service catalog-service 8102
+start_service display-service display-service 8103
+start_service inventory-service inventory-service 8104
+start_service cart-service cart-service 8105
+start_service payment-service payment-service 8106
+start_service shipping-service shipping-service 8107
+start_service notification-api notification-service/api 8109
+start_service notification-worker notification-service/worker 8119
+start_service order-api order-service/api 8108
+start_service order-worker order-service/worker 8118
+start_service api-gateway api-gateway 8080
 
 wait_health member-service 8101
 wait_health catalog-service 8102
@@ -148,8 +155,10 @@ wait_health inventory-service 8104
 wait_health cart-service 8105
 wait_health payment-service 8106
 wait_health shipping-service 8107
-wait_health notification-service 8109
-wait_health order-service 8108
+wait_health notification-api 8109
+wait_health notification-worker 8119
+wait_health order-api 8108
+wait_health order-worker 8118
 wait_health api-gateway 8080
 
 echo "all services are running. gateway: http://localhost:8080"

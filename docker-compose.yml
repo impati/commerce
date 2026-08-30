@@ -26,7 +26,8 @@ services:
       context: .
       dockerfile: docker/service.Dockerfile
       args:
-        SERVICE: member-service
+        MODULE: member-service
+        ARTIFACT: member-service
     ports:
       - "8101:8101"
     environment:
@@ -42,7 +43,8 @@ services:
       context: .
       dockerfile: docker/service.Dockerfile
       args:
-        SERVICE: catalog-service
+        MODULE: catalog-service
+        ARTIFACT: catalog-service
     ports:
       - "8102:8102"
     environment:
@@ -58,7 +60,8 @@ services:
       context: .
       dockerfile: docker/service.Dockerfile
       args:
-        SERVICE: display-service
+        MODULE: display-service
+        ARTIFACT: display-service
     ports:
       - "8103:8103"
     environment:
@@ -72,7 +75,8 @@ services:
       context: .
       dockerfile: docker/service.Dockerfile
       args:
-        SERVICE: inventory-service
+        MODULE: inventory-service
+        ARTIFACT: inventory-service
     ports:
       - "8104:8104"
     environment:
@@ -88,7 +92,8 @@ services:
       context: .
       dockerfile: docker/service.Dockerfile
       args:
-        SERVICE: cart-service
+        MODULE: cart-service
+        ARTIFACT: cart-service
     ports:
       - "8105:8105"
     environment:
@@ -107,7 +112,8 @@ services:
       context: .
       dockerfile: docker/service.Dockerfile
       args:
-        SERVICE: payment-service
+        MODULE: payment-service
+        ARTIFACT: payment-service
     ports:
       - "8106:8106"
     environment:
@@ -123,7 +129,8 @@ services:
       context: .
       dockerfile: docker/service.Dockerfile
       args:
-        SERVICE: shipping-service
+        MODULE: shipping-service
+        ARTIFACT: shipping-service
     ports:
       - "8107:8107"
     environment:
@@ -134,12 +141,13 @@ services:
       mysql:
         condition: service_healthy
 
-  order-service:
+  order-api:
     build:
       context: .
       dockerfile: docker/service.Dockerfile
       args:
-        SERVICE: order-service
+        MODULE: order-service/api
+        ARTIFACT: order-api
     ports:
       - "8108:8108"
     environment:
@@ -152,7 +160,7 @@ services:
       CLIENTS_CART_URL: http://cart-service:8105
       CLIENTS_PAYMENT_URL: http://payment-service:8106
       CLIENTS_SHIPPING_URL: http://shipping-service:8107
-      CLIENTS_NOTIFICATION_URL: http://notification-service:8109
+      CLIENTS_NOTIFICATION_URL: http://notification-api:8109
     depends_on:
       mysql:
         condition: service_healthy
@@ -168,17 +176,61 @@ services:
         condition: service_started
       shipping-service:
         condition: service_started
-      notification-service:
+      notification-api:
         condition: service_started
 
-  notification-service:
+  order-worker:
     build:
       context: .
       dockerfile: docker/service.Dockerfile
       args:
-        SERVICE: notification-service
+        MODULE: order-service/worker
+        ARTIFACT: order-worker
+    ports:
+      - "8118:8118"
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/order_service?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
+      DB_USERNAME: commerce
+      DB_PASSWORD: commerce
+      CLIENTS_MEMBER_URL: http://member-service:8101
+      CLIENTS_CATALOG_URL: http://catalog-service:8102
+      CLIENTS_INVENTORY_URL: http://inventory-service:8104
+      CLIENTS_CART_URL: http://cart-service:8105
+      CLIENTS_PAYMENT_URL: http://payment-service:8106
+      CLIENTS_SHIPPING_URL: http://shipping-service:8107
+      CLIENTS_NOTIFICATION_URL: http://notification-api:8109
+    depends_on:
+      mysql:
+        condition: service_healthy
+      notification-api:
+        condition: service_started
+
+  notification-api:
+    build:
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        MODULE: notification-service/api
+        ARTIFACT: notification-api
     ports:
       - "8109:8109"
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/notification_service?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
+      DB_USERNAME: commerce
+      DB_PASSWORD: commerce
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  notification-worker:
+    build:
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        MODULE: notification-service/worker
+        ARTIFACT: notification-worker
+    ports:
+      - "8119:8119"
     environment:
       DB_URL: jdbc:mysql://mysql:3306/notification_service?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
       DB_USERNAME: commerce
@@ -192,7 +244,8 @@ services:
       context: .
       dockerfile: docker/service.Dockerfile
       args:
-        SERVICE: api-gateway
+        MODULE: api-gateway
+        ARTIFACT: api-gateway
     ports:
       - "8080:8080"
     environment:
@@ -201,9 +254,9 @@ services:
       CLIENTS_CATALOG_URL: http://catalog-service:8102
       CLIENTS_INVENTORY_URL: http://inventory-service:8104
       CLIENTS_CART_URL: http://cart-service:8105
-      CLIENTS_ORDER_URL: http://order-service:8108
+      CLIENTS_ORDER_URL: http://order-api:8108
       CLIENTS_SHIPPING_URL: http://shipping-service:8107
-      CLIENTS_NOTIFICATION_URL: http://notification-service:8109
+      CLIENTS_NOTIFICATION_URL: http://notification-api:8109
     depends_on:
       member-service:
         condition: service_started
@@ -215,10 +268,10 @@ services:
         condition: service_started
       cart-service:
         condition: service_started
-      order-service:
+      order-api:
         condition: service_started
       shipping-service:
         condition: service_started
-      notification-service:
+      notification-api:
         condition: service_started
 
