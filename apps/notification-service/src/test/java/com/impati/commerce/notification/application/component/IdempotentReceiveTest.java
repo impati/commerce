@@ -3,6 +3,10 @@ package com.impati.commerce.notification.application.component;
 import com.impati.commerce.common.DomainException;
 import com.impati.commerce.notification.application.port.in.NotificationUseCase;
 import com.impati.commerce.notification.application.port.out.MailSender;
+import com.impati.commerce.test.RequiresDatabase;
+import com.impati.commerce.test.TestDatabase;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -20,10 +24,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * <p>스케줄러가 배경에서 대기 항목을 집어가면 결과가 흔들리므로 주기를 아주 길게 둔다.
  */
 @SpringBootTest(properties = {
-        "spring.datasource.url=jdbc:h2:mem:notification-idempotent;DB_CLOSE_DELAY=-1",
         "notifications.dispatch-interval=3600000"
 })
+@RequiresDatabase
 class IdempotentReceiveTest {
+
+    @DynamicPropertySource
+    static void database(DynamicPropertyRegistry registry) {
+        TestDatabase.apply(registry, "notification-idempotent");
+    }
     @Autowired
     private NotificationUseCase notificationUseCase;
 

@@ -3,6 +3,10 @@ package com.impati.commerce.payment.application.component;
 import com.impati.commerce.common.ApiContracts.Money;
 import com.impati.commerce.payment.application.port.out.PaymentGateway;
 import org.junit.jupiter.api.BeforeEach;
+import com.impati.commerce.test.RequiresDatabase;
+import com.impati.commerce.test.TestDatabase;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -22,8 +26,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * <p>로컬 대역 대신 호출을 기록하는 대역을 넣는다. 대행사를 거치지 않고 상태만 바꾸는 구현으로
  * 되돌아가면 여기서 깨진다 — 그 상태가 BL-0032의 출발점이었다.
  */
-@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:payment-gateway;DB_CLOSE_DELAY=-1")
+@SpringBootTest
+@RequiresDatabase
 class PaymentGatewayInteractionTest {
+
+    @DynamicPropertySource
+    static void database(DynamicPropertyRegistry registry) {
+        TestDatabase.apply(registry, "payment-gateway");
+    }
     private static final Money AMOUNT = Money.krw(58_000);
 
     @TestConfiguration

@@ -5,6 +5,10 @@ import com.impati.commerce.member.application.port.out.VerificationMailRepositor
 import com.impati.commerce.member.domain.MemberModels.Member;
 import com.impati.commerce.member.domain.MemberModels.PasswordHash;
 import com.impati.commerce.member.domain.MemberModels.VerificationMail;
+import com.impati.commerce.test.RequiresDatabase;
+import com.impati.commerce.test.TestDatabase;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -32,13 +36,18 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 조작하는 구현으로 바꾼다.
  */
 @SpringBootTest(properties = {
-        "spring.datasource.url=jdbc:h2:mem:member-vmail;DB_CLOSE_DELAY=-1",
         // 발송기를 멈춘다. 이 테스트는 점유되지 않은 항목을 남기고 그것이 후보에 있는지
         // 단정하는데, 발송기가 그 사이에 집으면 후보에서 빠져 단정이 깨진다.
         // 간격을 늘려도 기동 직후 한 번은 돈다 — 그때 아웃박스가 비어 있어 무해할 뿐이다.
         "member.verification-mail-dispatch-interval=3600000"
 })
+@RequiresDatabase
 class JdbcVerificationMailRepositoryTest {
+
+    @DynamicPropertySource
+    static void database(DynamicPropertyRegistry registry) {
+        TestDatabase.apply(registry, "member-vmail");
+    }
     private static final Duration RETRY_DELAY = Duration.ofMinutes(1);
 
     static class MutableClock extends Clock {
@@ -97,13 +106,13 @@ class JdbcVerificationMailRepositoryTest {
                         + " from verification_mails where id = ?",
                 mail.id()
         );
-        assertThat(row.get("MEMBER_ID")).isEqualTo(mail.memberId());
-        assertThat(row.get("EMAIL")).isEqualTo("column@impati.dev");
-        assertThat(row.get("TOKEN")).isEqualTo("raw-column-token");
-        assertThat(row.get("STATUS")).isEqualTo("PENDING");
-        assertThat(row.get("ATTEMPTS")).isEqualTo(0);
-        assertThat(row.get("LAST_ERROR")).isNull();
-        assertThat(row.get("NEXT_ATTEMPT_AFTER")).isNull();
+        assertThat(row.get("member_id")).isEqualTo(mail.memberId());
+        assertThat(row.get("email")).isEqualTo("column@impati.dev");
+        assertThat(row.get("token")).isEqualTo("raw-column-token");
+        assertThat(row.get("status")).isEqualTo("PENDING");
+        assertThat(row.get("attempts")).isEqualTo(0);
+        assertThat(row.get("last_error")).isNull();
+        assertThat(row.get("next_attempt_after")).isNull();
     }
 
     /** 점유는 한 번만 성립한다. 두 번째 호출이 값을 받으면 다른 인스턴스가 같은 메일을 또 보낸다. */

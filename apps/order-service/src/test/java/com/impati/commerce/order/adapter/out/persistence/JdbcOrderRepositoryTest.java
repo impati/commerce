@@ -6,6 +6,10 @@ import com.impati.commerce.order.application.port.out.OrderRepository;
 import com.impati.commerce.order.domain.OrderModels.Address;
 import com.impati.commerce.order.domain.OrderModels.Order;
 import com.impati.commerce.order.domain.OrderModels.OrderLine;
+import com.impati.commerce.test.RequiresDatabase;
+import com.impati.commerce.test.TestDatabase;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -22,11 +26,16 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>인메모리 맵과 달리 조회는 새 객체를 만들어 돌려준다. 저장하지 않은 변경은 사라진다.
  */
 @SpringBootTest(properties = {
-        "spring.datasource.url=jdbc:h2:mem:order-repo;DB_CLOSE_DELAY=-1",
         // 사건 발행 릴레이를 끈다 (BL-0049: 끄는 것이 규율에 달려 있다).
         "orders.event-publish-interval=3600000"
 })
+@RequiresDatabase
 class JdbcOrderRepositoryTest {
+
+    @DynamicPropertySource
+    static void database(DynamicPropertyRegistry registry) {
+        TestDatabase.apply(registry, "order-repo");
+    }
     @Autowired
     private OrderRepository orderRepository;
 
@@ -246,13 +255,13 @@ class JdbcOrderRepositoryTest {
                 order.id()
         );
 
-        assertThat(first.get("SKU_ID")).isEqualTo("sku_tee_white_m");
-        assertThat(first.get("PRODUCT_ID")).isEqualTo("prd_tee");
-        assertThat(first.get("PRODUCT_NAME")).isEqualTo("Everyday Cotton Tee");
-        assertThat(first.get("SKU_NAME")).isEqualTo("White / M");
-        assertThat(first.get("QUANTITY")).isEqualTo(2);
-        assertThat(first.get("UNIT_AMOUNT")).isEqualTo(29_000L);
-        assertThat(first.get("UNIT_CURRENCY")).isEqualTo("KRW");
+        assertThat(first.get("sku_id")).isEqualTo("sku_tee_white_m");
+        assertThat(first.get("product_id")).isEqualTo("prd_tee");
+        assertThat(first.get("product_name")).isEqualTo("Everyday Cotton Tee");
+        assertThat(first.get("sku_name")).isEqualTo("White / M");
+        assertThat(first.get("quantity")).isEqualTo(2);
+        assertThat(first.get("unit_amount")).isEqualTo(29_000L);
+        assertThat(first.get("unit_currency")).isEqualTo("KRW");
     }
 
     /** boolean 컬럼은 String으로 읽으면 "TRUE"/"FALSE"가 되므로 타입을 명시해 읽는다. */

@@ -1,5 +1,9 @@
 package com.impati.commerce.payment;
 
+import com.impati.commerce.test.RequiresDatabase;
+import com.impati.commerce.test.TestDatabase;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
@@ -9,8 +13,14 @@ import org.springframework.boot.test.context.SpringBootTest;
  * <p>저장소 포트의 구현이 사라지거나 둘로 늘어나면, 설정값이 빠지면 여기서 깨진다.
  * 서비스별 시나리오 테스트가 생기면 이 파일은 지워도 된다.
  */
-@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:payment-ctx;DB_CLOSE_DELAY=-1")
+@SpringBootTest
+@RequiresDatabase
 class PaymentServiceApplicationTest {
+
+    @DynamicPropertySource
+    static void database(DynamicPropertyRegistry registry) {
+        TestDatabase.apply(registry, "payment-ctx");
+    }
     @Test
     void contextLoads() {
     }

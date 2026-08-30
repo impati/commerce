@@ -1,5 +1,9 @@
 package com.impati.commerce.member;
 
+import com.impati.commerce.test.RequiresDatabase;
+import com.impati.commerce.test.TestDatabase;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
@@ -10,11 +14,16 @@ import org.springframework.boot.test.context.SpringBootTest;
  * 서비스별 시나리오 테스트가 생기면 이 파일은 지워도 된다.
  */
 @SpringBootTest(properties = {
-        "spring.datasource.url=jdbc:h2:mem:member-ctx;DB_CLOSE_DELAY=-1",
         // 발송기를 멈춘다. 컨텍스트는 JVM 수명 내내 살아 있어 다른 테스트가 도는 동안에도 계속 돈다.
         "member.verification-mail-dispatch-interval=3600000"
 })
+@RequiresDatabase
 class MemberServiceApplicationTest {
+
+    @DynamicPropertySource
+    static void database(DynamicPropertyRegistry registry) {
+        TestDatabase.apply(registry, "member-ctx");
+    }
     @Test
     void contextLoads() {
     }

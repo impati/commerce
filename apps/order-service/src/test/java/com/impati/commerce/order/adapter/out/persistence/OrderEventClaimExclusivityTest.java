@@ -8,6 +8,10 @@ import com.impati.commerce.order.domain.OrderModels.Address;
 import com.impati.commerce.order.domain.OrderModels.Order;
 import com.impati.commerce.order.domain.OrderModels.OrderEvent;
 import com.impati.commerce.order.domain.OrderModels.OrderLine;
+import com.impati.commerce.test.RequiresDatabase;
+import com.impati.commerce.test.TestDatabase;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -33,11 +37,16 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 먼저 점유하고 커밋해도 그 재검사를 통과하기 때문이다.
  */
 @SpringBootTest(properties = {
-        "spring.datasource.url=jdbc:h2:mem:order-event-exclusive;DB_CLOSE_DELAY=-1",
         "orders.event-publish-interval=3600000",
         "orders.payment-reconcile-interval=3600000"
 })
+@RequiresDatabase
 class OrderEventClaimExclusivityTest {
+
+    @DynamicPropertySource
+    static void database(DynamicPropertyRegistry registry) {
+        TestDatabase.apply(registry, "order-event-exclusive");
+    }
     private static final int ROUNDS = 5;
     private static final int ORDERS_PER_ROUND = 6;
     private static final int BATCH = 3;

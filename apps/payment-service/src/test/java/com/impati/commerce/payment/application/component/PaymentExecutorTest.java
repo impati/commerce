@@ -2,6 +2,10 @@ package com.impati.commerce.payment.application.component;
 
 import com.impati.commerce.common.ApiContracts.Money;
 import com.impati.commerce.common.DomainException;
+import com.impati.commerce.test.RequiresDatabase;
+import com.impati.commerce.test.TestDatabase;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -15,8 +19,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * <p>컨텍스트와 DB가 테스트 간에 공유되므로 각 테스트가 자기 주문 식별자를 쓴다. 한 주문에
  * 결제는 하나뿐이므로(PD-0011-R2) 식별자를 공유하면 서로의 결제를 돌려받는다.
  */
-@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:payment-service;DB_CLOSE_DELAY=-1")
+@SpringBootTest
+@RequiresDatabase
 class PaymentExecutorTest {
+
+    @DynamicPropertySource
+    static void database(DynamicPropertyRegistry registry) {
+        TestDatabase.apply(registry, "payment-service");
+    }
     private static final Money AMOUNT = Money.krw(58_000);
     private static final String OK_TOKEN = "card_test_success";
 

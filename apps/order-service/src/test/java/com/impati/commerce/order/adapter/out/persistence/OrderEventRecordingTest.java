@@ -6,6 +6,10 @@ import com.impati.commerce.order.application.port.out.OrderRepository;
 import com.impati.commerce.order.domain.OrderModels.Address;
 import com.impati.commerce.order.domain.OrderModels.Order;
 import com.impati.commerce.order.domain.OrderModels.OrderLine;
+import com.impati.commerce.test.RequiresDatabase;
+import com.impati.commerce.test.TestDatabase;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -24,13 +28,18 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>정리기가 이 컨텍스트에서 돌지 않도록 인터벌을 크게 덮는다.
  */
 @SpringBootTest(properties = {
-        "spring.datasource.url=jdbc:h2:mem:order-events-record;DB_CLOSE_DELAY=-1",
         "orders.payment-reconcile-interval=3600000",
         // 릴레이도 끈다. 이 테스트는 사건이 PENDING으로 남아 있는 것을 단정하는데, 릴레이가
         // 집어가면 attempts와 next_attempt_after가 움직여 단정이 깨진다.
         "orders.event-publish-interval=3600000"
 })
+@RequiresDatabase
 class OrderEventRecordingTest {
+
+    @DynamicPropertySource
+    static void database(DynamicPropertyRegistry registry) {
+        TestDatabase.apply(registry, "order-events-record");
+    }
     @Autowired
     private OrderRepository orderRepository;
 

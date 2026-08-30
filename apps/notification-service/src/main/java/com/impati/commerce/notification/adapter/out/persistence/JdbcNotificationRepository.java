@@ -9,6 +9,7 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
@@ -66,30 +67,34 @@ public class JdbcNotificationRepository implements NotificationRepository {
             + " from notifications where member_id = :member_id order by seq";
 
     /**
-     * 보낼 수 있는 것들을 한 문장으로 집는다.
+     * 보낼 수 있는 것들을 <b>잠그며 고른다</b>.
      *
-     * <p>대상 선택을 하위 질의로 분리한 이유는 {@code update ... limit}을 지원하지 않는 DB가
-     * 있기 때문이다. 갱신된 행 수가 이 주기가 집은 건수다.
+     * <p><b>{@code for update skip locked}가 배타성을 만든다.</b> 이 문장이 고른 행에는 커밋까지
+     * 유지되는 배타 락이 걸리고, 다른 인스턴스가 같은 문장을 돌리면 그 행들을 건너뛴다. 그래서
+     * 두 인스턴스가 같은 묶음을 손에 들고 나란히 발송하는 일이 생기지 않는다.
      *
-     * <p><b>{@code for update skip locked}가 배타성을 만든다.</b> 조건이 하위 질의 안에 있으면
-     * 바깥 {@code where}는 {@code id in (...)}뿐이라, 다른 인스턴스가 먼저 점유하고 커밋해도
-     * 그 재검사를 통과해 같은 행을 다시 갱신한다. 그러면 두 인스턴스가 같은 묶음을 손에 들고
-     * 나란히 발송한다. 이 절이 있으면 남이 붙잡은 행을 건너뛰고 다른 행을 집는다.
+     * <p>한 문장으로 합치지 않는 이유는 MySQL이 {@code update t ... where id in (select ... from t)}를
+     * 거절하기 때문이다(ER 1093). 파생 테이블로 감싸면 통과하지만 materialize되어 잠금이 의미를
+     * 잃는다. 나누어도 <b>원자성은 그대로다</b> — 락이 커밋까지 유지되므로 두 문장 사이에 다른
+     * 인스턴스가 끼어들 수 없다.
      */
+    private static final String SELECT_CLAIMABLE = """
+            select id
+              from notifications
+             where channel = 'MAIL'
+               and delivery_status = 'PENDING'
+               and (next_attempt_after is null or next_attempt_after <= :now)
+             order by seq
+             limit :limit
+               for update skip locked
+            """;
+
+    /** 방금 잠근 것들에 이 주기의 식별자와 다음 시도 시각을 새긴다. */
     private static final String CLAIM_FOR_DISPATCH = """
             update notifications
                set tx_id = :tx_id,
                    next_attempt_after = :retry_after
-             where id in (
-                   select id
-                     from notifications
-                    where channel = 'MAIL'
-                      and delivery_status = 'PENDING'
-                      and (next_attempt_after is null or next_attempt_after <= :now)
-                    order by seq
-                    limit :limit
-                      for update skip locked
-             )
+             where id in (:ids)
             """;
 
     /**
@@ -162,18 +167,32 @@ public class JdbcNotificationRepository implements NotificationRepository {
         return jdbc.query(SELECT_BY_MEMBER, new MapSqlParameterSource("member_id", memberId), ROW_MAPPER);
     }
 
+    /**
+     * 격리 수준을 낮춘다.
+     *
+     * <p>MySQL 기본값(REPEATABLE READ)에서 {@code for update} 범위 읽기는 갭 락까지 잡는다. 이
+     * 테이블은 큐라서 삽입이 계속 일어나므로 점유와 삽입이 교착한다. READ COMMITTED에는 갭 락이
+     * 없다.
+     *
+     * <p>전역이 아니라 여기만 낮추는 이유는, 낮출 이유가 이 경로에만 있기 때문이다. 애그리거트를
+     * 여러 테이블에서 읽는 조회들은 한 스냅샷을 봐야 하고, 그 성질까지 함께 버릴 이유가 없다
+     * (ADR-0013).
+     */
     @Override
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public List<Notification> claimForDispatch(String dispatchId, int batchSize, Duration retryDelay) {
         var now = now();
-        var claimed = jdbc.update(CLAIM_FOR_DISPATCH, new MapSqlParameterSource()
-                .addValue("tx_id", dispatchId)
-                .addValue("now", now)
-                .addValue("retry_after", now.plus(retryDelay))
-                .addValue("limit", batchSize));
-        if (claimed == 0) {
+        var ids = jdbc.queryForList(
+                SELECT_CLAIMABLE,
+                new MapSqlParameterSource().addValue("now", now).addValue("limit", batchSize),
+                String.class);
+        if (ids.isEmpty()) {
             return List.of();
         }
+        jdbc.update(CLAIM_FOR_DISPATCH, new MapSqlParameterSource()
+                .addValue("tx_id", dispatchId)
+                .addValue("retry_after", now.plus(retryDelay))
+                .addValue("ids", ids));
         return jdbc.query(SELECT_CLAIMED, new MapSqlParameterSource("tx_id", dispatchId), ROW_MAPPER);
     }
 

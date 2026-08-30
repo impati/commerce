@@ -10,6 +10,10 @@ import com.impati.commerce.order.domain.OrderModels.Address;
 import com.impati.commerce.order.domain.OrderModels.Order;
 import com.impati.commerce.order.domain.OrderModels.OrderLine;
 import org.junit.jupiter.api.BeforeEach;
+import com.impati.commerce.test.RequiresDatabase;
+import com.impati.commerce.test.TestDatabase;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,12 +40,17 @@ import static org.mockito.Mockito.verify;
  * <p>릴레이가 배경에서 사건을 집어가면 결과가 흔들리므로 주기를 아주 길게 둔다. 정리기도 같다.
  */
 @SpringBootTest(properties = {
-        "spring.datasource.url=jdbc:h2:mem:order-event-publish;DB_CLOSE_DELAY=-1",
         "orders.event-publish-interval=3600000",
         "orders.payment-reconcile-interval=3600000",
         "orders.event-publish-max-attempts=3"
 })
+@RequiresDatabase
 class OrderEventPublishTest {
+
+    @DynamicPropertySource
+    static void database(DynamicPropertyRegistry registry) {
+        TestDatabase.apply(registry, "order-event-publish");
+    }
     @Autowired
     private OrderEventPublishUseCase orderEventPublishUseCase;
 

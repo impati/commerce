@@ -9,6 +9,6 @@
 -- 지나면 다시 집히므로 별도 복구 절차가 없다.
 --
 -- null은 "지금 시도할 수 있다"는 뜻이며 표시가 켜지는 순간의 기본값이다.
-alter table orders add column payment_reconcile_after timestamp with time zone;
+alter table orders add column payment_reconcile_after datetime(6);
 
 create index idx_orders_payment_reconcile on orders (payment_outcome_unknown, payment_reconcile_after);

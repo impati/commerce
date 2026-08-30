@@ -17,6 +17,10 @@ import com.impati.commerce.common.ApiContracts.SkuResponse;
 import com.impati.commerce.order.application.port.out.OrderRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import com.impati.commerce.test.RequiresDatabase;
+import com.impati.commerce.test.TestDatabase;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -62,7 +66,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 예상하지 않은 요청이 되어 테스트가 깨진다.
  */
 @SpringBootTest(properties = {
-        "spring.datasource.url=jdbc:h2:mem:order-saga;DB_CLOSE_DELAY=-1",
         // 정리 스케줄러를 사실상 끈다. 이 테스트는 결제 미확인으로 표시된 주문을 남기고 그것이
         // 후보 조회에 있는지 단정하는데, 정리기가 그 사이에 점유하면 후보에서 빠져 단정이 깨진다.
         // 컨텍스트는 JVM 수명 내내 살아 있으므로 다른 테스트가 도는 동안에도 계속 틴다.
@@ -71,8 +74,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         // 배경에서 아웃박스를 비우면 stub하지 않은 알림 호출이 끼어든다.
         "orders.event-publish-interval=3600000"
 })
+@RequiresDatabase
 @AutoConfigureMockMvc
 class CheckoutSagaTest {
+
+    @DynamicPropertySource
+    static void database(DynamicPropertyRegistry registry) {
+        TestDatabase.apply(registry, "order-saga");
+    }
     private static final String MEMBER_URL = "http://localhost:8101";
     private static final String CATALOG_URL = "http://localhost:8102";
     private static final String INVENTORY_URL = "http://localhost:8104";

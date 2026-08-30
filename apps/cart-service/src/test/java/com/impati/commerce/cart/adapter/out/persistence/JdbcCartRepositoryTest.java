@@ -3,6 +3,10 @@ package com.impati.commerce.cart.adapter.out.persistence;
 import com.impati.commerce.cart.application.port.out.CartRepository;
 import com.impati.commerce.cart.domain.CartModels.Cart;
 import com.impati.commerce.cart.domain.CartModels.CartLine;
+import com.impati.commerce.test.RequiresDatabase;
+import com.impati.commerce.test.TestDatabase;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -10,8 +14,14 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:cart-repo;DB_CLOSE_DELAY=-1")
+@SpringBootTest
+@RequiresDatabase
 class JdbcCartRepositoryTest {
+
+    @DynamicPropertySource
+    static void database(DynamicPropertyRegistry registry) {
+        TestDatabase.apply(registry, "cart-repo");
+    }
     @Autowired
     private CartRepository cartRepository;
 
@@ -72,8 +82,8 @@ class JdbcCartRepositoryTest {
                 "select sku_id, line_no, quantity from cart_lines where member_id = ? and line_no = 1",
                 "mem_column"
         );
-        assertThat(second.get("SKU_ID")).isEqualTo("sku_second");
-        assertThat(second.get("LINE_NO")).isEqualTo(1);
-        assertThat(second.get("QUANTITY")).isEqualTo(7);
+        assertThat(second.get("sku_id")).isEqualTo("sku_second");
+        assertThat(second.get("line_no")).isEqualTo(1);
+        assertThat(second.get("quantity")).isEqualTo(7);
     }
 }

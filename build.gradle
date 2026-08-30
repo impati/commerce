@@ -22,12 +22,22 @@ subprojects {
         options.compilerArgs += ['-parameters']
     }
 
+    // 컨테이너가 필요한 테스트에 infra 태그가 붙는다. -PexcludeTags=infra로 빼면 도커 없이
+    // 도는 것만 남는다 — pre-commit이 그 형태로 돈다 (ADR-0013).
     tasks.withType(Test).configureEach {
-        useJUnitPlatform()
+        useJUnitPlatform {
+            if (project.hasProperty('excludeTags')) {
+                excludeTags project.property('excludeTags').toString().split(',')
+            }
+        }
     }
 }
 
 project(':libs:common-contracts') {
+    apply plugin: 'java-library'
+}
+
+project(':libs:test-database') {
     apply plugin: 'java-library'
 }
 
@@ -73,6 +83,10 @@ configure([
 }
 
 // 영속화가 적용된 서비스. 저장소를 옮길 때마다 여기에 추가한다.
+//
+// 테스트도 실제 MySQL 위에서 돈다. 대역(H2)으로 검증하면 점유의 잠금 동작처럼 DB마다 다른
+// 것이 검증되지 않은 채 남고, 이 저장소는 검증되지 않는 경로가 반드시 샌다는 것을 반복해서
+// 겪었다 (ADR-0013).
 configure([
         project(':apps:order-service'),
         project(':apps:payment-service'),
@@ -86,6 +100,9 @@ configure([
     dependencies {
         implementation 'org.springframework.boot:spring-boot-starter-jdbc'
         implementation 'org.flywaydb:flyway-core'
-        runtimeOnly 'com.h2database:h2'
+        implementation 'org.flywaydb:flyway-mysql'
+        runtimeOnly 'com.mysql:mysql-connector-j'
+
+        testImplementation project(':libs:test-database')
     }
 }

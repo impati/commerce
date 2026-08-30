@@ -3,6 +3,10 @@ package com.impati.commerce.notification.adapter.out.persistence;
 import com.impati.commerce.common.Ids;
 import com.impati.commerce.notification.application.port.out.NotificationRepository;
 import com.impati.commerce.notification.domain.NotificationModels.Notification;
+import com.impati.commerce.test.RequiresDatabase;
+import com.impati.commerce.test.TestDatabase;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -26,10 +30,15 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 그 상태에서는 수락 확인도 막지 못한다 — 둘 다 아직 발송 전이라 나란히 "안 보냈다"를 읽는다.
  */
 @SpringBootTest(properties = {
-        "spring.datasource.url=jdbc:h2:mem:notification-exclusive;DB_CLOSE_DELAY=-1",
         "notifications.dispatch-interval=3600000"
 })
+@RequiresDatabase
 class ClaimExclusivityTest {
+
+    @DynamicPropertySource
+    static void database(DynamicPropertyRegistry registry) {
+        TestDatabase.apply(registry, "notification-exclusive");
+    }
     private static final int ROUNDS = 5;
     private static final int ROWS_PER_ROUND = 6;
     private static final int BATCH = 3;

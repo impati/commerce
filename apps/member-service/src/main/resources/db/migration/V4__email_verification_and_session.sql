@@ -5,8 +5,8 @@
 create table email_verifications (
     token_hash varchar(64) primary key,
     member_id  varchar(64) not null,
-    expires_at timestamp   not null,
-    used_at    timestamp,
+    expires_at datetime(6) not null,
+    used_at    datetime(6),
     constraint fk_email_verifications_member foreign key (member_id) references members (id)
 );
 
@@ -19,8 +19,8 @@ create index idx_email_verifications_member on email_verifications (member_id);
 create table member_sessions (
     token_hash varchar(64) primary key,
     member_id  varchar(64) not null,
-    expires_at timestamp   not null,
-    revoked_at timestamp,
+    expires_at datetime(6) not null,
+    revoked_at datetime(6),
     constraint fk_member_sessions_member foreign key (member_id) references members (id)
 );
 

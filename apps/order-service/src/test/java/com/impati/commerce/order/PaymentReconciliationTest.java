@@ -12,6 +12,10 @@ import com.impati.commerce.order.domain.OrderModels.Order;
 import com.impati.commerce.order.domain.OrderModels.OrderLine;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import com.impati.commerce.test.RequiresDatabase;
+import com.impati.commerce.test.TestDatabase;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -53,14 +57,19 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
  * 정리가 테스트와 겹쳐 stub을 먼저 소비한다.
  */
 @SpringBootTest(properties = {
-        "spring.datasource.url=jdbc:h2:mem:order-reconcile;DB_CLOSE_DELAY=-1",
         "orders.payment-reconcile-interval=3600000",
         "orders.payment-reconcile-retry-delay=60s",
         "orders.payment-reconcile-batch-size=50",
         // 사건 발행 릴레이를 끈다 (BL-0049: 끄는 것이 규율에 달려 있다).
         "orders.event-publish-interval=3600000"
 })
+@RequiresDatabase
 class PaymentReconciliationTest {
+
+    @DynamicPropertySource
+    static void database(DynamicPropertyRegistry registry) {
+        TestDatabase.apply(registry, "order-reconcile");
+    }
     private static final String PAYMENT_URL = "http://localhost:8106";
     private static final String MEMBER_ID = "mem_reconcile";
     private static final Duration RETRY_DELAY = Duration.ofSeconds(60);

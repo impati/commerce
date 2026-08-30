@@ -4,6 +4,10 @@ import com.impati.commerce.inventory.application.port.in.InventoryUseCase;
 import com.impati.commerce.inventory.application.port.in.StockLine;
 import com.impati.commerce.inventory.application.port.in.StockDetails;
 import com.impati.commerce.common.DomainException;
+import com.impati.commerce.test.RequiresDatabase;
+import com.impati.commerce.test.TestDatabase;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -17,8 +21,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * 테스트가 같은 DB를 공유하므로 SKU id를 테스트별로 다르게 만든다. 빈 저장소를 가정하지 않는다.
  */
-@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:inventory-app;DB_CLOSE_DELAY=-1")
+@SpringBootTest
+@RequiresDatabase
 class InventoryExecutorTest {
+
+    @DynamicPropertySource
+    static void database(DynamicPropertyRegistry registry) {
+        TestDatabase.apply(registry, "inventory-app");
+    }
     @Autowired
     private InventoryUseCase inventoryUseCase;
 
@@ -75,9 +85,9 @@ class InventoryExecutorTest {
         inventoryUseCase.addStock(skuId, 1);
 
         assertThatThrownBy(() -> jdbc.update("update stock_items set on_hand = -1 where sku_id = ?", skuId))
-                .hasMessageContaining("CK_STOCK_ITEMS_NON_NEGATIVE");
+                .hasMessageContaining("ck_stock_items_non_negative");
         assertThatThrownBy(() -> jdbc.update("update stock_items set reserved = 5 where sku_id = ?", skuId))
-                .hasMessageContaining("CK_STOCK_ITEMS_NON_NEGATIVE");
+                .hasMessageContaining("ck_stock_items_non_negative");
     }
 
     /** 왕복 테스트는 쓰기와 읽기가 같은 방향으로 틀리면 통과한다. 컬럼을 직접 읽어 막는다. */
@@ -88,16 +98,16 @@ class InventoryExecutorTest {
         var reservation = inventoryUseCase.reserve("ord_column", List.of(new StockLine(skuId, 4)));
 
         var stockRow = jdbc.queryForMap("select on_hand, reserved from stock_items where sku_id = ?", skuId);
-        assertThat(stockRow.get("ON_HAND")).isEqualTo(10);
-        assertThat(stockRow.get("RESERVED")).isEqualTo(4);
+        assertThat(stockRow.get("on_hand")).isEqualTo(10);
+        assertThat(stockRow.get("reserved")).isEqualTo(4);
 
         var lineRow = jdbc.queryForMap(
                 "select sku_id, line_no, quantity from reservation_lines where reservation_id = ?",
                 reservation.id()
         );
-        assertThat(lineRow.get("SKU_ID")).isEqualTo(skuId);
-        assertThat(lineRow.get("LINE_NO")).isEqualTo(0);
-        assertThat(lineRow.get("QUANTITY")).isEqualTo(4);
+        assertThat(lineRow.get("sku_id")).isEqualTo(skuId);
+        assertThat(lineRow.get("line_no")).isEqualTo(0);
+        assertThat(lineRow.get("quantity")).isEqualTo(4);
 
         assertThat(jdbc.queryForObject(
                 "select status from reservations where id = ?", String.class, reservation.id()))

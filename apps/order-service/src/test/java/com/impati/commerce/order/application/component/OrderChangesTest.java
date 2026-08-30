@@ -8,6 +8,10 @@ import com.impati.commerce.order.application.port.out.TransactionSection;
 import com.impati.commerce.order.domain.OrderModels.Address;
 import com.impati.commerce.order.domain.OrderModels.Order;
 import com.impati.commerce.order.domain.OrderModels.OrderLine;
+import com.impati.commerce.test.RequiresDatabase;
+import com.impati.commerce.test.TestDatabase;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -28,11 +32,16 @@ import static org.mockito.Mockito.mock;
  * 간다. 둘 다 예외 없이 조용히 일어난다.
  */
 @SpringBootTest(properties = {
-        "spring.datasource.url=jdbc:h2:mem:order-changes;DB_CLOSE_DELAY=-1",
         "orders.event-publish-interval=3600000",
         "orders.payment-reconcile-interval=3600000"
 })
+@RequiresDatabase
 class OrderChangesTest {
+
+    @DynamicPropertySource
+    static void database(DynamicPropertyRegistry registry) {
+        TestDatabase.apply(registry, "order-changes");
+    }
     @Autowired
     private OrderChanges orderChanges;
 
