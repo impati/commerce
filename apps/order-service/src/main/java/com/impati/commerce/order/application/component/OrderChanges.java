@@ -49,6 +49,12 @@ public class OrderChanges {
      *
      * <p>사건을 <b>가져가며 비운다</b>. 같은 주문을 여러 번 확정해도 이미 넘긴 사건이 다시
      * 쓰이지 않는다.
+     *
+     * <p><b>실패하면 인메모리 {@code order}의 사건은 이미 비어 있다.</b> 비우는 것이 커밋보다
+     * 먼저 일어나므로 롤백이 되돌려주지 않는다. 지금은 실패한 주문 객체를 곧바로 버리므로
+     * 문제가 되지 않지만, 여기에 재시도를 붙이면 두 번째 시도에 넘길 사건이 없다 — 그때
+     * 비우는 시점을 커밋 성공 뒤로 옮겨야 하고, 그러려면 {@link TransactionSection}이 성공
+     * 여부를 돌려주는 형태가 되어야 한다.
      */
     public void commit(Order order) {
         transactionSection.run(() -> {

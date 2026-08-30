@@ -15,8 +15,8 @@ import java.time.Duration;
 /**
  * 주문 사건 아웃박스를 비운다 (ADR-0012).
  *
- * <p>기록하는 것과 발행하는 것은 협력자가 겹치지 않으므로 별도 클래스다 — 기록하는 쪽은
- * 주문 저장소와 여섯 협력자를 쓰고, 발행하는 쪽은 저장소와 발행 포트만 쓴다.
+ * <p>기록하는 것과 발행하는 것은 협력자가 겹치지 않으므로 별도 클래스다 — 기록은 주문 변경의
+ * 일부라 {@code OrderChanges}가 하고, 발행은 사건 저장소와 발행 포트만 쓴다.
  */
 @Component
 public class OrderEventPublishExecutor implements OrderEventPublishUseCase {
