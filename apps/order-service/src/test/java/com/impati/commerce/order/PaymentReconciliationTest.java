@@ -5,6 +5,7 @@ import com.impati.commerce.common.ApiContracts.ErrorResponse;
 import com.impati.commerce.common.ApiContracts.Money;
 import com.impati.commerce.common.ApiContracts.PaymentResponse;
 import com.impati.commerce.order.application.port.in.PaymentReconciliationUseCase;
+import com.impati.commerce.order.application.component.OrderChanges;
 import com.impati.commerce.order.application.port.out.OrderRepository;
 import com.impati.commerce.order.domain.OrderModels.Address;
 import com.impati.commerce.order.domain.OrderModels.Order;
@@ -55,7 +56,9 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
         "spring.datasource.url=jdbc:h2:mem:order-reconcile;DB_CLOSE_DELAY=-1",
         "orders.payment-reconcile-interval=3600000",
         "orders.payment-reconcile-retry-delay=60s",
-        "orders.payment-reconcile-batch-size=50"
+        "orders.payment-reconcile-batch-size=50",
+        // 사건 발행 릴레이를 끈다 (BL-0049: 끄는 것이 규율에 달려 있다).
+        "orders.event-publish-interval=3600000"
 })
 class PaymentReconciliationTest {
     private static final String PAYMENT_URL = "http://localhost:8106";
@@ -109,6 +112,9 @@ class PaymentReconciliationTest {
     private OrderRepository orderRepository;
 
     @Autowired
+    private OrderChanges orderChanges;
+
+    @Autowired
     private MockServerRestClientCustomizer customizer;
 
     @Autowired
@@ -131,6 +137,7 @@ class PaymentReconciliationTest {
         server = customizer.getServer();
         server.reset();
         jdbc.update("delete from order_lines");
+        jdbc.update("delete from order_events");
         jdbc.update("delete from orders");
     }
 
@@ -286,7 +293,7 @@ class PaymentReconciliationTest {
     void unmarkedOrderIsNotACandidate() {
         var order = newOrder();
         order.attachPayment("pay_untouched");
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         var summary = paymentReconciliationUseCase.reconcileUnknownPaymentOutcomes();
 
@@ -339,9 +346,9 @@ class PaymentReconciliationTest {
     private Order markedOrder(String paymentId) {
         var order = newOrder();
         order.attachPayment(paymentId);
-        order.cancel();
+        order.cancel("test");
         order.markPaymentOutcomeUnknown();
-        orderRepository.save(order);
+        orderChanges.commit(order);
         return order;
     }
 

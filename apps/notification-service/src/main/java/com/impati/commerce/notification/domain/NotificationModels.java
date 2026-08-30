@@ -32,11 +32,10 @@ public final class NotificationModels {
         private final String id;
 
         /**
-         * 발신자가 부여한 중복 판정 키. 같은 키의 알림은 하나만 존재한다 (ADR-0011).
+         * 발신자가 부여한 중복 판정 키. 같은 키의 알림은 하나만 존재한다 (ADR-0011, ADR-0012).
          *
-         * <p>기록만 남기는 알림은 아직 키가 없어 {@code null}이다. 없는 것을 임의의 값으로
-         * 채우지 않는다 — 랜덤 키는 유니크 제약을 통과하므로 멱등한 척하면서 아무것도 거르지
-         * 못한다. 주문 알림 경로에 키를 붙이는 것은 별도 항목이다.
+         * <p>두 수신 경로가 모두 키를 요구하므로 예외가 없다. 없는 것을 임의의 값으로 채우지
+         * 않는다 — 랜덤 키는 유니크 제약을 통과하므로 멱등한 척하면서 아무것도 거르지 못한다.
          */
         private final String idempotencyKey;
 
@@ -50,9 +49,18 @@ public final class NotificationModels {
         private int attempts;
         private String lastError;
 
-        /** 기록만 남기는 알림. 중복 판정 대상이 아니므로 키가 없다. */
-        public Notification(String eventType, String memberId, String subject, String body) {
-            this(Ids.newId("ntf"), null, eventType, memberId, subject, body,
+        /**
+         * 기록만 남기는 알림. 외부로 보내지 않으므로 발송 상태가 SKIPPED다.
+         *
+         * <p>보내지 않아도 멱등 키를 요구한다. 중복의 대가가 메일 두 통은 아니지만 알림 목록에
+         * 같은 사건이 두 줄로 보이고, 이 경로에 발송이 붙는 순간 대가가 커진다 (ADR-0012).
+         */
+        public static Notification recorded(
+                String eventType, String memberId, String subject, String body, String idempotencyKey) {
+            if (idempotencyKey == null || idempotencyKey.isBlank()) {
+                throw DomainException.validation("idempotency key is required");
+            }
+            return new Notification(Ids.newId("ntf"), idempotencyKey, eventType, memberId, subject, body,
                     Channel.NONE, null, DeliveryStatus.SKIPPED, 0, null);
         }
 

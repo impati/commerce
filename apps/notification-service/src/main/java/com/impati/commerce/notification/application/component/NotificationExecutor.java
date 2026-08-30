@@ -82,12 +82,22 @@ public class NotificationExecutor implements NotificationUseCase {
         this.maxAttempts = maxAttempts;
     }
 
-    /** {@code @Transactional}을 붙이지 않는다. 저장소 호출이 하나뿐이라 묶을 것이 없다. */
+    /**
+     * 사건을 기록한다. 발송하지 않는다 (PD-0009-R1).
+     *
+     * <p>같은 멱등 키로 다시 오면 먼저 적힌 것을 그대로 돌려준다. 부르는 쪽은 응답을 못 받았을
+     * 때 재시도할 수밖에 없으므로, 그 재시도가 두 줄이 되지 않게 하는 것이 여기의 일이다
+     * (ADR-0012).
+     *
+     * <p>{@code @Transactional}을 붙이지 않는다. 저장소 호출이 하나뿐이라 묶을 것이 없고,
+     * {@link NotificationRepository#saveIfAbsent}는 제약 위반 뒤에 이어서 읽어야 하므로
+     * 트랜잭션 안에서 돌면 안 된다.
+     */
     @Override
-    public NotificationDetails record(String eventType, String memberId, String subject, String body) {
-        var notification = new Notification(eventType, memberId, subject, body);
-        notificationRepository.save(notification);
-        return NotificationMapper.toDetails(notification);
+    public NotificationDetails record(
+            String eventType, String memberId, String subject, String body, String idempotencyKey) {
+        var notification = Notification.recorded(eventType, memberId, subject, body, idempotencyKey);
+        return NotificationMapper.toDetails(notificationRepository.saveIfAbsent(notification));
     }
 
     /**

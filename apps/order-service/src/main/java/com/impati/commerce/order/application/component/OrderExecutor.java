@@ -3,7 +3,6 @@ package com.impati.commerce.order.application.component;
 import com.impati.commerce.common.ApiContracts.AddressResponse;
 import com.impati.commerce.common.ApiContracts.AuthorizePaymentRequest;
 import com.impati.commerce.common.ApiContracts.CreateShipmentRequest;
-import com.impati.commerce.common.ApiContracts.NotificationEventRequest;
 import com.impati.commerce.common.ApiContracts.PaymentResponse;
 import com.impati.commerce.common.ApiContracts.ReservationLine;
 import com.impati.commerce.common.ApiContracts.ReserveInventoryRequest;
@@ -16,7 +15,6 @@ import com.impati.commerce.order.application.port.out.CartClient;
 import com.impati.commerce.order.application.port.out.CatalogClient;
 import com.impati.commerce.order.application.port.out.InventoryClient;
 import com.impati.commerce.order.application.port.out.MemberClient;
-import com.impati.commerce.order.application.port.out.NotificationClient;
 import com.impati.commerce.order.application.port.out.OrderRepository;
 import com.impati.commerce.order.application.port.out.PaymentClient;
 import com.impati.commerce.order.application.port.out.ShippingClient;
@@ -44,32 +42,32 @@ public class OrderExecutor implements OrderUseCase {
     private static final Logger log = LoggerFactory.getLogger(OrderExecutor.class);
 
     private final OrderRepository orderRepository;
+    private final OrderChanges orderChanges;
     private final MemberClient memberClient;
     private final CartClient cartClient;
     private final CatalogClient catalogClient;
     private final InventoryClient inventoryClient;
     private final PaymentClient paymentClient;
     private final ShippingClient shippingClient;
-    private final NotificationClient notificationClient;
 
     public OrderExecutor(
             OrderRepository orderRepository,
+            OrderChanges orderChanges,
             MemberClient memberClient,
             CartClient cartClient,
             CatalogClient catalogClient,
             InventoryClient inventoryClient,
             PaymentClient paymentClient,
-            ShippingClient shippingClient,
-            NotificationClient notificationClient
+            ShippingClient shippingClient
     ) {
         this.orderRepository = orderRepository;
+        this.orderChanges = orderChanges;
         this.memberClient = memberClient;
         this.cartClient = cartClient;
         this.catalogClient = catalogClient;
         this.inventoryClient = inventoryClient;
         this.paymentClient = paymentClient;
         this.shippingClient = shippingClient;
-        this.notificationClient = notificationClient;
     }
 
     @Override
@@ -94,7 +92,7 @@ public class OrderExecutor implements OrderUseCase {
             );
         }).toList();
         var order = new Order(memberId, orderLines, address);
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         String reservationId = null;
         String paymentId = null;
@@ -109,7 +107,7 @@ public class OrderExecutor implements OrderUseCase {
                             .toList()
             )).id();
             order.attachReservation(reservationId);
-            orderRepository.save(order);
+            orderChanges.commit(order);
 
             paymentId = paymentClient.authorizePayment(new AuthorizePaymentRequest(
                     order.id(),
@@ -118,7 +116,7 @@ public class OrderExecutor implements OrderUseCase {
                     paymentToken
             )).id();
             order.attachPayment(paymentId);
-            orderRepository.save(order);
+            orderChanges.commit(order);
 
             shipment = shippingClient.createShipment(new CreateShipmentRequest(
                     order.id(),
@@ -130,29 +128,17 @@ public class OrderExecutor implements OrderUseCase {
             payment = capture(paymentId);
         } catch (RuntimeException exception) {
             rollbackBeforeCapture(
-                    order, reservationId, paymentId, shipment, memberId, captureAttempted.get(), exception);
+                    order, reservationId, paymentId, shipment, captureAttempted.get(), exception);
             throw exception;
         }
 
         // 매입이 끝났다. 여기부터는 아무것도 되돌리지 않는다 (PD-0012-R8).
         order.markPaid();
-        order.attachShipment(shipment.id());
-        orderRepository.save(order);
+        order.attachShipment(shipment.id(), shipment.trackingNumber());
+        orderChanges.commit(order);
 
         commitReservationQuietly(order, reservationId);
         clearCartQuietly(order, memberId);
-        notificationClient.notify(new NotificationEventRequest(
-                "OrderPaid",
-                memberId,
-                "Order paid",
-                "Order " + order.id() + " has been paid."
-        ));
-        notificationClient.notify(new NotificationEventRequest(
-                "ShipmentCreated",
-                memberId,
-                "Shipment ready",
-                "Tracking number: " + shipment.trackingNumber()
-        ));
         return new CheckoutResult(OrderMapper.toDetails(order), payment, shipment);
     }
 
@@ -193,7 +179,6 @@ public class OrderExecutor implements OrderUseCase {
             String reservationId,
             String paymentId,
             ShipmentResponse shipment,
-            String memberId,
             boolean captureAttempted,
             RuntimeException cause
     ) {
@@ -213,24 +198,17 @@ public class OrderExecutor implements OrderUseCase {
         var captureOutcomeUnknown = captureAttempted
                 && cause instanceof DomainException domain
                 && domain.code().equals("outcome_unknown");
-        var cancelled = compensate("cancel-order", order.id(), () -> {
-            order.cancel();
+        // 취소되지 않은 주문에 취소를 알리지 않는다 (PD-0012-R11). 이제 이 규칙을 지키는 것은
+        // 여기의 분기가 아니라 애그리거트다 — 취소 사건은 cancel()이 성공해야 쌓이고, 그 저장이
+        // 실패하면 같은 트랜잭션이라 사건도 커밋되지 않는다.
+        compensate("cancel-order", order.id(), () -> {
+            order.cancel(cause.getMessage());
             if (captureOutcomeUnknown) {
                 // 매입 여부를 모른 채 취소한다. 환불이 필요한지 나중에 결제에 물어야 한다.
                 order.markPaymentOutcomeUnknown();
             }
-            orderRepository.save(order);
+            orderChanges.commit(order);
         }, cause);
-        if (!cancelled) {
-            // 취소되지 않은 주문에 취소를 알리지 않는다 (PD-0012-R11).
-            return;
-        }
-        notificationClient.notify(new NotificationEventRequest(
-                "OrderCancelled",
-                memberId,
-                "Order cancelled",
-                "Order " + order.id() + " was cancelled: " + cause.getMessage()
-        ));
     }
 
     /** 성공하면 {@code true}. 실패는 원인에 붙이고 삼켜서 남은 보상이 계속 돌게 한다. */
@@ -286,13 +264,7 @@ public class OrderExecutor implements OrderUseCase {
     public OrderDetails markDelivered(String orderId) {
         var order = getOrder(orderId);
         order.markDelivered();
-        orderRepository.save(order);
-        notificationClient.notify(new NotificationEventRequest(
-                "OrderDelivered",
-                order.memberId(),
-                "Order delivered",
-                "Order " + order.id() + " has been delivered."
-        ));
+        orderChanges.commit(order);
         return OrderMapper.toDetails(order);
     }
 

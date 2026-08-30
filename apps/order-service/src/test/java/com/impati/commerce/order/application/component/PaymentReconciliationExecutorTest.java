@@ -19,6 +19,7 @@ import static org.mockito.Mockito.mock;
  */
 class PaymentReconciliationExecutorTest {
     private final OrderRepository orderRepository = mock(OrderRepository.class);
+    private final OrderChanges orderChanges = mock(OrderChanges.class);
     private final PaymentClient paymentClient = mock(PaymentClient.class);
 
     @Test
@@ -47,6 +48,6 @@ class PaymentReconciliationExecutorTest {
     }
 
     private PaymentReconciliationExecutor executor(int batchSize, Duration retryDelay) {
-        return new PaymentReconciliationExecutor(orderRepository, paymentClient, batchSize, retryDelay);
+        return new PaymentReconciliationExecutor(orderRepository, orderChanges, paymentClient, batchSize, retryDelay);
     }
 }

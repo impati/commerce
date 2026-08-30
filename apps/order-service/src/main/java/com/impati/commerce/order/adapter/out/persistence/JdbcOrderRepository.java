@@ -2,6 +2,7 @@ package com.impati.commerce.order.adapter.out.persistence;
 
 import com.impati.commerce.common.ApiContracts.Money;
 import com.impati.commerce.order.application.port.out.OrderRepository;
+import com.impati.commerce.order.application.port.out.OrderWriter;
 import com.impati.commerce.order.domain.OrderModels.Address;
 import com.impati.commerce.order.domain.OrderModels.Order;
 import com.impati.commerce.order.domain.OrderModels.OrderLine;
@@ -26,7 +27,7 @@ import java.util.Optional;
  * <p>{@code select *}도 쓰지 않는다. 컬럼이 추가되면 결과셋 모양이 말없이 바뀐다.
  */
 @Repository
-public class JdbcOrderRepository implements OrderRepository {
+public class JdbcOrderRepository implements OrderRepository, OrderWriter {
     private static final String ORDER_COLUMNS = """
             id, member_id, status, payment_id, shipment_id, inventory_reservation_id,
             payment_outcome_unknown,
@@ -123,7 +124,6 @@ public class JdbcOrderRepository implements OrderRepository {
      * 조용히 반영되지 않는 쪽보다 매번 쓰는 편이 안전하다. aggregate가 작아 비용도 작다.
      */
     @Override
-    @Transactional
     public void save(Order order) {
         var params = orderParams(order);
         if (jdbc.update(UPDATE_ORDER, params) == 0) {

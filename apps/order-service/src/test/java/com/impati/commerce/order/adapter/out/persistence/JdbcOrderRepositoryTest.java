@@ -1,6 +1,7 @@
 package com.impati.commerce.order.adapter.out.persistence;
 
 import com.impati.commerce.common.ApiContracts.Money;
+import com.impati.commerce.order.application.component.OrderChanges;
 import com.impati.commerce.order.application.port.out.OrderRepository;
 import com.impati.commerce.order.domain.OrderModels.Address;
 import com.impati.commerce.order.domain.OrderModels.Order;
@@ -20,10 +21,17 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>인메모리 맵과 달리 조회는 새 객체를 만들어 돌려준다. 저장하지 않은 변경은 사라진다.
  */
-@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:order-repo;DB_CLOSE_DELAY=-1")
+@SpringBootTest(properties = {
+        "spring.datasource.url=jdbc:h2:mem:order-repo;DB_CLOSE_DELAY=-1",
+        // 사건 발행 릴레이를 끈다 (BL-0049: 끄는 것이 규율에 달려 있다).
+        "orders.event-publish-interval=3600000"
+})
 class JdbcOrderRepositoryTest {
     @Autowired
     private OrderRepository orderRepository;
+
+    @Autowired
+    private OrderChanges orderChanges;
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -32,7 +40,7 @@ class JdbcOrderRepositoryTest {
     void roundTripsOrderWithLinesAndAddress() {
         var order = newOrder();
         order.attachReservation("rsv_round");
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         var loaded = orderRepository.findById(order.id()).orElseThrow();
 
@@ -51,14 +59,14 @@ class JdbcOrderRepositoryTest {
     @Test
     void savesStatusTransitionsOnTheSameRow() {
         var order = newOrder();
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         order.attachPayment("pay_round");
 
         order.markPaid();
-        orderRepository.save(order);
-        order.attachShipment("shp_round");
-        orderRepository.save(order);
+        orderChanges.commit(order);
+        order.attachShipment("shp_round", "TRK-shp_round");
+        orderChanges.commit(order);
 
         var loaded = orderRepository.findById(order.id()).orElseThrow();
         assertThat(loaded.status()).isEqualTo("FULFILLING");
@@ -71,7 +79,7 @@ class JdbcOrderRepositoryTest {
     @Test
     void discardsChangesThatWereNotSaved() {
         var order = newOrder();
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         order.attachPayment("pay_unsaved");
 
@@ -90,9 +98,9 @@ class JdbcOrderRepositoryTest {
     void keepsAndFindsTheUnknownPaymentOutcomeMark() {
         var order = newOrder();
         order.attachPayment("pay_unknown");
-        order.cancel();
+        order.cancel("test");
         order.markPaymentOutcomeUnknown();
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         assertThat(orderRepository.findById(order.id()).orElseThrow().paymentOutcomeUnknown()).isTrue();
         assertThat(flagColumn(order.id(), "payment_outcome_unknown")).isTrue();
@@ -104,12 +112,12 @@ class JdbcOrderRepositoryTest {
     void resolvedOrderLeavesTheUnknownPaymentOutcomeList() {
         var order = newOrder();
         order.attachPayment("pay_resolved");
-        order.cancel();
+        order.cancel("test");
         order.markPaymentOutcomeUnknown();
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         order.resolvePaymentOutcome();
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         assertThat(flagColumn(order.id(), "payment_outcome_unknown")).isFalse();
         assertThat(orderRepository.findPaymentReconciliationCandidates(100)).doesNotContain(order.id());
@@ -119,7 +127,7 @@ class JdbcOrderRepositoryTest {
     @Test
     void ordinaryOrderIsNotMarked() {
         var order = newOrder();
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         assertThat(flagColumn(order.id(), "payment_outcome_unknown")).isFalse();
         assertThat(orderRepository.findPaymentReconciliationCandidates(100)).doesNotContain(order.id());
@@ -158,7 +166,7 @@ class JdbcOrderRepositoryTest {
     @Test
     void unmarkedOrderCannotBeClaimed() {
         var order = newOrder();
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         assertThat(orderRepository.claimForPaymentReconciliation(order.id(), Duration.ofMinutes(1))).isEmpty();
     }
@@ -175,7 +183,7 @@ class JdbcOrderRepositoryTest {
         orderRepository.claimForPaymentReconciliation(order.id(), Duration.ofMinutes(1));
         var claimedAt = column(order.id(), "payment_reconcile_after");
 
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         assertThat(column(order.id(), "payment_reconcile_after")).isEqualTo(claimedAt);
     }
@@ -187,7 +195,7 @@ class JdbcOrderRepositoryTest {
         orderRepository.claimForPaymentReconciliation(order.id(), Duration.ofMinutes(1));
 
         order.resolvePaymentOutcome();
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         assertThat(column(order.id(), "payment_reconcile_after")).isNull();
     }
@@ -195,9 +203,9 @@ class JdbcOrderRepositoryTest {
     private Order markedOrder(String paymentId) {
         var order = newOrder();
         order.attachPayment(paymentId);
-        order.cancel();
+        order.cancel("test");
         order.markPaymentOutcomeUnknown();
-        orderRepository.save(order);
+        orderChanges.commit(order);
         return order;
     }
 
@@ -213,7 +221,7 @@ class JdbcOrderRepositoryTest {
         var order = newOrder();
         order.attachPayment("pay_column");
         order.markPaid();
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         assertThat(column(order.id(), "ship_address_id")).isEqualTo("addr_demo");
         assertThat(column(order.id(), "ship_alias")).isEqualTo("home");
@@ -230,7 +238,7 @@ class JdbcOrderRepositoryTest {
     @Test
     void writesEachLineFieldToItsOwnColumn() {
         var order = newOrder();
-        orderRepository.save(order);
+        orderChanges.commit(order);
 
         var first = jdbc.queryForMap(
                 "select sku_id, product_id, product_name, sku_name, quantity, unit_amount, unit_currency"

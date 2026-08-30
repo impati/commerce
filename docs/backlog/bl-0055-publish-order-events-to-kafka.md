@@ -5,7 +5,7 @@
 
 ## 배경
 
-[BL-0052](bl-0052-order-notification-delivered-once.md)가 주문 이벤트를 아웃박스에 커밋하고 `OrderEventPublisher` 포트로 발행하는 구조를 세운다. 그 시점의 어댑터는 로컬 대역이다 — notification-service를 HTTP로 직접 부르고, 구독자가 하나뿐이라 팬아웃이 실재하지 않는다.
+[BL-0052](done/bl-0052-order-notification-delivered-once.md)가 주문 이벤트를 아웃박스에 커밋하고 `OrderEventPublisher` 포트로 발행하는 구조를 세운다. 그 시점의 어댑터는 로컬 대역이다 — notification-service를 HTTP로 직접 부르고, 구독자가 하나뿐이라 팬아웃이 실재하지 않는다.
 
 CLAUDE.md의 판단 표가 이 상태를 의도한 것으로 규정한다. 인프라는 로컬 대역으로 두고 포트는 완성 상태로 만들며, **어댑터만 갈아끼우면 운영에 나갈 수 있는 상태**를 목표로 한다. 이 항목이 그 교체다.
 

@@ -101,7 +101,8 @@ class OutboxTest {
     /** [PD-0009-R2] 기록만 남기는 알림은 발송 대상이 아니다. */
     @Test
     void plainRecordIsNotQueuedForDelivery() {
-        notificationUseCase.record("OrderPaid", "mem_plain", "Order paid", "Order ord_plain has been paid.");
+        notificationUseCase.record("OrderPaid", "mem_plain", "Order paid",
+                "Order ord_plain has been paid.", "evt_plain");
 
         var entry = notificationUseCase.outbox().stream()
                 .filter(candidate -> "Order paid".equals(candidate.subject()))
