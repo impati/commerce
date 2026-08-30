@@ -121,7 +121,7 @@ configure([
         project(':apps:order-service:client-member'),
         project(':apps:order-service:client-notification'),
         project(':apps:payment-service'),
-        project(':apps:notification-service:core'),
+        project(':apps:notification-service:persistence'),
         project(':apps:notification-service:api'),
         project(':apps:notification-service:worker'),
         project(':apps:shipping-service'),
@@ -208,9 +208,27 @@ project(':apps:notification-service:core') {
     }
 }
 
-configure([project(':apps:notification-service:api'), project(':apps:notification-service:worker')]) {
+configure([project(':apps:notification-service:persistence'),
+           project(':apps:notification-service:mail')]) {
     dependencies {
         implementation project(':apps:notification-service:core')
+    }
+}
+
+project(':apps:notification-service:api') {
+    dependencies {
+        implementation project(':apps:notification-service:core')
+        implementation project(':apps:notification-service:persistence')
+        testImplementation testFixtures(project(':apps:notification-service:core'))
+    }
+}
+
+// 메일 어댑터는 워커만 안다. 받는 쪽이 벤더를 알 이유가 없다 (ADR-0015).
+project(':apps:notification-service:worker') {
+    dependencies {
+        implementation project(':apps:notification-service:core')
+        implementation project(':apps:notification-service:persistence')
+        implementation project(':apps:notification-service:mail')
         testImplementation testFixtures(project(':apps:notification-service:core'))
     }
 }

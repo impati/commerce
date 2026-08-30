@@ -1,9 +1,10 @@
 package com.impati.commerce.notification.application.component;
 
 import com.impati.commerce.notification.application.port.in.MailDispatchUseCase;
-import com.impati.commerce.notification.application.port.in.NotificationUseCase;
-import com.impati.commerce.notification.application.port.in.OutboxEntry;
 import com.impati.commerce.notification.application.port.out.MailSender;
+import com.impati.commerce.notification.application.port.out.NotificationRepository;
+import com.impati.commerce.notification.domain.NotificationModels.DeliveryStatus;
+import com.impati.commerce.notification.domain.NotificationModels.Notification;
 import com.impati.commerce.notification.support.MutableClock;
 import com.impati.commerce.notification.support.TestClockConfig;
 import com.impati.commerce.test.RequiresDatabase;
@@ -39,7 +40,7 @@ import static org.mockito.Mockito.when;
 class DispatchClaimTest {
 
     @Autowired
-    private NotificationUseCase notificationUseCase;
+    private NotificationRepository notificationRepository;
 
     @Autowired
     private MailDispatchUseCase mailDispatchUseCase;
@@ -65,8 +66,7 @@ class DispatchClaimTest {
         when(mailSender.wasAccepted(anyString())).thenReturn(false);
         doThrow(new IllegalStateException("smtp down"))
                 .when(mailSender).send(anyString(), anyString(), anyString(), anyString());
-        notificationUseCase.requestEmailVerification(
-                "mem_claim", "claim@impati.dev", "tok_claim", "vmail_claim");
+        seedMail("claim@impati.dev", "tok_claim", "vmail_claim");
 
         mailDispatchUseCase.dispatchPending();
         assertThat(outboxOf("claim@impati.dev").attempts()).isEqualTo(1);
@@ -93,14 +93,13 @@ class DispatchClaimTest {
     @Test
     void settlesWithoutResendWhenVendorAlreadyAccepted() {
         when(mailSender.wasAccepted(anyString())).thenReturn(true);
-        notificationUseCase.requestEmailVerification(
-                "mem_accepted", "accepted@impati.dev", "tok_accepted", "vmail_accepted");
+        seedMail("accepted@impati.dev", "tok_accepted", "vmail_accepted");
 
         mailDispatchUseCase.dispatchPending();
 
         verify(mailSender, never()).send(anyString(), anyString(), anyString(), anyString());
         var entry = outboxOf("accepted@impati.dev");
-        assertThat(entry.deliveryStatus()).isEqualTo("SENT");
+        assertThat(entry.deliveryStatus()).isEqualTo(DeliveryStatus.SENT);
     }
 
     /**
@@ -112,21 +111,32 @@ class DispatchClaimTest {
     @Test
     void doesNotSendWhenAcceptanceIsUnknown() {
         when(mailSender.wasAccepted(anyString())).thenThrow(new IllegalStateException("vendor unreachable"));
-        notificationUseCase.requestEmailVerification(
-                "mem_unknown", "unknown@impati.dev", "tok_unknown", "vmail_unknown");
+        seedMail("unknown@impati.dev", "tok_unknown", "vmail_unknown");
 
         assertThat(mailDispatchUseCase.dispatchPending()).isZero();
 
         verify(mailSender, never()).send(anyString(), anyString(), anyString(), anyString());
         var entry = outboxOf("unknown@impati.dev");
-        assertThat(entry.deliveryStatus()).isEqualTo("PENDING");
+        assertThat(entry.deliveryStatus()).isEqualTo(DeliveryStatus.PENDING);
         assertThat(entry.attempts()).isZero();
     }
 
-    private OutboxEntry outboxOf(String recipient) {
-        return notificationUseCase.outbox().stream()
+    private Notification outboxOf(String recipient) {
+        return notificationRepository.findAll().stream()
                 .filter(entry -> recipient.equals(entry.recipient()))
                 .findFirst()
                 .orElseThrow();
+    }
+
+    /**
+     * 발송 대상을 저장소로 직접 만든다.
+     *
+     * <p>예전에는 수신 유스케이스로 넣었지만, 수신과 발송이 다른 실행 단위가 되면서 워커에는
+     * 그 유스케이스가 없다 (ADR-0015). 워커의 테스트는 자기 저장소로 준비한다.
+     */
+    private void seedMail(String recipient, String token, String idempotencyKey) {
+        notificationRepository.saveIfAbsent(Notification.mail(
+                "EmailVerificationRequested", "mem_test", recipient,
+                "이메일 주소를 확인해주세요", "본문 " + token, idempotencyKey));
     }
 }

@@ -1,9 +1,10 @@
 package com.impati.commerce.notification.application.component;
 
 import com.impati.commerce.notification.application.port.in.MailDispatchUseCase;
-import com.impati.commerce.notification.application.port.in.NotificationUseCase;
-import com.impati.commerce.notification.application.port.in.OutboxEntry;
 import com.impati.commerce.notification.application.port.out.MailSender;
+import com.impati.commerce.notification.application.port.out.NotificationRepository;
+import com.impati.commerce.notification.domain.NotificationModels.DeliveryStatus;
+import com.impati.commerce.notification.domain.NotificationModels.Notification;
 import com.impati.commerce.notification.support.MutableClock;
 import com.impati.commerce.notification.support.TestClockConfig;
 import com.impati.commerce.test.RequiresDatabase;
@@ -38,7 +39,7 @@ import static org.mockito.Mockito.doThrow;
 class OutboxTest {
 
     @Autowired
-    private NotificationUseCase notificationUseCase;
+    private NotificationRepository notificationRepository;
 
     @Autowired
     private MailDispatchUseCase mailDispatchUseCase;
@@ -54,11 +55,10 @@ class OutboxTest {
     void recordsPendingWithoutSending() {
         doNothing().when(mailSender).send(anyString(), anyString(), anyString(), anyString());
 
-        notificationUseCase.requestEmailVerification(
-                "mem_pending", "pending@impati.dev", "tok_pending", "vmail_pending");
+        seedMail("pending@impati.dev", "tok_pending", "vmail_pending");
 
         var entry = outboxOf("pending@impati.dev");
-        assertThat(entry.deliveryStatus()).isEqualTo("PENDING");
+        assertThat(entry.deliveryStatus()).isEqualTo(DeliveryStatus.PENDING);
         assertThat(entry.attempts()).isZero();
         assertThat(entry.body()).contains("tok_pending");
     }
@@ -67,13 +67,12 @@ class OutboxTest {
     @Test
     void dispatchMarksSent() {
         doNothing().when(mailSender).send(anyString(), anyString(), anyString(), anyString());
-        notificationUseCase.requestEmailVerification(
-                "mem_sent", "sent@impati.dev", "tok_sent", "vmail_sent");
+        seedMail("sent@impati.dev", "tok_sent", "vmail_sent");
 
         mailDispatchUseCase.dispatchPending();
 
         var entry = outboxOf("sent@impati.dev");
-        assertThat(entry.deliveryStatus()).isEqualTo("SENT");
+        assertThat(entry.deliveryStatus()).isEqualTo(DeliveryStatus.SENT);
         assertThat(entry.attempts()).isEqualTo(1);
     }
 
@@ -87,11 +86,10 @@ class OutboxTest {
     void keepsFailureVisibleAndRetriesUntilLimit() {
         doThrow(new IllegalStateException("smtp down"))
                 .when(mailSender).send(anyString(), anyString(), anyString(), anyString());
-        notificationUseCase.requestEmailVerification(
-                "mem_fail", "fail@impati.dev", "tok_fail", "vmail_fail");
+        seedMail("fail@impati.dev", "tok_fail", "vmail_fail");
 
         mailDispatchUseCase.dispatchPending();
-        assertThat(outboxOf("fail@impati.dev").deliveryStatus()).isEqualTo("PENDING");
+        assertThat(outboxOf("fail@impati.dev").deliveryStatus()).isEqualTo(DeliveryStatus.PENDING);
         assertThat(outboxOf("fail@impati.dev").attempts()).isEqualTo(1);
 
         clock.advance(Duration.ofSeconds(120));
@@ -100,28 +98,26 @@ class OutboxTest {
         mailDispatchUseCase.dispatchPending();
 
         var exhausted = outboxOf("fail@impati.dev");
-        assertThat(exhausted.deliveryStatus()).isEqualTo("FAILED");
+        assertThat(exhausted.deliveryStatus()).isEqualTo(DeliveryStatus.FAILED);
         assertThat(exhausted.attempts()).isEqualTo(3);
     }
 
-    /** [PD-0009-R2] 기록만 남기는 알림은 발송 대상이 아니다. */
-    @Test
-    void plainRecordIsNotQueuedForDelivery() {
-        notificationUseCase.record("OrderPaid", "mem_plain", "Order paid",
-                "Order ord_plain has been paid.", "evt_plain");
-
-        var entry = notificationUseCase.outbox().stream()
-                .filter(candidate -> "Order paid".equals(candidate.subject()))
-                .findFirst()
-                .orElseThrow();
-        assertThat(entry.channel()).isEqualTo("NONE");
-        assertThat(entry.deliveryStatus()).isEqualTo("SKIPPED");
-    }
-
-    private OutboxEntry outboxOf(String recipient) {
-        return notificationUseCase.outbox().stream()
+    private Notification outboxOf(String recipient) {
+        return notificationRepository.findAll().stream()
                 .filter(entry -> recipient.equals(entry.recipient()))
                 .findFirst()
                 .orElseThrow();
+    }
+
+    /**
+     * 발송 대상을 저장소로 직접 만든다.
+     *
+     * <p>예전에는 수신 유스케이스로 넣었지만, 수신과 발송이 다른 실행 단위가 되면서 워커에는
+     * 그 유스케이스가 없다 (ADR-0015). 워커의 테스트는 자기 저장소로 준비한다.
+     */
+    private void seedMail(String recipient, String token, String idempotencyKey) {
+        notificationRepository.saveIfAbsent(Notification.mail(
+                "EmailVerificationRequested", "mem_test", recipient,
+                "이메일 주소를 확인해주세요", "본문 " + token, idempotencyKey));
     }
 }

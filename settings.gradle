@@ -39,6 +39,8 @@ include 'apps:order-service:worker'
 include 'apps:payment-service'
 include 'apps:shipping-service'
 include 'apps:notification-service:core'
+include 'apps:notification-service:persistence'
+include 'apps:notification-service:mail'
 include 'apps:notification-service:api'
 include 'apps:notification-service:worker'
 

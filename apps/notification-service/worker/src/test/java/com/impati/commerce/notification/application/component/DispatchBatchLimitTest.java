@@ -1,8 +1,9 @@
 package com.impati.commerce.notification.application.component;
 
 import com.impati.commerce.notification.application.port.in.MailDispatchUseCase;
-import com.impati.commerce.notification.application.port.in.NotificationUseCase;
 import com.impati.commerce.notification.application.port.out.MailSender;
+import com.impati.commerce.notification.application.port.out.NotificationRepository;
+import com.impati.commerce.notification.domain.NotificationModels.Notification;
 import com.impati.commerce.notification.support.MutableClock;
 import com.impati.commerce.notification.support.TestClockConfig;
 import com.impati.commerce.test.RequiresDatabase;
@@ -37,7 +38,7 @@ import static org.mockito.Mockito.when;
 class DispatchBatchLimitTest {
 
     @Autowired
-    private NotificationUseCase notificationUseCase;
+    private NotificationRepository notificationRepository;
 
     @Autowired
     private MailDispatchUseCase mailDispatchUseCase;
@@ -52,8 +53,7 @@ class DispatchBatchLimitTest {
     void claimsAtMostTheConfiguredBatchSize() {
         when(mailSender.wasAccepted(anyString())).thenReturn(false);
         for (var index = 0; index < 5; index++) {
-            notificationUseCase.requestEmailVerification(
-                    "mem_batch", "batch" + index + "@impati.dev", "tok_batch", "vmail_batch_" + index);
+            seedMail("batch" + index + "@impati.dev", "tok_batch", "vmail_batch_" + index);
         }
 
         assertThat(mailDispatchUseCase.dispatchPending())
@@ -65,5 +65,17 @@ class DispatchBatchLimitTest {
 
         clock.advance(Duration.ofSeconds(120));
         assertThat(mailDispatchUseCase.dispatchPending()).isEqualTo(1);
+    }
+
+    /**
+     * 발송 대상을 저장소로 직접 만든다.
+     *
+     * <p>예전에는 수신 유스케이스로 넣었지만, 수신과 발송이 다른 실행 단위가 되면서 워커에는
+     * 그 유스케이스가 없다 (ADR-0015). 워커의 테스트는 자기 저장소로 준비한다.
+     */
+    private void seedMail(String recipient, String token, String idempotencyKey) {
+        notificationRepository.saveIfAbsent(Notification.mail(
+                "EmailVerificationRequested", "mem_test", recipient,
+                "이메일 주소를 확인해주세요", "본문 " + token, idempotencyKey));
     }
 }
