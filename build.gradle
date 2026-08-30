@@ -53,6 +53,10 @@ project(':libs:test-database') {
     apply plugin: 'java-library'
 }
 
+project(':libs:test-kafka') {
+    apply plugin: 'java-library'
+}
+
 // 실행 가능한 단위. bootJar이 나오는 것만 여기 들어간다.
 //
 // 나뉜 서비스는 api와 worker가 실행 단위이고 core는 아니다 — core에 boot 플러그인을 붙이면

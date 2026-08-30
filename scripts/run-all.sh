@@ -19,13 +19,14 @@ cd "$ROOT_DIR"
 DB_HOST="${DB_HOST:-127.0.0.1}"
 DB_PORT="${DB_PORT:-3316}"
 
+# 호스트와 포트를 받는다. DB와 브로커가 같은 검사를 쓴다.
 port_open() {
-  (exec 3<>"/dev/tcp/${DB_HOST}/${DB_PORT}") 2>/dev/null
+  (exec 3<>"/dev/tcp/${1}/${2}") 2>/dev/null
 }
 
-compose_mysql_running() {
+compose_running() {
   command -v docker >/dev/null 2>&1 &&
-    docker compose ps --status=running --services 2>/dev/null | grep -qx mysql
+    docker compose ps --status=running --services 2>/dev/null | grep -qx "$1"
 }
 
 # 포트가 열린 것을 준비된 것으로 읽지 않는다.
@@ -33,16 +34,16 @@ compose_mysql_running() {
 # 도커는 컨테이너가 뜨는 순간 포트를 바인딩하지만 mysqld는 그보다 늦게 접속을 받는다. 포트만
 # 보고 넘어가면 서비스가 "Communications link failure"로 죽는다 — 실제로 그렇게 실패했다.
 # compose에 healthcheck가 있으므로 그것을 기다린다.
-mysql_healthy() {
+compose_healthy() {
   local id
-  id="$(docker compose ps -q mysql 2>/dev/null)" || return 1
+  id="$(docker compose ps -q "$1" 2>/dev/null)" || return 1
   [[ -n "$id" ]] || return 1
   [[ "$(docker inspect --format '{{.State.Health.Status}}' "$id" 2>/dev/null)" == "healthy" ]]
 }
 
 wait_for_ready() {
   for _ in {1..90}; do
-    if mysql_healthy; then
+    if compose_healthy "$1"; then
       return 0
     fi
     sleep 1
@@ -57,8 +58,8 @@ ensure_database() {
     return
   fi
 
-  if compose_mysql_running; then
-    if wait_for_ready; then
+  if compose_running mysql; then
+    if wait_for_ready mysql; then
       echo "mysql is ready at ${DB_HOST}:${DB_PORT}"
       return
     fi
@@ -67,7 +68,7 @@ ensure_database() {
     exit 1
   fi
 
-  if port_open; then
+  if port_open "$DB_HOST" "$DB_PORT"; then
     echo "${DB_HOST}:${DB_PORT}를 이미 다른 프로세스가 쓰고 있다." >&2
     echo "우리 DB가 아닌 곳에 마이그레이션을 돌리지 않기 위해 여기서 멈춘다." >&2
     echo "그것을 내리거나, 의도한 것이라면 DB_URL을 지정해 다시 실행할 것." >&2
@@ -81,14 +82,61 @@ ensure_database() {
 
   echo "starting mysql"
   docker compose up -d mysql
-  if ! wait_for_ready; then
+  if ! wait_for_ready mysql; then
     echo "mysql이 ${DB_HOST}:${DB_PORT}에 뜨지 않았다. docker compose logs mysql 을 볼 것." >&2
     exit 1
   fi
   echo "mysql is ready at ${DB_HOST}:${DB_PORT}"
 }
 
+# 브로커도 같은 방식으로 챙긴다 (ADR-0016).
+#
+# 포트가 열려 있다는 것을 "우리 브로커가 떠 있다"로 읽지 않는 이유는 DB와 같다. 9092는 흔한
+# 포트라 다른 프로젝트의 브로커가 잡고 있을 수 있고, 그것에 붙으면 남의 토픽에 주문 사건을
+# 흘리게 된다. 호스트 포트를 9192로 옮겨두었지만 그것도 비어 있다는 보장은 아니다.
+KAFKA_HOST="${KAFKA_HOST:-127.0.0.1}"
+KAFKA_PORT="${KAFKA_PORT:-9192}"
+
+ensure_kafka() {
+  # 사용자가 접속 정보를 직접 지정했으면 그 판단을 따른다.
+  if [[ -n "${KAFKA_BOOTSTRAP_SERVERS:-}" ]]; then
+    echo "using KAFKA_BOOTSTRAP_SERVERS from the environment"
+    return
+  fi
+
+  if compose_running kafka; then
+    if wait_for_ready kafka; then
+      echo "kafka is ready at ${KAFKA_HOST}:${KAFKA_PORT}"
+      return
+    fi
+    echo "compose의 kafka가 떠 있는데 준비되지 않았다." >&2
+    echo "docker compose logs kafka 으로 원인을 볼 것." >&2
+    exit 1
+  fi
+
+  if port_open "$KAFKA_HOST" "$KAFKA_PORT"; then
+    echo "${KAFKA_HOST}:${KAFKA_PORT}를 이미 다른 프로세스가 쓰고 있다." >&2
+    echo "우리 브로커가 아닌 곳에 주문 사건을 흘리지 않기 위해 여기서 멈춘다." >&2
+    echo "그것을 내리거나, 의도한 것이라면 KAFKA_BOOTSTRAP_SERVERS를 지정해 다시 실행할 것." >&2
+    exit 1
+  fi
+
+  if ! command -v docker >/dev/null 2>&1; then
+    echo "kafka가 필요한데 ${KAFKA_HOST}:${KAFKA_PORT}에 없고 docker도 없다." >&2
+    exit 1
+  fi
+
+  echo "starting kafka"
+  docker compose up -d kafka
+  if ! wait_for_ready kafka; then
+    echo "kafka가 뜨지 않았다. docker compose logs kafka 를 볼 것." >&2
+    exit 1
+  fi
+  echo "kafka is ready at ${KAFKA_HOST}:${KAFKA_PORT}"
+}
+
 ensure_database
+ensure_kafka
 
 # 항상 빌드한다.
 #
