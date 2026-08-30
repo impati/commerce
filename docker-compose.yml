@@ -11,7 +11,8 @@ services:
       MYSQL_PASSWORD: commerce
       MYSQL_DATABASE: commerce
     ports:
-      - "3306:3306"
+      # 3306은 흔한 포트라 다른 프로젝트의 MySQL과 부딪힌다. 호스트 쪽만 옮긴다.
+      - "${MYSQL_PORT:-3316}:3306"
     volumes:
       - ./docker/mysql-init.sql:/docker-entrypoint-initdb.d/00-databases.sql:ro
     healthcheck:
