@@ -3,6 +3,7 @@ package com.impati.commerce.member;
 import com.impati.commerce.member.application.port.in.RegistrationUseCase;
 import com.impati.commerce.member.application.port.in.VerificationMailDispatchUseCase;
 import org.junit.jupiter.api.BeforeEach;
+import com.impati.commerce.test.RequiresDatabase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -45,12 +46,13 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
  * 여기서 볼 것은 설정된 한도가 실제로 전달돼 종단 상태에 도달하는지다.
  */
 @SpringBootTest(properties = {
-        "spring.datasource.url=jdbc:h2:mem:member-dispatch;DB_CLOSE_DELAY=-1",
         "member.verification-mail-dispatch-interval=3600000",
         "member.verification-mail-retry-delay=60s",
         "member.verification-mail-max-attempts=2"
 })
+@RequiresDatabase
 class VerificationMailDispatchTest {
+
     private static final String NOTIFICATION_URL =
             "http://localhost:8109/internal/notifications/email-verifications";
     private static final Duration RETRY_DELAY = Duration.ofSeconds(60);
@@ -147,9 +149,9 @@ class VerificationMailDispatchTest {
         assertThat(summary.claimed()).isEqualTo(1);
         assertThat(summary.sent()).isEqualTo(1);
         var row = mailOf(member.id());
-        assertThat(row.get("STATUS")).isEqualTo("SENT");
-        assertThat(row.get("ATTEMPTS")).isEqualTo(1);
-        assertThat(row.get("TOKEN")).isNull();
+        assertThat(row.get("status")).isEqualTo("SENT");
+        assertThat(row.get("attempts")).isEqualTo(1);
+        assertThat(row.get("token")).isNull();
     }
 
     /**
@@ -168,10 +170,10 @@ class VerificationMailDispatchTest {
         assertThat(summary.claimed()).isEqualTo(1);
         assertThat(summary.sent()).isZero();
         var row = mailOf(member.id());
-        assertThat(row.get("STATUS")).isEqualTo("PENDING");
-        assertThat(row.get("ATTEMPTS")).isEqualTo(1);
-        assertThat(row.get("LAST_ERROR")).isNotNull();
-        assertThat(row.get("TOKEN")).isNotNull();
+        assertThat(row.get("status")).isEqualTo("PENDING");
+        assertThat(row.get("attempts")).isEqualTo(1);
+        assertThat(row.get("last_error")).isNotNull();
+        assertThat(row.get("token")).isNotNull();
 
         // 간격이 지나기 전에는 다시 집히지 않는다. 서버에 기대를 하나만 걸어두었으므로,
         // 여기서 또 보내면 예상하지 않은 요청이 되어 이 테스트가 깨진다.
@@ -195,9 +197,9 @@ class VerificationMailDispatchTest {
 
         server.verify();
         var row = mailOf(member.id());
-        assertThat(row.get("STATUS")).isEqualTo("FAILED");
-        assertThat(row.get("ATTEMPTS")).isEqualTo(2);
-        assertThat(row.get("TOKEN")).isNull();
+        assertThat(row.get("status")).isEqualTo("FAILED");
+        assertThat(row.get("attempts")).isEqualTo(2);
+        assertThat(row.get("token")).isNull();
 
         // 종단 상태는 더 집히지 않는다. 집히면 발송이 끝나지 않는다.
         clock.advance(RETRY_DELAY.plusSeconds(1));
@@ -218,7 +220,7 @@ class VerificationMailDispatchTest {
     }
 
     private String tokenOf(String memberId) {
-        return (String) mailOf(memberId).get("TOKEN");
+        return (String) mailOf(memberId).get("token");
     }
 
     private Map<String, Object> mailOf(String memberId) {

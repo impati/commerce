@@ -8,6 +8,7 @@ import com.impati.commerce.member.application.port.in.SessionUseCase;
 import com.impati.commerce.common.DomainException;
 import com.impati.commerce.member.application.port.out.NotificationClient;
 import com.impati.commerce.member.application.port.out.SecureTokens;
+import com.impati.commerce.test.RequiresDatabase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -24,11 +25,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * 어긋남이 드러나게 한다. 같은 종류의 실수를 JDBC 위치 바인딩에서 이미 겪었다.
  */
 @SpringBootTest(properties = {
-        "spring.datasource.url=jdbc:h2:mem:member-address;DB_CLOSE_DELAY=-1",
         // 발송기를 멈춘다. 여기서 가입시킨 회원의 아웃박스 항목을 발송기가 집어 상태를 바꾼다.
         "member.verification-mail-dispatch-interval=3600000"
 })
+@RequiresDatabase
 class MemberAddressTest {
+
     @Autowired
     private MemberUseCase memberUseCase;
 

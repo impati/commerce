@@ -6,6 +6,7 @@ import com.impati.commerce.cart.application.port.out.CatalogClient;
 import com.impati.commerce.common.ApiContracts.Money;
 import com.impati.commerce.common.ApiContracts.SkuResponse;
 import org.junit.jupiter.api.BeforeEach;
+import com.impati.commerce.test.RequiresDatabase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -17,8 +18,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
-@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:cart-app;DB_CLOSE_DELAY=-1")
+@SpringBootTest
+@RequiresDatabase
 class CartExecutorTest {
+
     private static final String SKU_ID = "sku_tee_white_m";
 
     @Autowired

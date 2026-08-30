@@ -4,6 +4,7 @@ import com.impati.commerce.notification.application.port.in.NotificationUseCase;
 import com.impati.commerce.notification.application.port.out.MailSender;
 import com.impati.commerce.notification.support.MutableClock;
 import com.impati.commerce.notification.support.TestClockConfig;
+import com.impati.commerce.test.RequiresDatabase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -26,13 +27,14 @@ import static org.mockito.Mockito.when;
  * 다른 테스트는 전부 통과하므로 여기서 따로 잡는다.
  */
 @SpringBootTest(properties = {
-        "spring.datasource.url=jdbc:h2:mem:notification-batch;DB_CLOSE_DELAY=-1",
         "notifications.dispatch-interval=3600000",
         "notifications.dispatch-batch-size=2",
         "notifications.dispatch-retry-delay=60s"
 })
+@RequiresDatabase
 @Import(TestClockConfig.class)
 class DispatchBatchLimitTest {
+
     @Autowired
     private NotificationUseCase notificationUseCase;
 

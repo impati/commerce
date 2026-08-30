@@ -5,6 +5,7 @@ import com.impati.commerce.notification.application.port.in.OutboxEntry;
 import com.impati.commerce.notification.application.port.out.MailSender;
 import com.impati.commerce.notification.support.MutableClock;
 import com.impati.commerce.notification.support.TestClockConfig;
+import com.impati.commerce.test.RequiresDatabase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -29,12 +30,13 @@ import static org.mockito.Mockito.when;
  * <p>스케줄러가 배경에서 대기 항목을 집어가면 결과가 흔들리므로 주기를 아주 길게 둔다.
  */
 @SpringBootTest(properties = {
-        "spring.datasource.url=jdbc:h2:mem:notification-claim;DB_CLOSE_DELAY=-1",
         "notifications.dispatch-interval=3600000",
         "notifications.dispatch-retry-delay=60s"
 })
+@RequiresDatabase
 @Import(TestClockConfig.class)
 class DispatchClaimTest {
+
     @Autowired
     private NotificationUseCase notificationUseCase;
 

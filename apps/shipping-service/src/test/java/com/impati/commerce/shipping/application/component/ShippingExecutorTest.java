@@ -5,6 +5,7 @@ import com.impati.commerce.shipping.application.port.in.ShipmentDetails;
 import com.impati.commerce.shipping.application.port.in.ShippingUseCase;
 
 import com.impati.commerce.common.DomainException;
+import com.impati.commerce.test.RequiresDatabase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -18,8 +19,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * <p>허용되는 전이와 거절되는 전이를 함께 확인한다. 무엇을 허용하는지는 사용 중에 드러나지만
  * 무엇을 거절해야 하는지는 드러나지 않는다.
  */
-@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:shipping-service;DB_CLOSE_DELAY=-1")
+@SpringBootTest
+@RequiresDatabase
 class ShippingExecutorTest {
+
     @Autowired
     private ShippingUseCase shippingUseCase;
 

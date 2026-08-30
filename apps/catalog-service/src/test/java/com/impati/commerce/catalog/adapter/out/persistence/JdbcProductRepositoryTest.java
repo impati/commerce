@@ -5,6 +5,7 @@ import com.impati.commerce.catalog.domain.CatalogModels.Product;
 import com.impati.commerce.catalog.domain.CatalogModels.Sku;
 import com.impati.commerce.catalog.domain.CatalogModels.SkuSpec;
 import com.impati.commerce.common.ApiContracts.Money;
+import com.impati.commerce.test.RequiresDatabase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -19,8 +20,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 테스트가 같은 DB를 공유하므로 SKU id를 테스트별로 다르게 만든다. 고정 id를 쓰면 두 번째
  * 테스트에서 PK 충돌이 난다. 빈 저장소를 가정하지 않는다는 규칙이 DB에서도 그대로 적용된다.
  */
-@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:catalog-repo;DB_CLOSE_DELAY=-1")
+@SpringBootTest
+@RequiresDatabase
 class JdbcProductRepositoryTest {
+
     @Autowired
     private ProductRepository productRepository;
 
@@ -85,12 +88,12 @@ class JdbcProductRepositoryTest {
                         + " from product_skus where id = ?",
                 "sku_column_white"
         );
-        assertThat(row.get("PRODUCT_ID")).isEqualTo(product.id());
-        assertThat(row.get("SKU_NO")).isEqualTo(0);
-        assertThat(row.get("NAME")).isEqualTo("White / M");
-        assertThat(row.get("PRICE_AMOUNT")).isEqualTo(29_000L);
-        assertThat(row.get("PRICE_CURRENCY")).isEqualTo("KRW");
-        assertThat(row.get("STATUS")).isEqualTo("ACTIVE");
+        assertThat(row.get("product_id")).isEqualTo(product.id());
+        assertThat(row.get("sku_no")).isEqualTo(0);
+        assertThat(row.get("name")).isEqualTo("White / M");
+        assertThat(row.get("price_amount")).isEqualTo(29_000L);
+        assertThat(row.get("price_currency")).isEqualTo("KRW");
+        assertThat(row.get("status")).isEqualTo("ACTIVE");
     }
 
     private Product publishedProduct(String suffix) {

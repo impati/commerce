@@ -5,6 +5,7 @@ import com.impati.commerce.notification.application.port.in.OutboxEntry;
 import com.impati.commerce.notification.application.port.out.MailSender;
 import com.impati.commerce.notification.support.MutableClock;
 import com.impati.commerce.notification.support.TestClockConfig;
+import com.impati.commerce.test.RequiresDatabase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -28,12 +29,13 @@ import static org.mockito.Mockito.doThrow;
  * 자기 알림을 만들지 못한다 — 그것이 바로 이 제약이 하는 일이다 (ADR-0011).
  */
 @SpringBootTest(properties = {
-        "spring.datasource.url=jdbc:h2:mem:notification-outbox;DB_CLOSE_DELAY=-1",
         "notifications.dispatch-interval=3600000",
         "notifications.dispatch-retry-delay=60s"
 })
+@RequiresDatabase
 @Import(TestClockConfig.class)
 class OutboxTest {
+
     @Autowired
     private NotificationUseCase notificationUseCase;
 

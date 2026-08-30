@@ -3,4 +3,4 @@
 alter table payments add constraint uq_payments_order_id unique (order_id);
 
 -- 유일 제약이 같은 컬럼의 인덱스를 만든다. 남겨두면 같은 조회에 인덱스가 두 개가 된다.
-drop index idx_payments_order_id;
+drop index idx_payments_order_id on payments;

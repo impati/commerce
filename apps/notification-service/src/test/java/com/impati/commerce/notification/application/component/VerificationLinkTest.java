@@ -3,6 +3,7 @@ package com.impati.commerce.notification.application.component;
 import com.impati.commerce.notification.application.port.in.NotificationUseCase;
 import com.impati.commerce.notification.application.port.in.OutboxEntry;
 import com.impati.commerce.notification.application.port.out.MailSender;
+import com.impati.commerce.test.RequiresDatabase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -19,11 +20,12 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>발송은 대상이 아니므로 스케줄러 주기를 길게 두고 {@link MailSender}를 대역으로 막는다.
  */
 @SpringBootTest(properties = {
-        "spring.datasource.url=jdbc:h2:mem:notification-verification-link;DB_CLOSE_DELAY=-1",
         "notifications.dispatch-interval=3600000",
         "notifications.verification-base-url=https://shop.impati.dev/verify"
 })
+@RequiresDatabase
 class VerificationLinkTest {
+
     @Autowired
     private NotificationUseCase notificationUseCase;
 

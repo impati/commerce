@@ -3,6 +3,7 @@ package com.impati.commerce.payment.adapter.in.web;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.impati.commerce.common.ApiContracts.AuthorizePaymentRequest;
 import com.impati.commerce.common.ApiContracts.Money;
+import com.impati.commerce.test.RequiresDatabase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -20,9 +21,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <p>유스케이스 결과에는 있고 HTTP 계약에는 없는 값이 있다. 어댑터가 그 경계를 지키는지는
  * 응용 계층 테스트로는 볼 수 없으므로 실제 응답을 확인한다.
  */
-@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:payment-web;DB_CLOSE_DELAY=-1")
+@SpringBootTest
+@RequiresDatabase
 @AutoConfigureMockMvc
 class InternalPaymentControllerTest {
+
     @Autowired
     private MockMvc mockMvc;
 

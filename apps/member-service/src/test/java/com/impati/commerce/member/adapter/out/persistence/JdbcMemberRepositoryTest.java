@@ -4,6 +4,7 @@ import com.impati.commerce.member.application.port.out.MemberRepository;
 import com.impati.commerce.member.domain.MemberModels.Address;
 import com.impati.commerce.member.domain.MemberModels.Member;
 import com.impati.commerce.member.domain.MemberModels.PasswordHash;
+import com.impati.commerce.test.RequiresDatabase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -11,8 +12,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:member-repo;DB_CLOSE_DELAY=-1")
+@SpringBootTest
+@RequiresDatabase
 class JdbcMemberRepositoryTest {
+
     private static final PasswordHash HASH = new PasswordHash("$2a$10$fakehashforpersistencetest");
 
     @Autowired
@@ -92,14 +95,14 @@ class JdbcMemberRepositoryTest {
                         + " from member_addresses where member_id = ?",
                 "mem_column"
         );
-        assertThat(row.get("ALIAS")).isEqualTo("home");
-        assertThat(row.get("RECIPIENT")).isEqualTo("Demo Customer");
-        assertThat(row.get("PHONE")).isEqualTo("010-0000-0000");
-        assertThat(row.get("LINE1")).isEqualTo("123 Commerce Road");
-        assertThat(row.get("CITY")).isEqualTo("Seoul");
-        assertThat(row.get("POSTAL_CODE")).isEqualTo("04524");
-        assertThat(row.get("DEFAULT_ADDRESS")).isEqualTo(true);
-        assertThat(row.get("ADDRESS_NO")).isEqualTo(0);
+        assertThat(row.get("alias")).isEqualTo("home");
+        assertThat(row.get("recipient")).isEqualTo("Demo Customer");
+        assertThat(row.get("phone")).isEqualTo("010-0000-0000");
+        assertThat(row.get("line1")).isEqualTo("123 Commerce Road");
+        assertThat(row.get("city")).isEqualTo("Seoul");
+        assertThat(row.get("postal_code")).isEqualTo("04524");
+        assertThat(row.get("default_address")).isEqualTo(true);
+        assertThat(row.get("address_no")).isEqualTo(0);
     }
 
     /** 가입 직후는 이메일 소유가 확인되지 않은 상태다. 확인 후 상태가 저장돼야 로그인이 가능해진다. */

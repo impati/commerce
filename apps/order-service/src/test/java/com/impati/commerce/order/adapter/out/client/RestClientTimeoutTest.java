@@ -2,6 +2,7 @@ package com.impati.commerce.order.adapter.out.client;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import com.impati.commerce.test.RequiresDatabase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -26,13 +27,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * 설정이 실제로 적용되는지는 측정으로만 알 수 있으므로 테스트로 고정한다.
  */
 @SpringBootTest(properties = {
-        "spring.datasource.url=jdbc:h2:mem:order-timeout;DB_CLOSE_DELAY=-1",
         "clients.http.read-timeout=300ms",
         // 사건 발행 릴레이를 끈다 (BL-0049: 끄는 것이 규율에 달려 있다).
         "orders.event-publish-interval=3600000",
         "orders.payment-reconcile-interval=3600000"
 })
+@RequiresDatabase
 class RestClientTimeoutTest {
+
     private static ServerSocket silentServer;
     private static ExecutorService acceptor;
 

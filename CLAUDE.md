@@ -53,6 +53,7 @@ make verify
 
 - 작업을 끝냈다고 보고하기 전에 반드시 실행한다. 실행하지 않았으면 "테스트하지 않았다"고 명시한다.
 - 실패하면 실패 출력을 그대로 보고한다. 통과했다고 요약하지 않는다.
+- **`make verify`에는 도커가 필요하다.** 여덟 서비스의 테스트가 실제 MySQL 위에서 돈다. pre-commit은 `-PexcludeTags=infra`로 컨테이너 없이 도는 것만 돌리므로 **커밋이 통과했다고 전체가 통과한 것은 아니다.** 전체는 작업이 끝나는 시점에 돌린다.
 - **`./gradlew test`를 직접 파이프로 감싸지 말 것.** `./gradlew test | grep ...`은 `grep`의 종료 코드를 반환한다. `grep`이 아무것도 못 찾으면 1을 내므로 성공을 실패로, `set -o pipefail` 없이는 실패를 성공으로 읽는다. 이 오독이 반복됐기 때문에 `make verify`가 있다 — 성공은 한 줄, 실패는 실패한 테스트 이름과 종료코드 1이다.
 - 프론트엔드를 건드렸으면 `make frontend-build`까지 확인한다.
 - CI가 없다. 자동 게이트는 [scripts/git-hooks/pre-commit](scripts/git-hooks/pre-commit) 하나뿐이고, 이건 커밋할 때만 돈다. 커밋하지 않는 작업에는 아무 안전망이 없으므로 직접 돌린다.
@@ -64,7 +65,7 @@ make verify
 
 - **도메인/애플리케이션 로직을 바꾸면** 해당 모듈에 단위 테스트를 함께 추가하거나 갱신한다. 참고: [OrderModelsTest](apps/order-service/src/test/java/com/impati/commerce/order/domain/OrderModelsTest.java), [InventoryServiceTest](apps/inventory-service/src/test/java/com/impati/commerce/inventory/application/component/InventoryExecutorTest.java)
 - **서비스 경계나 checkout saga에 닿는 변경이면** `@SpringBootTest` 시나리오를 추가한다. 기준 패턴은 [CheckoutSagaTest](apps/order-service/src/test/java/com/impati/commerce/order/CheckoutSagaTest.java): 대상 서비스만 실제로 띄우고, 다른 서비스 호출은 `MockServerRestClientCustomizer` + `MockRestServiceServer`로 stub한다. 컨트롤러 → 애플리케이션 → 클라이언트 → JSON 직렬화까지는 실제 코드가 돈다.
-- **프로세스를 실제로 띄우는 e2e는 만들지 않는다.** `@SpringBootTest` + HTTP stub 수준까지가 이 프로젝트의 합의된 상한이다. [scripts/demo-checkout.sh](scripts/demo-checkout.sh)는 수동 확인용 데모이며 검증 수단이 아니다 (assert가 없다).
+- **프로세스를 실제로 띄우는 e2e는 만들지 않는다.** 여기서 말하는 e2e는 **우리 서비스를 여러 프로세스로 띄우고 게이트웨이를 두들기는 것**이다. `@SpringBootTest`는 통합 테스트이고 상한 안에 있다. 지금 상한은 **서비스는 컨텍스트 하나, 형제 서비스는 HTTP stub, 인프라는 실물(Testcontainers)** 이다 — DB는 대역이 아니다 ([ADR-0013](docs/adr/0013-real-database-in-the-harness.md)). [scripts/demo-checkout.sh](scripts/demo-checkout.sh)는 수동 확인용 데모이며 검증 수단이 아니다 (assert가 없다).
 - **모든 서비스는 최소한 컨텍스트 로드 테스트를 갖는다** (`XxxApplicationTest.contextLoads`). 빈이 빠지거나 둘로 늘어나거나 설정값이 없으면 여기서 깨진다. 서비스별 시나리오 테스트가 생기면 지워도 된다.
 - 보상/롤백 경로는 성공 경로와 **같은 비중으로** 테스트한다. 이 아키텍처에서 실제로 깨지는 곳이 거기다.
 - 테스트를 새로 짰거나 크게 고쳤으면, 검증 대상 로직을 일부러 망가뜨려 테스트가 실패하는지 한 번 확인하고 원복한다. 통과만 확인한 테스트는 통과만 하는 테스트일 수 있다.
@@ -101,15 +102,16 @@ make verify
 
 ## 상태와 데이터
 
-- **10개 서비스 전부 H2 파일 DB를 쓴다** (저장소가 있는 8개. api-gateway와 display-service는 저장소가 없다). 인메모리 저장소는 남아 있지 않다.
-- DB를 쓰는 서비스는 [build.gradle](build.gradle)의 `configure([...])` 목록에도 넣어야 jdbc/flyway/h2 의존성이 붙는다.
+- **저장소가 있는 여덟 서비스가 MySQL 8을 쓴다** (api-gateway와 display-service는 저장소가 없다). 인스턴스 하나를 공유하고 서비스마다 데이터베이스를 나눈다. 인메모리 저장소는 남아 있지 않다. 버전 하한 8.0.16은 `check` 제약 때문이며 그 아래는 제약을 강제하지 않는다 ([ADR-0013](docs/adr/0013-real-database-in-the-harness.md)).
+- DB를 쓰는 서비스는 [build.gradle](build.gradle)의 `configure([...])` 목록에도 넣어야 jdbc/flyway/mysql과 테스트 지원 모듈이 붙는다.
 - `@SpringBootTest` 컨텍스트와 in-memory DB는 테스트 간에 공유된다. **빈 저장소를 가정하는 테스트를 쓰지 말고** 테스트가 자기 데이터를 직접 만들게 한다. 고정 id를 여러 테스트에서 쓰면 PK 충돌이 난다.
-- DB를 쓰는 서비스의 테스트는 `@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:...")`로 URL만 덮어쓴다. `src/test/resources/application.properties`를 만들면 **main 쪽 파일을 가려서** `clients.*.url`이 사라지고 컨텍스트가 뜨지 않는다.
-- 로컬 DB 파일은 `.data/`에 생기고 git에 올리지 않는다. 초기화는 `rm -rf .data`다. 경로가 상대경로이므로 저장소 루트에서 실행해야 한다.
+- **데이터베이스 격리는 자동이다.** `libs:test-database`가 클래스패스에 있으면 모든 테스트 컨텍스트가 자기 데이터베이스를 받는다. 테스트가 아무것도 선언하지 않아도 되며, **빠뜨릴 수 없는 것이 요점이다** — 붙이지 않으면 로컬 개발 DB로 떨어져 실제 데이터를 건드린다. 컨테이너에서 빼야 하는 테스트에는 `@RequiresDatabase`로 태그만 단다. `src/test/resources/application.properties`를 만들면 **main 쪽 파일을 가려서** `clients.*.url`이 사라지고 컨텍스트가 뜨지 않는다.
+- **로컬 실행은 `make boot-all` 하나로 한다.** 스크립트가 DB를 챙긴다 — 안 떠 있으면 띄우고, 호스트 포트(3316)를 다른 것이 쓰고 있으면 **남의 DB에 마이그레이션을 돌리지 않으려고 멈춘다.** 초기화는 `docker compose down -v`이며 `.data/` 파일 DB는 더 이상 쓰지 않는다.
+- **점유 경로만 `READ_COMMITTED`로 낮춘다.** MySQL 기본값에서 `for update` 범위 읽기가 갭 락을 잡아 큐 테이블의 삽입과 교착한다. 전역으로 낮추면 애그리거트를 여러 테이블에서 읽는 조회들이 스냅샷 일관성을 잃으므로 범위를 그 경로로 묶는다 (ADR-0013).
 - **JDBC는 이름 바인딩만 쓴다.** `NamedParameterJdbcTemplate` + `MapSqlParameterSource`를 쓰고, 위치 기반 `?`와 `select *`는 쓰지 않는다. 위치 바인딩은 타입이 같은 인접 컬럼의 값이 뒤바뀌어도 컴파일러도 DB도 잡지 못한다.
 - **컬럼 매핑은 왕복 테스트로 검증되지 않는다.** 저장 후 조회해서 비교하면 쓰기와 읽기가 같은 방향으로 틀렸을 때 그대로 통과한다. 컬럼 값을 직접 읽는 테스트를 함께 둔다. 배경은 [problem/002](problem/002-positional-jdbc-binding.md)에 있다.
 - 스키마 변경은 Flyway 마이그레이션으로 한다. 파일 DB는 데이터가 남으므로 `schema.sql`을 다시 돌리는 방식은 깨진다.
-- **한 번 적용된 마이그레이션 파일은 고치지 않는다.** Flyway가 체크섬으로 잡아 기동이 실패한다. 고쳐야 하면 새 버전을 추가한다. `./gradlew test`는 이걸 못 잡는다 — 테스트는 매번 빈 in-memory DB에서 처음부터 돌리므로 체크섬 충돌이 생기지 않는다. 파일 DB로 실제 기동해봐야 드러난다.
+- **한 번 적용된 마이그레이션 파일은 고치지 않는다.** Flyway가 체크섬으로 잡아 기동이 실패한다. 고쳐야 하면 새 버전을 추가한다. `./gradlew test`는 이걸 못 잡는다 — 테스트는 매번 빈 in-memory DB에서 처음부터 돌리므로 체크섬 충돌이 생기지 않는다. 파일 DB로 실제 기동해봐야 드러난다. **DB를 통째로 갈아탈 때는 예외다** — 이어받는 이력이 없으므로 제자리에서 고친다 (ADR-0013).
 - **시드는 멱등해야 한다.** 파일 DB는 데이터가 남으므로 `ApplicationRunner` 시드가 재시작마다 다시 실행되면 데이터가 늘어난다. 넣기 전에 이미 있는지 확인한다.
 - **데모 시드는 `local` 프로파일에서만 동작한다.** `@Profile("local")`로 막았고 [scripts/run-all.sh](scripts/run-all.sh)가 프로파일을 넘긴다. 알려진 비밀번호를 가진 계정이 운영에 존재할 수 없게 하려는 것이다.
 - 데모 시드 데이터(`mem_demo`, `sku_*`, `card_test_success`, `card_test_decline`)는 README에 정리돼 있다. 시드를 바꾸면 README와 프론트 `src/mockData.ts`도 같이 고친다.
@@ -161,6 +163,8 @@ git 저장소이지만 이력이 `first commit` 하나뿐이다. 되돌릴 지�
 룰을 바꿨으면 아래 이력에 한 줄 남긴다.
 
 ## 변경 이력
+
+- 2026-08-29 — 여덟 서비스를 H2에서 MySQL 8로 옮기고 테스트도 실제 DB(Testcontainers) 위에서 돌게 했다. `make verify`가 도커를 요구하고 pre-commit은 컨테이너 없는 것만 돈다. 계기: 점유(`for update skip locked`)가 H2에서만 검증돼 있었다. 전환 과정에서 H2가 숨기고 있던 결함 둘이 드러났다 — 이메일 대소문자 구분이 MySQL 기본 콜레이션에서 뒤집히는 것과 `nulls first` (BL-0053).
 
 - 2026-08-29 — 경계 규칙에 "커밋 단위가 애그리거트나 유스케이스와 항상 일치하지는 않는다"를 추가했다. 계기: BL-0052 리뷰에서 주문 상태와 그 사건이 함께 성립해야 하는데 소유자가 없다는 것이 드러났고, order-service에 `OrderChanges`를 두어 해결했다. **그 해법을 저장소 규약으로 올리지 않는다** — 사례가 하나뿐이고, 틀을 먼저 만들면 현실이 옮겨갈 때 어긋난다(`port/in`을 "영원히 비어 있을 디렉터리"로 적었다가 만들게 된 전례가 있다). 규칙은 선택이 자의적일 때 값을 하고 판단이 필요할 때 해롭다. 사례와 근거는 ADR-0012가 갖는다 (BL-0052).
 

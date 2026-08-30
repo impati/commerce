@@ -3,6 +3,7 @@ package com.impati.commerce.payment.adapter.out.persistence;
 import com.impati.commerce.common.ApiContracts.Money;
 import com.impati.commerce.payment.application.port.out.PaymentRepository;
 import com.impati.commerce.payment.domain.PaymentModels.Payment;
+import com.impati.commerce.test.RequiresDatabase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -10,8 +11,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:payment-repo;DB_CLOSE_DELAY=-1")
+@SpringBootTest
+@RequiresDatabase
 class JdbcPaymentRepositoryTest {
+
     @Autowired
     private PaymentRepository paymentRepository;
 
@@ -46,13 +49,13 @@ class JdbcPaymentRepositoryTest {
                         + " from payments where id = ?",
                 payment.id()
         );
-        assertThat(row.get("ORDER_ID")).isEqualTo("ord_column");
-        assertThat(row.get("MEMBER_ID")).isEqualTo("mem_column");
-        assertThat(row.get("AMOUNT")).isEqualTo(91_000L);
-        assertThat(row.get("CURRENCY")).isEqualTo("KRW");
-        assertThat(row.get("METHOD")).isEqualTo("CARD");
-        assertThat(row.get("STATUS")).isEqualTo("AUTHORIZED");
-        assertThat(row.get("TRANSACTION_ID")).isEqualTo("txn_fixture");
+        assertThat(row.get("order_id")).isEqualTo("ord_column");
+        assertThat(row.get("member_id")).isEqualTo("mem_column");
+        assertThat(row.get("amount")).isEqualTo(91_000L);
+        assertThat(row.get("currency")).isEqualTo("KRW");
+        assertThat(row.get("method")).isEqualTo("CARD");
+        assertThat(row.get("status")).isEqualTo("AUTHORIZED");
+        assertThat(row.get("transaction_id")).isEqualTo("txn_fixture");
     }
 
     @Test
@@ -96,10 +99,10 @@ class JdbcPaymentRepositoryTest {
                 "select order_id, member_id, amount, status, transaction_id from payments where id = ?",
                 payment.id()
         );
-        assertThat(row.get("STATUS")).isEqualTo("CAPTURED");
-        assertThat(row.get("ORDER_ID")).isEqualTo("ord_update");
-        assertThat(row.get("MEMBER_ID")).isEqualTo("mem_demo");
-        assertThat(row.get("AMOUNT")).isEqualTo(45_000L);
-        assertThat(row.get("TRANSACTION_ID")).isEqualTo("txn_fixture");
+        assertThat(row.get("status")).isEqualTo("CAPTURED");
+        assertThat(row.get("order_id")).isEqualTo("ord_update");
+        assertThat(row.get("member_id")).isEqualTo("mem_demo");
+        assertThat(row.get("amount")).isEqualTo(45_000L);
+        assertThat(row.get("transaction_id")).isEqualTo("txn_fixture");
     }
 }

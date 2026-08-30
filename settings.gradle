@@ -16,6 +16,7 @@ rootProject.name = 'impati-commerce'
 
 include 'libs:common-contracts'
 include 'libs:common-http'
+include 'libs:test-database'
 include 'apps:api-gateway'
 include 'apps:member-service'
 include 'apps:display-service'

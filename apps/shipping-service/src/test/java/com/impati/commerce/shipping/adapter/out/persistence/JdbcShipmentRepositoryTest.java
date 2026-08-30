@@ -3,6 +3,7 @@ package com.impati.commerce.shipping.adapter.out.persistence;
 import com.impati.commerce.shipping.application.port.out.ShipmentRepository;
 import com.impati.commerce.shipping.domain.ShippingModels.Address;
 import com.impati.commerce.shipping.domain.ShippingModels.Shipment;
+import com.impati.commerce.test.RequiresDatabase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -10,8 +11,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:shipping-repo;DB_CLOSE_DELAY=-1")
+@SpringBootTest
+@RequiresDatabase
 class JdbcShipmentRepositoryTest {
+
     @Autowired
     private ShipmentRepository shipmentRepository;
 
@@ -71,17 +74,17 @@ class JdbcShipmentRepositoryTest {
                         + " from shipments where id = ?",
                 shipment.id()
         );
-        assertThat(row.get("ORDER_ID")).isEqualTo("ord_column");
-        assertThat(row.get("MEMBER_ID")).isEqualTo("mem_demo");
-        assertThat(row.get("STATUS")).isEqualTo("READY");
-        assertThat(row.get("TRACKING_NUMBER")).isEqualTo(shipment.trackingNumber());
-        assertThat(row.get("SHIP_ADDRESS_ID")).isEqualTo("addr_demo");
-        assertThat(row.get("SHIP_ALIAS")).isEqualTo("home");
-        assertThat(row.get("SHIP_RECIPIENT")).isEqualTo("Demo Customer");
-        assertThat(row.get("SHIP_PHONE")).isEqualTo("010-0000-0000");
-        assertThat(row.get("SHIP_LINE1")).isEqualTo("123 Commerce Road");
-        assertThat(row.get("SHIP_CITY")).isEqualTo("Seoul");
-        assertThat(row.get("SHIP_POSTAL_CODE")).isEqualTo("04524");
+        assertThat(row.get("order_id")).isEqualTo("ord_column");
+        assertThat(row.get("member_id")).isEqualTo("mem_demo");
+        assertThat(row.get("status")).isEqualTo("READY");
+        assertThat(row.get("tracking_number")).isEqualTo(shipment.trackingNumber());
+        assertThat(row.get("ship_address_id")).isEqualTo("addr_demo");
+        assertThat(row.get("ship_alias")).isEqualTo("home");
+        assertThat(row.get("ship_recipient")).isEqualTo("Demo Customer");
+        assertThat(row.get("ship_phone")).isEqualTo("010-0000-0000");
+        assertThat(row.get("ship_line1")).isEqualTo("123 Commerce Road");
+        assertThat(row.get("ship_city")).isEqualTo("Seoul");
+        assertThat(row.get("ship_postal_code")).isEqualTo("04524");
     }
 
     @Test

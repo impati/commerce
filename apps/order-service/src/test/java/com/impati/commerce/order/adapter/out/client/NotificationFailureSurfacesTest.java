@@ -3,6 +3,7 @@ package com.impati.commerce.order.adapter.out.client;
 import com.impati.commerce.common.ApiContracts.NotificationEventRequest;
 import com.impati.commerce.order.application.port.out.NotificationClient;
 import org.junit.jupiter.api.BeforeEach;
+import com.impati.commerce.test.RequiresDatabase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.client.MockServerRestClientCustomizer;
@@ -31,12 +32,13 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
  * 여기서만 실제 HTTP 어댑터가 돈다.
  */
 @SpringBootTest(properties = {
-        "spring.datasource.url=jdbc:h2:mem:order-notify-failure;DB_CLOSE_DELAY=-1",
         "orders.event-publish-interval=3600000",
         "orders.payment-reconcile-interval=3600000"
 })
+@RequiresDatabase
 @Import(NotificationFailureSurfacesTest.MockServerConfig.class)
 class NotificationFailureSurfacesTest {
+
     private static final String NOTIFICATION_URL = "http://localhost:8109";
 
     @TestConfiguration

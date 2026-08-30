@@ -2,6 +2,7 @@ package com.impati.commerce.notification.adapter.out.persistence;
 
 import com.impati.commerce.notification.application.port.out.NotificationRepository;
 import com.impati.commerce.notification.domain.NotificationModels.Notification;
+import com.impati.commerce.test.RequiresDatabase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -10,10 +11,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(properties = {
-        "spring.datasource.url=jdbc:h2:mem:notification-repo;DB_CLOSE_DELAY=-1",
         "notifications.dispatch-interval=3600000"
 })
+@RequiresDatabase
 class JdbcNotificationRepositoryTest {
+
     @Autowired
     private NotificationRepository notificationRepository;
 
@@ -53,12 +55,12 @@ class JdbcNotificationRepositoryTest {
                         """,
                 notification.id()
         );
-        assertThat(row.get("IDEMPOTENCY_KEY")).isEqualTo("vmail_column");
-        assertThat(row.get("EVENT_TYPE")).isEqualTo("EmailVerificationRequested");
-        assertThat(row.get("MEMBER_ID")).isEqualTo("mem_column");
-        assertThat(row.get("SUBJECT")).isEqualTo("subject text");
-        assertThat(row.get("BODY")).isEqualTo("body text");
-        assertThat(row.get("RECIPIENT")).isEqualTo("column@impati.dev");
+        assertThat(row.get("idempotency_key")).isEqualTo("vmail_column");
+        assertThat(row.get("event_type")).isEqualTo("EmailVerificationRequested");
+        assertThat(row.get("member_id")).isEqualTo("mem_column");
+        assertThat(row.get("subject")).isEqualTo("subject text");
+        assertThat(row.get("body")).isEqualTo("body text");
+        assertThat(row.get("recipient")).isEqualTo("column@impati.dev");
     }
 
     /**

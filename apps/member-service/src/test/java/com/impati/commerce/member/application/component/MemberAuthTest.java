@@ -5,6 +5,7 @@ import com.impati.commerce.member.application.port.in.RegistrationUseCase;
 import com.impati.commerce.member.application.port.in.SessionUseCase;
 import com.impati.commerce.member.application.port.out.NotificationClient;
 import com.impati.commerce.member.application.port.out.SecureTokens;
+import com.impati.commerce.test.RequiresDatabase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -36,14 +37,15 @@ import static org.mockito.Mockito.verifyNoInteractions;
  * <p>테스트가 같은 DB를 공유하므로 이메일을 테스트별로 다르게 쓴다.
  */
 @SpringBootTest(properties = {
-        "spring.datasource.url=jdbc:h2:mem:member-auth;DB_CLOSE_DELAY=-1",
         // 아웃박스 발송기를 멈춘다. 이 테스트는 아웃박스에 적힌 원문 토큰을 읽어 인증
         // 흐름을 확인하는데, 발송기가 그 사이에 보내면 토큰이 지워져 읽을 수 없다.
         // 컨텍스트는 JVM 수명 내내 살아 있으므로 다른 테스트가 도는 동안에도 계속 틴다.
         // 간격을 늘려도 기동 직후 한 번은 돈다 — 그때 아웃박스가 비어 있어 무해할 뿐이다.
         "member.verification-mail-dispatch-interval=3600000"
 })
+@RequiresDatabase
 class MemberAuthTest {
+
     /** 테스트가 앞으로 돌릴 수 있는 시계. */
     static class MutableClock extends Clock {
         private Instant now = Instant.parse("2026-07-25T00:00:00Z");
@@ -110,9 +112,9 @@ class MemberAuthTest {
         verifyNoInteractions(notificationClient);
         var row = jdbc.queryForMap(
                 "select email, status, attempts from verification_mails where member_id = ?", member.id());
-        assertThat(row.get("EMAIL")).isEqualTo("flow@impati.dev");
-        assertThat(row.get("STATUS")).isEqualTo("PENDING");
-        assertThat(row.get("ATTEMPTS")).isEqualTo(0);
+        assertThat(row.get("email")).isEqualTo("flow@impati.dev");
+        assertThat(row.get("status")).isEqualTo("PENDING");
+        assertThat(row.get("attempts")).isEqualTo(0);
     }
 
     /**

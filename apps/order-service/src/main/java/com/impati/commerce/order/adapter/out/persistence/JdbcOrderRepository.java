@@ -93,7 +93,9 @@ public class JdbcOrderRepository implements OrderRepository, OrderWriter {
               from orders
              where payment_outcome_unknown = true
                and (payment_reconcile_after is null or payment_reconcile_after <= :now)
-             order by payment_reconcile_after nulls first
+             -- MySQL은 nulls first 절이 없다. 오름차순에서 NULL이 먼저 오는 것이 기본 동작이고,
+             -- 여기서 NULL은 "아직 한 번도 시도하지 않았다"이므로 그것이 먼저여야 한다.
+             order by payment_reconcile_after
              limit :batch_size
             """;
 
