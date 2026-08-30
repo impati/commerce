@@ -1,4 +1,25 @@
 services:
+  # 여덟 서비스가 공유하는 MySQL. 서비스마다 데이터베이스를 나눈다.
+  #
+  # 8.0.16 이상을 고정한다. inventory가 재고 음수 방지에 check 제약을 쓰는데 그 아래 버전은
+  # 제약을 파싱만 하고 강제하지 않는다 — 조용히 통과하는 검증은 없는 것보다 나쁘다 (ADR-0013).
+  mysql:
+    image: mysql:8.0.36
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_USER: commerce
+      MYSQL_PASSWORD: commerce
+      MYSQL_DATABASE: commerce
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./docker/mysql-init.sql:/docker-entrypoint-initdb.d/00-databases.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-ucommerce", "-pcommerce"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
   member-service:
     build:
       context: .
@@ -7,6 +28,13 @@ services:
         SERVICE: member-service
     ports:
       - "8101:8101"
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/member_service?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
+      DB_USERNAME: commerce
+      DB_PASSWORD: commerce
+    depends_on:
+      mysql:
+        condition: service_healthy
 
   catalog-service:
     build:
@@ -16,6 +44,13 @@ services:
         SERVICE: catalog-service
     ports:
       - "8102:8102"
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/catalog_service?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
+      DB_USERNAME: commerce
+      DB_PASSWORD: commerce
+    depends_on:
+      mysql:
+        condition: service_healthy
 
   display-service:
     build:
@@ -28,7 +63,8 @@ services:
     environment:
       CLIENTS_CATALOG_URL: http://catalog-service:8102
     depends_on:
-      - catalog-service
+      catalog-service:
+        condition: service_started
 
   inventory-service:
     build:
@@ -38,6 +74,13 @@ services:
         SERVICE: inventory-service
     ports:
       - "8104:8104"
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/inventory_service?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
+      DB_USERNAME: commerce
+      DB_PASSWORD: commerce
+    depends_on:
+      mysql:
+        condition: service_healthy
 
   cart-service:
     build:
@@ -48,9 +91,15 @@ services:
     ports:
       - "8105:8105"
     environment:
+      DB_URL: jdbc:mysql://mysql:3306/cart_service?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
+      DB_USERNAME: commerce
+      DB_PASSWORD: commerce
       CLIENTS_CATALOG_URL: http://catalog-service:8102
     depends_on:
-      - catalog-service
+      mysql:
+        condition: service_healthy
+      catalog-service:
+        condition: service_started
 
   payment-service:
     build:
@@ -60,6 +109,13 @@ services:
         SERVICE: payment-service
     ports:
       - "8106:8106"
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/payment_service?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
+      DB_USERNAME: commerce
+      DB_PASSWORD: commerce
+    depends_on:
+      mysql:
+        condition: service_healthy
 
   shipping-service:
     build:
@@ -69,6 +125,13 @@ services:
         SERVICE: shipping-service
     ports:
       - "8107:8107"
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/shipping_service?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
+      DB_USERNAME: commerce
+      DB_PASSWORD: commerce
+    depends_on:
+      mysql:
+        condition: service_healthy
 
   order-service:
     build:
@@ -79,6 +142,9 @@ services:
     ports:
       - "8108:8108"
     environment:
+      DB_URL: jdbc:mysql://mysql:3306/order_service?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
+      DB_USERNAME: commerce
+      DB_PASSWORD: commerce
       CLIENTS_MEMBER_URL: http://member-service:8101
       CLIENTS_CATALOG_URL: http://catalog-service:8102
       CLIENTS_INVENTORY_URL: http://inventory-service:8104
@@ -87,13 +153,22 @@ services:
       CLIENTS_SHIPPING_URL: http://shipping-service:8107
       CLIENTS_NOTIFICATION_URL: http://notification-service:8109
     depends_on:
-      - member-service
-      - catalog-service
-      - inventory-service
-      - cart-service
-      - payment-service
-      - shipping-service
-      - notification-service
+      mysql:
+        condition: service_healthy
+      member-service:
+        condition: service_started
+      catalog-service:
+        condition: service_started
+      inventory-service:
+        condition: service_started
+      cart-service:
+        condition: service_started
+      payment-service:
+        condition: service_started
+      shipping-service:
+        condition: service_started
+      notification-service:
+        condition: service_started
 
   notification-service:
     build:
@@ -103,6 +178,13 @@ services:
         SERVICE: notification-service
     ports:
       - "8109:8109"
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/notification_service?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
+      DB_USERNAME: commerce
+      DB_PASSWORD: commerce
+    depends_on:
+      mysql:
+        condition: service_healthy
 
   api-gateway:
     build:
@@ -122,12 +204,20 @@ services:
       CLIENTS_SHIPPING_URL: http://shipping-service:8107
       CLIENTS_NOTIFICATION_URL: http://notification-service:8109
     depends_on:
-      - member-service
-      - display-service
-      - catalog-service
-      - inventory-service
-      - cart-service
-      - order-service
-      - shipping-service
-      - notification-service
+      member-service:
+        condition: service_started
+      display-service:
+        condition: service_started
+      catalog-service:
+        condition: service_started
+      inventory-service:
+        condition: service_started
+      cart-service:
+        condition: service_started
+      order-service:
+        condition: service_started
+      shipping-service:
+        condition: service_started
+      notification-service:
+        condition: service_started
 
