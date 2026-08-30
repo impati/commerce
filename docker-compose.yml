@@ -146,7 +146,7 @@ services:
       context: .
       dockerfile: docker/service.Dockerfile
       args:
-        MODULE: order-service/api
+        MODULE: order-service/boot/api
         ARTIFACT: order-api
     ports:
       - "8108:8108"
@@ -184,7 +184,7 @@ services:
       context: .
       dockerfile: docker/service.Dockerfile
       args:
-        MODULE: order-service/worker
+        MODULE: order-service/boot/worker
         ARTIFACT: order-worker
     ports:
       - "8118:8118"
@@ -212,7 +212,7 @@ services:
       context: .
       dockerfile: docker/service.Dockerfile
       args:
-        MODULE: notification-service/api
+        MODULE: notification-service/boot/api
         ARTIFACT: notification-api
     ports:
       - "8109:8109"
@@ -229,7 +229,7 @@ services:
       context: .
       dockerfile: docker/service.Dockerfile
       args:
-        MODULE: notification-service/worker
+        MODULE: notification-service/boot/worker
         ARTIFACT: notification-worker
     ports:
       - "8119:8119"

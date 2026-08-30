@@ -102,7 +102,7 @@ fi
 # 이름·모듈 경로·포트를 따로 받는다.
 #
 # 실행 단위가 서비스와 1:1이 아니게 됐다 — order와 notification은 api와 worker 둘이고, 모듈
-# 경로(order-service/api)와 산출물 이름(order-api)이 다르다 (ADR-0014).
+# 경로(order-service/boot/api)와 산출물 이름(order-api)이 다르다 (ADR-0014).
 start_service() {
   local service="$1"
   local module="$2"
@@ -142,10 +142,10 @@ start_service inventory-service inventory-service 8104
 start_service cart-service cart-service 8105
 start_service payment-service payment-service 8106
 start_service shipping-service shipping-service 8107
-start_service notification-api notification-service/api 8109
-start_service notification-worker notification-service/worker 8119
-start_service order-api order-service/api 8108
-start_service order-worker order-service/worker 8118
+start_service notification-api notification-service/boot/api 8109
+start_service notification-worker notification-service/boot/worker 8119
+start_service order-api order-service/boot/api 8108
+start_service order-worker order-service/boot/worker 8118
 start_service api-gateway api-gateway 8080
 
 wait_health member-service 8101
