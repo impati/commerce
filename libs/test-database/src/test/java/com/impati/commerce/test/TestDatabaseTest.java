@@ -12,6 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>테스트가 서로를 깨뜨리지 않는 근거가 여기다. 같은 이름을 요청해도 다른 데이터베이스를
  * 받아야 하고, 받은 것은 비어 있어야 한다.
  */
+@RequiresDatabase
 class TestDatabaseTest {
     @Test
     void sameNameStillGetsItsOwnDatabase() {
