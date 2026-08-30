@@ -50,6 +50,23 @@ public final class OrderModels {
      * 어떤 형식으로 저장할지는 영속화 어댑터가 정한다.
      */
     public static final class OrderEvent {
+        /**
+         * 사건에 담는 자유 문자열의 상한.
+         *
+         * <p>사유와 오류 메시지는 바깥에서 온다 — 하위 서비스의 예외 메시지가 그대로 들어오므로
+         * 길이가 통제되지 않는다. 자르지 않으면 저장 시점에 컬럼 길이를 넘겨 <b>사건을 쓰려다
+         * 그 사건이 속한 변경까지 롤백시킨다.</b> 취소 사유가 길다는 이유로 주문이 취소되지
+         * 않는 것은 조용히 일어나므로 뜨는 것보다 나쁘다.
+         *
+         * <p>값은 저장 컬럼에서 나온다 — 사유는 {@code order_events.payload}(2000)와 알림
+         * 본문(2000)에, 오류는 {@code order_events.last_error}(500)에 들어간다. 마이그레이션이
+         * 컬럼을 줄이면 이 값도 함께 움직여야 한다.
+         *
+         * <p>원인 식별에는 앞부분이면 충분하다. 전체 트레이스를 남기는 것은 여기의 일이 아니다.
+         */
+        public static final int MAX_REASON_LENGTH = 500;
+        public static final int MAX_ERROR_LENGTH = 400;
+
         private final String id;
         private final OrderEventType type;
         private final String orderId;
@@ -120,11 +137,11 @@ public final class OrderModels {
         }
 
         /**
-         * 순서를 보장해야 하는 단위.
+         * 순서를 따진다면 그 단위가 될 값.
          *
-         * <p>같은 주문의 사건은 같은 키를 가지므로 브로커에서 한 파티션에 떨어지고, 그래야
-         * {@code ORDER_PAID} 뒤에 {@code SHIPMENT_CREATED}가 온다. 지금 발행 어댑터는 이 값을
-         * 쓰지 않지만, 계약에 없으면 브로커가 들어올 때 순서 보장이 조용히 사라진다.
+         * <p>같은 주문의 사건은 같은 키를 가지므로 브로커에서 한 파티션에 떨어진다. **지금은
+         * 순서가 보장되지 않는다** — 발행이 부분 실패하면 뒤 사건이 먼저 나간다. 이 값을 미리
+         * 두는 것은, 없으면 브로커를 붙일 때 계약을 바꿔야 하기 때문이다.
          */
         public String partitionKey() {
             return orderId;
@@ -159,8 +176,15 @@ public final class OrderModels {
          */
         public void markFailed(String error, int maxAttempts) {
             this.attempts += 1;
-            this.lastError = error;
+            this.lastError = truncate(error, MAX_ERROR_LENGTH);
             this.publishStatus = attempts >= maxAttempts ? PublishStatus.FAILED : PublishStatus.PENDING;
+        }
+
+        static String truncate(String value, int limit) {
+            if (value == null || value.length() <= limit) {
+                return value;
+            }
+            return value.substring(0, limit);
         }
     }
 
@@ -374,13 +398,17 @@ public final class OrderModels {
          *
          * <p>{@code reason}은 주문이 들고 있지 않지만 사건에는 필요하다. 왜 취소됐는지가
          * 취소됐다는 사실의 일부이며, 소비자가 그것 없이는 사용자에게 설명할 수 없다.
+         *
+         * <p>길면 자른다. 하위 서비스의 예외 메시지가 그대로 들어오므로 길이가 통제되지 않고,
+         * 자르지 않으면 사유가 길다는 이유로 <b>취소 자체가 롤백된다</b>.
          */
         public void cancel(String reason) {
             if (status.equals("DELIVERED")) {
                 throw DomainException.conflict("delivered order cannot be cancelled");
             }
             this.status = "CANCELLED";
-            record(OrderEventType.ORDER_CANCELLED, Map.of("reason", reason == null ? "" : reason));
+            record(OrderEventType.ORDER_CANCELLED, Map.of(
+                    "reason", OrderEvent.truncate(reason == null ? "" : reason, OrderEvent.MAX_REASON_LENGTH)));
         }
 
         /**
