@@ -98,7 +98,7 @@ configure([project(':apps:member-service'), project(':apps:api-gateway')]) {
 }
 
 configure([
-        project(':apps:order-service:core'),
+        project(':apps:order-service:client-core'),
         project(':apps:api-gateway'),
         project(':apps:display-service'),
         project(':apps:cart-service'),
@@ -115,9 +115,11 @@ configure([
 // 것이 검증되지 않은 채 남고, 이 저장소는 검증되지 않는 경로가 반드시 샌다는 것을 반복해서
 // 겪었다 (ADR-0013).
 configure([
-        project(':apps:order-service:core'),
+        project(':apps:order-service:persistence'),
         project(':apps:order-service:api'),
         project(':apps:order-service:worker'),
+        project(':apps:order-service:client-member'),
+        project(':apps:order-service:client-notification'),
         project(':apps:payment-service'),
         project(':apps:notification-service:core'),
         project(':apps:notification-service:api'),
@@ -138,14 +140,58 @@ configure([
     }
 }
 
-// order-service: 실행 단위를 API와 워커로 나눈다 (ADR-0014).
+// order-service: 실행 단위(ADR-0014)와 협력자별 어댑터(ADR-0015).
 //
-// 절단면은 adapter/in이다 — 컨트롤러는 api, 스케줄러는 worker, 나머지는 core. api의 클래스패스에
-// 워커 코드가 없다는 것이 이 구성의 요점이며, 카프카가 들어올 때 브로커 의존성이 워커에만
-// 붙는 근거가 된다.
-configure([project(':apps:order-service:api'), project(':apps:order-service:worker')]) {
+// 각 실행 단위가 자기가 부르는 상대만 의존한다. 빌드 파일을 읽으면 "어느 단위가 누구를 부를 수
+// 있나"의 답이 나오고, 부르지 않는 상대의 설정을 요구하지 않는다.
+def orderClients = ['member', 'cart', 'catalog', 'inventory', 'payment', 'shipping', 'notification']
+
+configure(orderClients.collect { project(":apps:order-service:client-$it") }
+        + [project(':apps:order-service:publisher-notification'),
+           project(':apps:order-service:persistence')]) {
     dependencies {
         implementation project(':apps:order-service:core')
+    }
+}
+
+// 발행 어댑터는 알림 클라이언트 위에 선다. BL-0055가 이 자리를 카프카로 갈아끼운다.
+project(':apps:order-service:publisher-notification') {
+    dependencies {
+        implementation project(':apps:order-service:client-notification')
+    }
+}
+
+// 클라이언트들이 공유하는 것은 RestClient 빌더 정책 하나다.
+configure(orderClients.collect { project(":apps:order-service:client-$it") }) {
+    dependencies {
+        implementation project(':apps:order-service:client-core')
+    }
+}
+
+project(':apps:order-service:client-core') {
+    dependencies {
+        implementation project(':apps:order-service:core')
+    }
+}
+
+project(':apps:order-service:api') {
+    dependencies {
+        implementation project(':apps:order-service:core')
+        implementation project(':apps:order-service:persistence')
+        // 체크아웃 saga가 부르는 여섯. 알림은 부르지 않는다 — 사건이 대신한다 (ADR-0012).
+        ['member', 'cart', 'catalog', 'inventory', 'payment', 'shipping'].each {
+            implementation project(":apps:order-service:client-$it")
+        }
+    }
+}
+
+project(':apps:order-service:worker') {
+    dependencies {
+        implementation project(':apps:order-service:core')
+        implementation project(':apps:order-service:persistence')
+        // 결제 정리가 부르는 하나와, 사건 발행이 쓰는 어댑터.
+        implementation project(':apps:order-service:client-payment')
+        implementation project(':apps:order-service:publisher-notification')
     }
 }
 
