@@ -35,12 +35,13 @@ make todo
 | --- | --- | --- |
 | 1 | [BL-0060](bl-0060-move-outbound-adapters-to-their-units.md) 나가는 어댑터를 쓰는 단위로 | BL-0054가 실행 단위만 나눴다. 카프카 앞에 해야 브로커 의존이 자리 잡기 전에 옮긴다 |
 | 2 | [BL-0055](bl-0055-publish-order-events-to-kafka.md) 이벤트 발행을 카프카로 | BL-0052가 완성한 포트의 어댑터를 갈아끼운다 |
-| 3 | [BL-0005](bl-0005-token-storage-to-cookie.md) 프론트 토큰 보관을 쿠키로 | XSS로 토큰이 읽힌다 |
-| 4 | [BL-0006](bl-0006-local-profile-smoke.md) local 프로파일 스모크 | 하네스가 못 보는 구간이다. 급하지 않다 |
-| 5 | [BL-0007](bl-0007-password-policy-to-domain.md) 비밀번호 정책을 도메인으로 | 클래스 리뷰에서 나왔다. 지금 동작에는 문제가 없다 |
-| 6 | [BL-0008](bl-0008-duplicate-signup-conflict-response.md) 동시 가입 경합 응답 | 위와 같다 |
-| 7 | [BL-0036](bl-0036-clients-leak-protocol-errors.md) + [BL-0037](bl-0037-downstream-failure-reported-as-conflict.md) 오류 변환과 상태 코드 | 원인이 하나다 — 하위 서비스 장애가 `conflict`로 옮겨져 409로 나가고, 전송 실패는 아예 변환되지 않는다. 담을 종류(`unavailable`, `outcomeUnknown`)는 [BL-0034](done/bl-0034-checkout-payment-integrity.md)와 [BL-0039](done/bl-0039-resolve-unknown-payment-outcome.md)에서 이미 생겼으므로 남은 것은 클라이언트 다섯에 적용하는 일이다. **한 작업으로 묶어 새 번호를 딴다** |
-| 8 | [BL-0030](bl-0030-policy-verification-gaps.md) 정책 규칙 검증 공백 | 상품 노출 전체와 체크아웃 R1~R4. 크지만 기계적이라 앞의 것들이 끝난 뒤가 낫다 |
+| 3 | [BL-0061](bl-0061-single-rest-client-builder.md) 빌더 주입을 없앤다 | BL-0060에서 실제로 깨졌다. 세 서비스가 이미 어기고 있고 클라이언트가 둘이 되는 순간 드러난다 |
+| 4 | [BL-0005](bl-0005-token-storage-to-cookie.md) 프론트 토큰 보관을 쿠키로 | XSS로 토큰이 읽힌다 |
+| 5 | [BL-0006](bl-0006-local-profile-smoke.md) local 프로파일 스모크 | 하네스가 못 보는 구간이다. 급하지 않다 |
+| 6 | [BL-0007](bl-0007-password-policy-to-domain.md) 비밀번호 정책을 도메인으로 | 클래스 리뷰에서 나왔다. 지금 동작에는 문제가 없다 |
+| 7 | [BL-0008](bl-0008-duplicate-signup-conflict-response.md) 동시 가입 경합 응답 | 위와 같다 |
+| 8 | [BL-0036](bl-0036-clients-leak-protocol-errors.md) + [BL-0037](bl-0037-downstream-failure-reported-as-conflict.md) 오류 변환과 상태 코드 | 원인이 하나다 — 하위 서비스 장애가 `conflict`로 옮겨져 409로 나가고, 전송 실패는 아예 변환되지 않는다. 담을 종류(`unavailable`, `outcomeUnknown`)는 [BL-0034](done/bl-0034-checkout-payment-integrity.md)와 [BL-0039](done/bl-0039-resolve-unknown-payment-outcome.md)에서 이미 생겼으므로 남은 것은 클라이언트 다섯에 적용하는 일이다. **한 작업으로 묶어 새 번호를 딴다** |
+| 9 | [BL-0030](bl-0030-policy-verification-gaps.md) 정책 규칙 검증 공백 | 상품 노출 전체와 체크아웃 R1~R4. 크지만 기계적이라 앞의 것들이 끝난 뒤가 낫다 |
 
 ## 순서를 정하지 않은 항목
 
