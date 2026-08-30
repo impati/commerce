@@ -62,12 +62,8 @@ class NotificationDispatchConfigTest {
         executor(5, VALID_DELAY, 3);
     }
 
-    private NotificationExecutor executor(int batchSize, Duration retryDelay, int maxAttempts) {
-        return new NotificationExecutor(
-                mock(NotificationRepository.class),
-                mock(MailSender.class),
-                "https://shop.impati.dev/verify",
-                batchSize,
+    private MailDispatchExecutor executor(int batchSize, Duration retryDelay, int maxAttempts) {
+        return new MailDispatchExecutor(mock(NotificationRepository.class), mock(MailSender.class), batchSize,
                 retryDelay,
                 maxAttempts
         );

@@ -1,6 +1,6 @@
 package com.impati.commerce.notification.adapter.in.scheduler;
 
-import com.impati.commerce.notification.application.port.in.NotificationUseCase;
+import com.impati.commerce.notification.application.port.in.MailDispatchUseCase;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -15,14 +15,14 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class OutboxDispatcher {
-    private final NotificationUseCase notificationUseCase;
+    private final MailDispatchUseCase mailDispatchUseCase;
 
-    public OutboxDispatcher(NotificationUseCase notificationUseCase) {
-        this.notificationUseCase = notificationUseCase;
+    public OutboxDispatcher(MailDispatchUseCase mailDispatchUseCase) {
+        this.mailDispatchUseCase = mailDispatchUseCase;
     }
 
     @Scheduled(fixedDelayString = "${notifications.dispatch-interval:1000}")
     void dispatch() {
-        notificationUseCase.dispatchPending();
+        mailDispatchUseCase.dispatchPending();
     }
 }

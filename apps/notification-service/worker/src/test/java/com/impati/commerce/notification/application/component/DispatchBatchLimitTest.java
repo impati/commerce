@@ -1,5 +1,6 @@
 package com.impati.commerce.notification.application.component;
 
+import com.impati.commerce.notification.application.port.in.MailDispatchUseCase;
 import com.impati.commerce.notification.application.port.in.NotificationUseCase;
 import com.impati.commerce.notification.application.port.out.MailSender;
 import com.impati.commerce.notification.support.MutableClock;
@@ -39,6 +40,9 @@ class DispatchBatchLimitTest {
     private NotificationUseCase notificationUseCase;
 
     @Autowired
+    private MailDispatchUseCase mailDispatchUseCase;
+
+    @Autowired
     private MutableClock clock;
 
     @MockBean
@@ -52,14 +56,14 @@ class DispatchBatchLimitTest {
                     "mem_batch", "batch" + index + "@impati.dev", "tok_batch", "vmail_batch_" + index);
         }
 
-        assertThat(notificationUseCase.dispatchPending())
+        assertThat(mailDispatchUseCase.dispatchPending())
                 .as("상한이 2이면 5건이 밀려 있어도 한 주기에 2건만 나간다")
                 .isEqualTo(2);
 
         clock.advance(Duration.ofSeconds(120));
-        assertThat(notificationUseCase.dispatchPending()).isEqualTo(2);
+        assertThat(mailDispatchUseCase.dispatchPending()).isEqualTo(2);
 
         clock.advance(Duration.ofSeconds(120));
-        assertThat(notificationUseCase.dispatchPending()).isEqualTo(1);
+        assertThat(mailDispatchUseCase.dispatchPending()).isEqualTo(1);
     }
 }

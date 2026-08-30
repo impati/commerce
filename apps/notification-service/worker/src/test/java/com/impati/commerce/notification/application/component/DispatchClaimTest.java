@@ -1,5 +1,6 @@
 package com.impati.commerce.notification.application.component;
 
+import com.impati.commerce.notification.application.port.in.MailDispatchUseCase;
 import com.impati.commerce.notification.application.port.in.NotificationUseCase;
 import com.impati.commerce.notification.application.port.in.OutboxEntry;
 import com.impati.commerce.notification.application.port.out.MailSender;
@@ -41,6 +42,9 @@ class DispatchClaimTest {
     private NotificationUseCase notificationUseCase;
 
     @Autowired
+    private MailDispatchUseCase mailDispatchUseCase;
+
+    @Autowired
     private MutableClock clock;
 
     @MockBean
@@ -64,17 +68,17 @@ class DispatchClaimTest {
         notificationUseCase.requestEmailVerification(
                 "mem_claim", "claim@impati.dev", "tok_claim", "vmail_claim");
 
-        notificationUseCase.dispatchPending();
+        mailDispatchUseCase.dispatchPending();
         assertThat(outboxOf("claim@impati.dev").attempts()).isEqualTo(1);
 
-        notificationUseCase.dispatchPending();
+        mailDispatchUseCase.dispatchPending();
         assertThat(outboxOf("claim@impati.dev").attempts())
                 .as("최소 간격 안에는 다시 집히지 않는다")
                 .isEqualTo(1);
 
         clock.advance(Duration.ofSeconds(120));
 
-        notificationUseCase.dispatchPending();
+        mailDispatchUseCase.dispatchPending();
         assertThat(outboxOf("claim@impati.dev").attempts())
                 .as("간격이 지나면 다시 집힌다. 점유가 영구 배제가 되면 안 된다")
                 .isEqualTo(2);
@@ -92,7 +96,7 @@ class DispatchClaimTest {
         notificationUseCase.requestEmailVerification(
                 "mem_accepted", "accepted@impati.dev", "tok_accepted", "vmail_accepted");
 
-        notificationUseCase.dispatchPending();
+        mailDispatchUseCase.dispatchPending();
 
         verify(mailSender, never()).send(anyString(), anyString(), anyString(), anyString());
         var entry = outboxOf("accepted@impati.dev");
@@ -111,7 +115,7 @@ class DispatchClaimTest {
         notificationUseCase.requestEmailVerification(
                 "mem_unknown", "unknown@impati.dev", "tok_unknown", "vmail_unknown");
 
-        assertThat(notificationUseCase.dispatchPending()).isZero();
+        assertThat(mailDispatchUseCase.dispatchPending()).isZero();
 
         verify(mailSender, never()).send(anyString(), anyString(), anyString(), anyString());
         var entry = outboxOf("unknown@impati.dev");

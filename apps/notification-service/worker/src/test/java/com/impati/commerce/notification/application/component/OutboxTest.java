@@ -1,5 +1,6 @@
 package com.impati.commerce.notification.application.component;
 
+import com.impati.commerce.notification.application.port.in.MailDispatchUseCase;
 import com.impati.commerce.notification.application.port.in.NotificationUseCase;
 import com.impati.commerce.notification.application.port.in.OutboxEntry;
 import com.impati.commerce.notification.application.port.out.MailSender;
@@ -40,6 +41,9 @@ class OutboxTest {
     private NotificationUseCase notificationUseCase;
 
     @Autowired
+    private MailDispatchUseCase mailDispatchUseCase;
+
+    @Autowired
     private MutableClock clock;
 
     @MockBean
@@ -66,7 +70,7 @@ class OutboxTest {
         notificationUseCase.requestEmailVerification(
                 "mem_sent", "sent@impati.dev", "tok_sent", "vmail_sent");
 
-        notificationUseCase.dispatchPending();
+        mailDispatchUseCase.dispatchPending();
 
         var entry = outboxOf("sent@impati.dev");
         assertThat(entry.deliveryStatus()).isEqualTo("SENT");
@@ -86,14 +90,14 @@ class OutboxTest {
         notificationUseCase.requestEmailVerification(
                 "mem_fail", "fail@impati.dev", "tok_fail", "vmail_fail");
 
-        notificationUseCase.dispatchPending();
+        mailDispatchUseCase.dispatchPending();
         assertThat(outboxOf("fail@impati.dev").deliveryStatus()).isEqualTo("PENDING");
         assertThat(outboxOf("fail@impati.dev").attempts()).isEqualTo(1);
 
         clock.advance(Duration.ofSeconds(120));
-        notificationUseCase.dispatchPending();
+        mailDispatchUseCase.dispatchPending();
         clock.advance(Duration.ofSeconds(120));
-        notificationUseCase.dispatchPending();
+        mailDispatchUseCase.dispatchPending();
 
         var exhausted = outboxOf("fail@impati.dev");
         assertThat(exhausted.deliveryStatus()).isEqualTo("FAILED");

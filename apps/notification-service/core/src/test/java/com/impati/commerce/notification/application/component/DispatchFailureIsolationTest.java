@@ -54,9 +54,7 @@ class DispatchFailureIsolationTest {
                 "subject", "body", idempotencyKey);
     }
 
-    private NotificationExecutor executor(NotificationRepository repository, MailSender mailSender) {
-        return new NotificationExecutor(
-                repository, mailSender, "https://shop.impati.dev/verify",
-                5, Duration.ofSeconds(60), 3);
+    private MailDispatchExecutor executor(NotificationRepository repository, MailSender mailSender) {
+        return new MailDispatchExecutor(repository, mailSender, 5, Duration.ofSeconds(60), 3);
     }
 }
