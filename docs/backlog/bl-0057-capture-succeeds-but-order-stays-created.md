@@ -28,7 +28,7 @@ orderChanges.commit(order);                // 여기서 실패하면?
 
 마지막 항목이 핵심이다. [ADR-0009](../adr/0009-reconcile-unconfirmed-payments.md)의 정리기는 표시된 주문만 후보로 삼으므로 **이 주문을 영영 찾지 못한다.** 사용자는 돈을 냈고 주문은 미결제로 보이며, 그 상태를 발견할 자동 수단이 없다.
 
-[BL-0052](bl-0052-order-notification-delivered-once.md)가 만든 것이 아니다. 그 전에도 같은 자리에 `orderRepository.save(order)`가 있었고 창의 모양이 같았다. 다만 그 작업이 "커밋 단위를 지킨다"를 내세웠기 때문에 읽는 사람이 이 구간도 덮인다고 오해하기 쉬워졌다.
+[BL-0052](done/bl-0052-order-notification-delivered-once.md)가 만든 것이 아니다. 그 전에도 같은 자리에 `orderRepository.save(order)`가 있었고 창의 모양이 같았다. 다만 그 작업이 "커밋 단위를 지킨다"를 내세웠기 때문에 읽는 사람이 이 구간도 덮인다고 오해하기 쉬워졌다.
 
 **원인은 체크아웃 절차의 진행 상태가 객체가 아니라는 것이다.** 지금 그 상태는 `reservationId`·`paymentId`·`shipment`·`captureAttempted` 네 지역 변수이고, 스택 프레임과 함께 사라진다. "매입까지 갔다"는 사실이 어디에도 남지 않으니 나중에 정리할 근거가 없다.
 

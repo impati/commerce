@@ -27,22 +27,21 @@ make todo
 
 위에서부터 먼저 한다. 이 순서는 항목 파일에 적지 않는다 — 순서는 바뀌고 항목은 남는다.
 
-1~4는 한 줄기다. 주문 이벤트를 아웃박스에 커밋하고(1), 인프라를 세우고(2), 실행 단위를 나눈 뒤(3), 발행을 카프카로 갈아끼운다(4). 순서는 저장소 자신의 결정에서 나온다 — [ADR-0010](../adr/0010-verification-mail-outbox.md)이 "브로커는 아웃박스의 대안이 아니라 아웃박스 뒤에 오는 것"이라고 정했고, API 모듈이 브로커 의존성을 갖지 않으려면 분리가 카프카보다 앞이어야 한다.
+1~3은 한 줄기다. 주문 이벤트 아웃박스(BL-0052)가 끝났고, 인프라를 세우고(1), 실행 단위를 나눈 뒤(2), 발행을 카프카로 갈아끼운다(3). 순서는 저장소 자신의 결정에서 나온다 — [ADR-0010](../adr/0010-verification-mail-outbox.md)이 "브로커는 아웃박스의 대안이 아니라 아웃박스 뒤에 오는 것"이라고 정했고, API 모듈이 브로커 의존성을 갖지 않으려면 분리가 카프카보다 앞이어야 한다.
 
-5~8은 이전에 정한 순서이고 상대 순서를 그대로 두었다. 9~10은 결제 정합성 작업(BL-0034·0032·0041·0042)에서 나온 것들이다.
+4~7은 이전에 정한 순서이고 상대 순서를 그대로 두었다. 8~9는 결제 정합성 작업(BL-0034·0032·0041·0042)에서 나온 것들이다.
 
 | 순서 | 항목 | 왜 이 순서인가 |
 | --- | --- | --- |
-| 1 | [BL-0052](bl-0052-order-notification-delivered-once.md) 주문 이벤트 아웃박스 | BL-0004와 BL-0048이 member 쪽에서 닫은 것을 order 쪽에서 닫는다. 유실과 중복이 한 결정에 걸려 있고, 카프카의 전제이기도 하다 |
-| 2 | [BL-0053](bl-0053-infrastructure-as-containers.md) 인프라 컨테이너 + 실 DB | 점유가 H2에서만 검증돼 있다. BL-0014를 대체한다 |
-| 3 | [BL-0054](bl-0054-split-api-and-worker-modules.md) API/워커 모듈 분리 | 카프카 의존성이 API 모듈에 박히기 전에 나눠야 한다. BL-0012·BL-0051을 대체한다 |
-| 4 | [BL-0055](bl-0055-publish-order-events-to-kafka.md) 이벤트 발행을 카프카로 | 1에서 완성한 포트의 어댑터를 갈아끼운다 |
-| 5 | [BL-0005](bl-0005-token-storage-to-cookie.md) 프론트 토큰 보관을 쿠키로 | XSS로 토큰이 읽힌다 |
-| 6 | [BL-0006](bl-0006-local-profile-smoke.md) local 프로파일 스모크 | 하네스가 못 보는 구간이다. 급하지 않다 |
-| 7 | [BL-0007](bl-0007-password-policy-to-domain.md) 비밀번호 정책을 도메인으로 | 클래스 리뷰에서 나왔다. 지금 동작에는 문제가 없다 |
-| 8 | [BL-0008](bl-0008-duplicate-signup-conflict-response.md) 동시 가입 경합 응답 | 위와 같다 |
-| 9 | [BL-0036](bl-0036-clients-leak-protocol-errors.md) + [BL-0037](bl-0037-downstream-failure-reported-as-conflict.md) 오류 변환과 상태 코드 | 원인이 하나다 — 하위 서비스 장애가 `conflict`로 옮겨져 409로 나가고, 전송 실패는 아예 변환되지 않는다. 담을 종류(`unavailable`, `outcomeUnknown`)는 [BL-0034](done/bl-0034-checkout-payment-integrity.md)와 [BL-0039](done/bl-0039-resolve-unknown-payment-outcome.md)에서 이미 생겼으므로 남은 것은 클라이언트 다섯에 적용하는 일이다. **한 작업으로 묶어 새 번호를 딴다** |
-| 10 | [BL-0030](bl-0030-policy-verification-gaps.md) 정책 규칙 검증 공백 | 상품 노출 전체와 체크아웃 R1~R4. 크지만 기계적이라 앞의 것들이 끝난 뒤가 낫다 |
+| 1 | [BL-0053](bl-0053-infrastructure-as-containers.md) 인프라 컨테이너 + 실 DB | 점유가 H2에서만 검증돼 있다. BL-0014를 대체한다 |
+| 2 | [BL-0054](bl-0054-split-api-and-worker-modules.md) API/워커 모듈 분리 | 카프카 의존성이 API 모듈에 박히기 전에 나눠야 한다. BL-0012·BL-0051을 대체한다 |
+| 3 | [BL-0055](bl-0055-publish-order-events-to-kafka.md) 이벤트 발행을 카프카로 | 1에서 완성한 포트의 어댑터를 갈아끼운다 |
+| 4 | [BL-0005](bl-0005-token-storage-to-cookie.md) 프론트 토큰 보관을 쿠키로 | XSS로 토큰이 읽힌다 |
+| 5 | [BL-0006](bl-0006-local-profile-smoke.md) local 프로파일 스모크 | 하네스가 못 보는 구간이다. 급하지 않다 |
+| 6 | [BL-0007](bl-0007-password-policy-to-domain.md) 비밀번호 정책을 도메인으로 | 클래스 리뷰에서 나왔다. 지금 동작에는 문제가 없다 |
+| 7 | [BL-0008](bl-0008-duplicate-signup-conflict-response.md) 동시 가입 경합 응답 | 위와 같다 |
+| 8 | [BL-0036](bl-0036-clients-leak-protocol-errors.md) + [BL-0037](bl-0037-downstream-failure-reported-as-conflict.md) 오류 변환과 상태 코드 | 원인이 하나다 — 하위 서비스 장애가 `conflict`로 옮겨져 409로 나가고, 전송 실패는 아예 변환되지 않는다. 담을 종류(`unavailable`, `outcomeUnknown`)는 [BL-0034](done/bl-0034-checkout-payment-integrity.md)와 [BL-0039](done/bl-0039-resolve-unknown-payment-outcome.md)에서 이미 생겼으므로 남은 것은 클라이언트 다섯에 적용하는 일이다. **한 작업으로 묶어 새 번호를 딴다** |
+| 9 | [BL-0030](bl-0030-policy-verification-gaps.md) 정책 규칙 검증 공백 | 상품 노출 전체와 체크아웃 R1~R4. 크지만 기계적이라 앞의 것들이 끝난 뒤가 낫다 |
 
 ## 순서를 정하지 않은 항목
 
@@ -75,3 +74,4 @@ make todo
 | [BL-0056](bl-0056-commit-unit-for-other-services.md) 나머지 서비스의 커밋 단위 | 지금 맞는 이유가 우연이다 ([ADR-0012](../adr/0012-order-events-as-outbox.md)) |
 | [BL-0057](bl-0057-capture-succeeds-but-order-stays-created.md) 매입 후 확정 실패 창 | 대금이 나갔는데 정리기가 못 찾는다 ([ADR-0009](../adr/0009-reconcile-unconfirmed-payments.md)) |
 | [BL-0058](bl-0058-delivered-endpoint-is-not-classified-internal.md) 배송 완료 경로의 등급 | 주석이 등급을 선언한다 ([ADR-0003](../adr/0003-internal-path-prefix.md)) |
+| [BL-0059](bl-0059-errors-are-strings-not-types.md) 실패를 문자열로 다룬다 | 자르기로 막은 것은 증상이다. [BL-0036](bl-0036-clients-leak-protocol-errors.md)과 맞닿아 있다 |
