@@ -5,7 +5,7 @@
 
 ## 배경
 
-[OrderController](../../apps/order-service/src/main/java/com/impati/commerce/order/adapter/in/web/OrderController.java)의 배송 완료 처리가 공개 경로에 있으면서 주석으로만 내부라고 말한다.
+[OrderController](../../apps/order-service/boot/api/src/main/java/com/impati/commerce/order/adapter/in/web/OrderController.java)의 배송 완료 처리가 공개 경로에 있으면서 주석으로만 내부라고 말한다.
 
 ```java
 /** shipping 흐름에서 게이트웨이가 부르는 내부 경로. 배송 완료 처리는 회원 요청이 아니다. */

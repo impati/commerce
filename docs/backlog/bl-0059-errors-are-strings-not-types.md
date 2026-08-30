@@ -7,8 +7,8 @@
 
 무엇이 실패했는지를 코드가 예외 메시지 문자열로 들고 다닌다.
 
-- [OrderEventPublishExecutor](../../apps/order-service/src/main/java/com/impati/commerce/order/application/component/OrderEventPublishExecutor.java)가 `failure.getMessage()`를 사건의 `lastError`에 넣는다.
-- [OrderExecutor](../../apps/order-service/src/main/java/com/impati/commerce/order/application/component/OrderExecutor.java)의 보상 경로가 `cause.getMessage()`를 취소 사유로 넘기고, 그것이 사용자에게 가는 알림 본문이 된다.
+- [OrderEventPublishExecutor](../../apps/order-service/boot/worker/src/main/java/com/impati/commerce/order/application/component/OrderEventPublishExecutor.java)가 `failure.getMessage()`를 사건의 `lastError`에 넣는다.
+- [OrderExecutor](../../apps/order-service/boot/api/src/main/java/com/impati/commerce/order/application/component/OrderExecutor.java)의 보상 경로가 `cause.getMessage()`를 취소 사유로 넘기고, 그것이 사용자에게 가는 알림 본문이 된다.
 
 문자열이라서 세 가지가 따라온다.
 

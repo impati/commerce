@@ -61,7 +61,7 @@
 
 ## 범위
 
-- **포함:** [NotificationExecutor](../../apps/notification-service/src/main/java/com/impati/commerce/notification/application/component/NotificationExecutor.java)의 링크 조립, [App.tsx](../../frontend/storefront/src/App.tsx)의 파싱, 링크 형식을 고정하는 테스트
+- **포함:** [NotificationExecutor](../../apps/notification-service/boot/api/src/main/java/com/impati/commerce/notification/application/component/NotificationExecutor.java)의 링크 조립, [App.tsx](../../frontend/storefront/src/App.tsx)의 파싱, 링크 형식을 고정하는 테스트
 - **제외:** `Referrer-Policy` 헤더, 확인 코드 입력 방식, `history.replaceState` 타이밍(유출 경로 중 브라우저 이력은 이번 대상이 아니다), 정책 문서(PD-0001의 규칙 열 개는 그대로 참이며 토큰의 전달 형식만 바뀐다)
 
 ## 완료 기준

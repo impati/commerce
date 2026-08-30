@@ -11,9 +11,9 @@
 
 **읽기 방향** — 게이트웨이가 TLS를 끝내면 그 뒤는 평문 HTTP다. 이 구간에 접근할 수 있으면 `Authorization` 헤더와 `X-Member-Id`를 그대로 읽는다. 암호화가 애초에 없는 구간이므로 토큰 탈취 경로 중 가장 현실적이다.
 
-인증을 붙여놓고 뒷문이 열려 있는 상태다. [ADR-0001](../adr/0001-session-token-strategy.md)은 게이트웨이가 유일한 진입점이라는 전제 위에 서 있는데, 그 전제가 코드로 강제되지 않는다.
+인증을 붙여놓고 뒷문이 열려 있는 상태다. [ADR-0001](../../adr/0001-session-token-strategy.md)은 게이트웨이가 유일한 진입점이라는 전제 위에 서 있는데, 그 전제가 코드로 강제되지 않는다.
 
-관련 코드: [MemberIdentity](../../apps/api-gateway/src/main/java/com/impati/commerce/gateway/support/MemberIdentity.java), [InternalMemberController](../../apps/member-service/src/main/java/com/impati/commerce/member/adapter/in/web/InternalMemberController.java)
+관련 코드: [MemberIdentity](../../../apps/api-gateway/src/main/java/com/impati/commerce/gateway/support/MemberIdentity.java), [InternalMemberController](../../../apps/member-service/src/main/java/com/impati/commerce/member/adapter/in/web/InternalMemberController.java)
 
 ## 목표
 

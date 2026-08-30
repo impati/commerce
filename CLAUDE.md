@@ -63,8 +63,8 @@ make verify
 
 하네스는 테스트가 있는 만큼만 작동한다. 현재 커버리지는 얇으므로, 코드를 건드릴 때마다 조금씩 메운다.
 
-- **도메인/애플리케이션 로직을 바꾸면** 해당 모듈에 단위 테스트를 함께 추가하거나 갱신한다. 참고: [OrderModelsTest](apps/order-service/src/test/java/com/impati/commerce/order/domain/OrderModelsTest.java), [InventoryServiceTest](apps/inventory-service/src/test/java/com/impati/commerce/inventory/application/component/InventoryExecutorTest.java)
-- **서비스 경계나 checkout saga에 닿는 변경이면** `@SpringBootTest` 시나리오를 추가한다. 기준 패턴은 [CheckoutSagaTest](apps/order-service/src/test/java/com/impati/commerce/order/CheckoutSagaTest.java): 대상 서비스만 실제로 띄우고, 다른 서비스 호출은 `MockServerRestClientCustomizer` + `MockRestServiceServer`로 stub한다. 컨트롤러 → 애플리케이션 → 클라이언트 → JSON 직렬화까지는 실제 코드가 돈다.
+- **도메인/애플리케이션 로직을 바꾸면** 해당 모듈에 단위 테스트를 함께 추가하거나 갱신한다. 참고: [OrderModelsTest](apps/order-service/core/src/test/java/com/impati/commerce/order/domain/OrderModelsTest.java), [InventoryServiceTest](apps/inventory-service/src/test/java/com/impati/commerce/inventory/application/component/InventoryExecutorTest.java)
+- **서비스 경계나 checkout saga에 닿는 변경이면** `@SpringBootTest` 시나리오를 추가한다. 기준 패턴은 [CheckoutSagaTest](apps/order-service/boot/api/src/test/java/com/impati/commerce/order/CheckoutSagaTest.java): 대상 서비스만 실제로 띄우고, 다른 서비스 호출은 `MockServerRestClientCustomizer` + `MockRestServiceServer`로 stub한다. 컨트롤러 → 애플리케이션 → 클라이언트 → JSON 직렬화까지는 실제 코드가 돈다.
 - **프로세스를 실제로 띄우는 e2e는 만들지 않는다.** 여기서 말하는 e2e는 **우리 서비스를 여러 프로세스로 띄우고 게이트웨이를 두들기는 것**이다. `@SpringBootTest`는 통합 테스트이고 상한 안에 있다. 지금 상한은 **서비스는 컨텍스트 하나, 형제 서비스는 HTTP stub, 인프라는 실물(Testcontainers)** 이다 — DB는 대역이 아니다 ([ADR-0013](docs/adr/0013-real-database-in-the-harness.md)). [scripts/demo-checkout.sh](scripts/demo-checkout.sh)는 수동 확인용 데모이며 검증 수단이 아니다 (assert가 없다).
 - **모든 서비스는 최소한 컨텍스트 로드 테스트를 갖는다** (`XxxApplicationTest.contextLoads`). 빈이 빠지거나 둘로 늘어나거나 설정값이 없으면 여기서 깨진다. 서비스별 시나리오 테스트가 생기면 지워도 된다.
 - 보상/롤백 경로는 성공 경로와 **같은 비중으로** 테스트한다. 이 아키텍처에서 실제로 깨지는 곳이 거기다.
@@ -72,12 +72,12 @@ make verify
 
 ## 경계 규칙
 
-- **응용 서비스는 응집으로 나눈다.** 생성자 의존성을 메서드별 사용으로 매핑해 서로 겹치지 않는 집합으로 갈리면 나눈다 — 그건 생성자를 공유하는 여러 클래스다. 크기는 기준이 아니다: 협력자가 8개인 [OrderExecutor](apps/order-service/src/main/java/com/impati/commerce/order/application/component/OrderExecutor.java)는 `checkout` 하나가 그걸 거의 다 쓰므로 응집돼 있다. 선례: `MemberService`를 프로필/가입/세션 셋으로 나눴다 — 9개 중 8개가 인증 전용이었고 `get`/`addAddress`는 1개만 썼다.
+- **응용 서비스는 응집으로 나눈다.** 생성자 의존성을 메서드별 사용으로 매핑해 서로 겹치지 않는 집합으로 갈리면 나눈다 — 그건 생성자를 공유하는 여러 클래스다. 크기는 기준이 아니다: 협력자가 8개인 [OrderExecutor](apps/order-service/boot/api/src/main/java/com/impati/commerce/order/application/component/OrderExecutor.java)는 `checkout` 하나가 그걸 거의 다 쓰므로 응집돼 있다. 선례: `MemberService`를 프로필/가입/세션 셋으로 나눴다 — 9개 중 8개가 인증 전용이었고 `get`/`addAddress`는 1개만 썼다.
 - **불변식을 지키는 단위는 쪼개지 않는다.** 한 번에 지켜야 하는 규칙이 두 객체에 걸치면 그 둘은 한 애그리거트다. 애그리거트 목록과 각 불변식, 지키는 방법은 [docs/domain-map.md](docs/domain-map.md)의 "응집 단위"에 있다. 위의 SRP와 대상이 다르다 — 나누는 것은 응용 계층이고 도메인 애그리거트는 나누지 않는다. 쪼개면 규칙을 밖에서 대신 검사하게 되고, 검사를 빠뜨린 경로가 규칙을 깬다.
 - `apps/*` 모듈은 서로 직접 의존하지 않는다. 서비스 간 통신은 HTTP뿐이다.
 - 서비스 간 주고받는 타입은 [ApiContracts](libs/common-contracts/src/main/java/com/impati/commerce/common/ApiContracts.java)에 record로 정의한다. 한쪽 서비스에만 있는 DTO를 따로 만들지 않는다.
 - **모양이 같다는 이유로 계약 타입을 재사용하지 않는다.** 필드가 같아도 개념이 다르면 타입을 나눈다. 재사용은 같은 개념일 때만 한다. 계약 타입에는 어느 경로가 쓰는지 한 줄로 적어 재사용이 눈에 띄게 한다. 선례: 세션 토큰에 `VerifyEmailRequest`를 쓰다가 `SessionTokenRequest`로 나눴다 — 둘 다 `String token` 하나였지만 수명·단일 사용·폐기 방식이 달랐다.
-- **`XxxRequest`/`XxxResponse`는 응용 계층 DTO 네이밍이다.** 도메인은 이 이름을 쓰지 않고 필드 타입으로도 갖지 않는다. 도메인 ↔ 계약 변환은 응용 계층의 매퍼가 맡는다. 선례: [OrderMapper](apps/order-service/src/main/java/com/impati/commerce/order/application/component/OrderMapper.java), [MemberModels.Address](apps/member-service/src/main/java/com/impati/commerce/member/domain/MemberModels.java). 예외는 `Money` 하나이며, 공용 값 타입을 어디에 둘지는 아직 정하지 않았다.
+- **`XxxRequest`/`XxxResponse`는 응용 계층 DTO 네이밍이다.** 도메인은 이 이름을 쓰지 않고 필드 타입으로도 갖지 않는다. 도메인 ↔ 계약 변환은 응용 계층의 매퍼가 맡는다. 선례: [OrderMapper](apps/order-service/boot/api/src/main/java/com/impati/commerce/order/application/component/OrderMapper.java), [MemberModels.Address](apps/member-service/src/main/java/com/impati/commerce/member/domain/MemberModels.java). 예외는 `Money` 하나이며, 공용 값 타입을 어디에 둘지는 아직 정하지 않았다.
 - 에러는 `DomainException` 팩토리(`validation`/`notFound`/`conflict`/`paymentDeclined`)로 던지고, HTTP 상태 매핑은 각 서비스 `support/ApiExceptionHandler`가 담당한다. 컨트롤러에서 상태 코드를 직접 만들지 않는다.
 - **게이트웨이가 노출하지 않을 경로는 `/internal` 아래에 두고 `Internal*Controller`가 담는다.** 기준은 "누가 부르는가"가 아니라 "게이트웨이가 브라우저에 노출하는가"다 — 게이트웨이도 내부 경로를 부른다. 이 프리픽스는 등급을 선언할 뿐 아무것도 막지 않으며, 막는 것은 배포 토폴로지다. 근거는 [docs/adr/0003](docs/adr/0003-internal-path-prefix.md), 경계 전체는 [docs/adr/0002](docs/adr/0002-network-segmentation-as-trust-boundary.md)에 있다.
 - 패키지 구조는 `adapter/in/web`, `adapter/out/client`, `adapter/out/publisher`, `adapter/out/persistence`, `application`, `domain`, `support`를 따른다. 새 서비스도 같은 모양으로 만든다. **나가는 어댑터는 무엇을 부르는지가 아니라 무엇으로 부르는지로 이름 짓는다** — 모듈도 패키지도 클래스도 그렇다. `HttpOrderEventPublisher`이고 `NotifyingOrderEventPublisher`가 아니다. 대상을 이름에 넣으면 전송 수단이 늘 때 형제끼리 결이 갈린다 (ADR-0015).
@@ -88,9 +88,9 @@ make verify
 - **커밋 단위가 애그리거트나 유스케이스와 항상 일치하지는 않는다.** 함께 유효해야 하는 것(애그리거트가 지킨다)과 함께 내구화돼야 하는 것은 다른 단위다. 어긋나면 그 단위를 어떻게 다룰지 판단이 필요하며, **구조를 미리 정해두지 않는다** — 사례가 하나뿐이면 그 서비스의 해법이지 규약이 아니다. 어긋난 사례와 그때의 판단은 [ADR-0012](docs/adr/0012-order-events-as-outbox.md)에 있다.
 - **스케줄러나 앱 시작으로 구동되는 진입점은 `adapter/in` 아래 둔다.** 컨트롤러와 역할이 같다 — 애플리케이션을 바깥에서 호출한다. `application`에 두면 응용 계층이 자기를 깨우는 모양이 된다.
 - **조회는 저장소에 쓰지 않는다.** 없는 것을 만들어 넣는 `getOrCreate` 류를 저장소 포트에 두지 말고, 기본값 생성은 애플리케이션이 한다. GET에 INSERT가 따라붙으면 읽기 복제본·캐시·헬스체크가 전부 망가진다.
-- **쓰는 조회는 이름으로 드러낸다.** 작업 큐의 배타적 점유처럼 쓰기가 필요한 조회는 `find*`가 아니라 `claim*`으로 부른다. 위 룰이 막으려는 것은 조회로 보이는 것이 몰래 쓰는 상황이므로, 이름이 쓰기를 드러내면 그 오해가 생기지 않는다. 선례: [OrderRepository.claimForPaymentReconciliation](apps/order-service/src/main/java/com/impati/commerce/order/application/port/out/OrderRepository.java) ([ADR-0009](docs/adr/0009-reconcile-unconfirmed-payments.md))
+- **쓰는 조회는 이름으로 드러낸다.** 작업 큐의 배타적 점유처럼 쓰기가 필요한 조회는 `find*`가 아니라 `claim*`으로 부른다. 위 룰이 막으려는 것은 조회로 보이는 것이 몰래 쓰는 상황이므로, 이름이 쓰기를 드러내면 그 오해가 생기지 않는다. 선례: [OrderRepository.claimForPaymentReconciliation](apps/order-service/core/src/main/java/com/impati/commerce/order/application/port/out/OrderRepository.java) ([ADR-0009](docs/adr/0009-reconcile-unconfirmed-payments.md))
 - **다른 서비스 호출도 포트로만 쓴다.** 협력자별 인터페이스(`XxxClient`)를 `application`에 두고 HTTP 구현(`HttpXxxClient`)은 `adapter/out/client`에 둔다. 프로토콜 오류를 도메인 언어로 옮기는 것도 어댑터의 일이다 (예: 402 → `paymentDeclined`). 예외는 api-gateway로, 응용·도메인 계층이 없는 순수 어댑터라 뒤집을 대상이 없다.
-- `RestClient.Builder`는 서비스당 한 번만 주입받아 복제한다. 어댑터마다 주입받으면 빌더가 어댑터 수만큼 생겨서 빌더 단위로 동작하는 테스트 스텁과 공통 커스터마이저가 갈라진다. 선례: [CommerceRestClients](apps/order-service/src/main/java/com/impati/commerce/order/adapter/out/client/CommerceRestClients.java)
+- `RestClient.Builder`는 서비스당 한 번만 주입받아 복제한다. 어댑터마다 주입받으면 빌더가 어댑터 수만큼 생겨서 빌더 단위로 동작하는 테스트 스텁과 공통 커스터마이저가 갈라진다. 선례: [CommerceRestClients](apps/order-service/infra/client/core/src/main/java/com/impati/commerce/order/adapter/out/client/CommerceRestClients.java)
 - **저장소는 포트로만 쓴다.** 인터페이스(`XxxRepository`)는 `application`에 두고 구현은 `adapter/out/persistence`에 둔다. 애플리케이션 서비스가 `InMemoryXxxRepository` 같은 구현 타입을 직접 참조하면 안 된다 — 저장소를 갈아끼울 수 없게 된다.
 - 서비스 간 HTTP 호출의 공통 정책(타임아웃 등)은 [libs/common-http](libs/common-http)의 auto-configuration에 둔다. 서비스마다 반복하면 반드시 어긋난다. `clients.http.connect-timeout`, `clients.http.read-timeout`으로 조정한다.
 - 새 모듈을 추가하면 [settings.gradle](settings.gradle)에 `include`를 넣는다.

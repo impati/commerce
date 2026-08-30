@@ -7,7 +7,7 @@
 
 order-service의 알림 발신과 notification-service의 주문 알림 수신이 양쪽 다 뚫려 있다. 두 구멍은 방향이 반대이고 원인이 하나다.
 
-**나가는 쪽은 실패가 사라진다.** [HttpNotificationClient](../../../apps/order-service/src/main/java/com/impati/commerce/order/adapter/out/client/HttpNotificationClient.java)가 알림 호출의 예외를 통째로 삼킨다.
+**나가는 쪽은 실패가 사라진다.** [HttpNotificationClient](../../../apps/order-service/infra/client/notification/src/main/java/com/impati/commerce/order/adapter/out/client/HttpNotificationClient.java)가 알림 호출의 예외를 통째로 삼킨다.
 
 ```java
 try {
@@ -20,7 +20,7 @@ try {
 
 삼키기로 한 이유 자체는 타당하다. `OrderExecutor`의 알림 호출 네 곳 중 셋은 매입이 끝난 뒤이고([PD-0012-R8](../../policy/pd-0012-checkout-and-compensation.md)), 결제까지 끝난 주문을 알림 실패로 되돌릴 수는 없다. 그러나 "되돌리지 않는다"와 "없던 일로 한다"는 다르다. 지금은 `OrderPaid` · `ShipmentCreated` · `OrderCancelled` · `OrderDelivered` 네 종류가 조용히 사라지고, 사라진 건수를 세는 수단이 없다.
 
-**들어오는 쪽은 같은 요청이 두 건이 된다.** [InternalNotificationController](../../../apps/notification-service/src/main/java/com/impati/commerce/notification/adapter/in/web/InternalNotificationController.java)의 `/internal/notifications/events`에는 멱등 키가 없다. `NotificationEventRequest`가 키를 싣지 않고, 받은 요청마다 알림 행을 새로 만든다. 기록만 남기는 알림은 현재 외부로 나가지 않으므로(`Channel.NONE`) 중복의 대가가 메일 두 통은 아니지만, 알림 목록에 같은 사건이 두 줄로 보이고 이 경로에 발송이 붙는 순간 대가가 커진다.
+**들어오는 쪽은 같은 요청이 두 건이 된다.** [InternalNotificationController](../../../apps/notification-service/boot/api/src/main/java/com/impati/commerce/notification/adapter/in/web/InternalNotificationController.java)의 `/internal/notifications/events`에는 멱등 키가 없다. `NotificationEventRequest`가 키를 싣지 않고, 받은 요청마다 알림 행을 새로 만든다. 기록만 남기는 알림은 현재 외부로 나가지 않으므로(`Channel.NONE`) 중복의 대가가 메일 두 통은 아니지만, 알림 목록에 같은 사건이 두 줄로 보이고 이 경로에 발송이 붙는 순간 대가가 커진다.
 
 **두 구멍을 따로 막을 수 없다.** 나가는 쪽에 재시도를 붙이는 순간 들어오는 쪽의 중복이 실제로 벌어진다 — [BL-0048](bl-0048-notification-receive-idempotency.md)이 "BL-0046이 order-service에 붙이면 두 배가 된다"고 예고한 것이 이것이다. 반대로 수신 멱등만 먼저 붙이면 무엇을 키로 삼을지 정할 근거가 없다. 두 항목이 각각 남겨둔 미결정이 같은 질문이기 때문이다 — order-service에 아웃박스를 두는가. 그 답이 발송 의도를 커밋할 자리와 멱등 키의 출처를 동시에 결정한다.
 

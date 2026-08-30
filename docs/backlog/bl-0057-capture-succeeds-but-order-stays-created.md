@@ -5,7 +5,7 @@
 
 ## 배경
 
-[OrderExecutor.checkout](../../apps/order-service/src/main/java/com/impati/commerce/order/application/component/OrderExecutor.java)에서 매입 성공 직후의 커밋이 실패하면 그 사실을 아무도 모른다.
+[OrderExecutor.checkout](../../apps/order-service/boot/api/src/main/java/com/impati/commerce/order/application/component/OrderExecutor.java)에서 매입 성공 직후의 커밋이 실패하면 그 사실을 아무도 모른다.
 
 ```java
     payment = capture(paymentId);          // 매입 성공

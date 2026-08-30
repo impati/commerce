@@ -9,7 +9,7 @@
 
 409는 "요청이 현재 상태와 충돌한다"는 뜻이다. 즉 **호출자에게 요청이 잘못됐다고 말하는 것**인데 실제로는 우리 쪽이 고장 난 것이다. 그 구분이 사라지면 재시도 판단이 반대가 된다 — 충돌은 다시 시도해도 같은 결과지만 장애는 다시 시도하면 되는 경우가 많다. 게이트웨이나 클라이언트가 상태 코드로 재시도를 결정하는 순간 이 오독이 동작에 드러난다.
 
-담을 종류가 없어서가 아니다. `DomainException`에는 `unavailable`(503)과 `outcomeUnknown`(502)이 있고, 전자는 부수효과가 없는 실패, 후자는 부수효과가 일어났는지 모르는 실패를 뜻한다. **클라이언트가 그것을 쓰지 않는 것이 문제다** — `conflict`를 쓰던 코드가 남아 있고, 새로 쓰는 곳만 옳은 종류를 고른다. 한 클라이언트 안에서도 경로마다 갈린다 (예: [HttpPaymentClient](../../apps/order-service/src/main/java/com/impati/commerce/order/adapter/out/client/HttpPaymentClient.java)는 조회 실패만 `unavailable`로 옮기고 승인·매입·취소·환불의 응답 실패는 `conflict`로 옮긴다).
+담을 종류가 없어서가 아니다. `DomainException`에는 `unavailable`(503)과 `outcomeUnknown`(502)이 있고, 전자는 부수효과가 없는 실패, 후자는 부수효과가 일어났는지 모르는 실패를 뜻한다. **클라이언트가 그것을 쓰지 않는 것이 문제다** — `conflict`를 쓰던 코드가 남아 있고, 새로 쓰는 곳만 옳은 종류를 고른다. 한 클라이언트 안에서도 경로마다 갈린다 (예: [HttpPaymentClient](../../apps/order-service/infra/client/payment/src/main/java/com/impati/commerce/order/adapter/out/client/HttpPaymentClient.java)는 조회 실패만 `unavailable`로 옮기고 승인·매입·취소·환불의 응답 실패는 `conflict`로 옮긴다).
 
 ## 목표
 

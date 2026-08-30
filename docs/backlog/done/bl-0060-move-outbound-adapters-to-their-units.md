@@ -5,7 +5,7 @@
 
 ## 배경
 
-[BL-0054](done/bl-0054-split-api-and-worker-modules.md)가 실행 단위를 API와 워커로 나눴지만 절단면이 `adapter/in`뿐이었다. **나가는 어댑터는 전부 `core`에 남아 둘 다에게 간다.**
+[BL-0054](bl-0054-split-api-and-worker-modules.md)가 실행 단위를 API와 워커로 나눴지만 절단면이 `adapter/in`뿐이었다. **나가는 어댑터는 전부 `core`에 남아 둘 다에게 간다.**
 
 order-service를 보면 실제 사용이 갈린다.
 
@@ -15,11 +15,11 @@ order-service를 보면 실제 사용이 갈린다.
 | worker | payment, notification (2) |
 | **겹치는 것** | **payment 하나** |
 
-그런데 [CommerceRestClients](../../apps/order-service/core/src/main/java/com/impati/commerce/order/adapter/out/client/CommerceRestClients.java)가 `@Configuration`이라 **두 컨텍스트 모두에서 일곱 개 빈을 만들고 `@Value("${clients.X.url}")`로 일곱 개 URL을 요구한다.** 워커는 부르지도 않는 다섯 서비스의 설정이 없으면 뜨지 않는다.
+그런데 [CommerceRestClients](../../../apps/order-service/infra/client/core/src/main/java/com/impati/commerce/order/adapter/out/client/CommerceRestClients.java)가 `@Configuration`이라 **두 컨텍스트 모두에서 일곱 개 빈을 만들고 `@Value("${clients.X.url}")`로 일곱 개 URL을 요구한다.** 워커는 부르지도 않는 다섯 서비스의 설정이 없으면 뜨지 않는다.
 
-**[ADR-0002](../adr/0002-network-segmentation-as-trust-boundary.md)가 신뢰 경계를 네트워크 분리로 강제하기로 했는데 코드가 그 경계를 드러내지 않는다.** 워커를 member·cart에 닿지 않는 망에 두어도 아무것도 그것을 말해주지 않는다.
+**[ADR-0002](../../adr/0002-network-segmentation-as-trust-boundary.md)가 신뢰 경계를 네트워크 분리로 강제하기로 했는데 코드가 그 경계를 드러내지 않는다.** 워커를 member·cart에 닿지 않는 망에 두어도 아무것도 그것을 말해주지 않는다.
 
-**그리고 카프카가 이것을 드러낸다.** [BL-0055](bl-0055-publish-order-events-to-kafka.md)에서 워커의 발행 어댑터가 카프카로 바뀌어도 HTTP 클라이언트 다섯은 그대로 따라온다. "워커는 카프카만 알면 된다"가 성립하지 않는다. **그래서 BL-0055보다 앞이어야 한다** — 뒤에 하면 브로커 의존이 자리를 잡은 뒤에 옮기게 된다.
+**그리고 카프카가 이것을 드러낸다.** [BL-0055](../bl-0055-publish-order-events-to-kafka.md)에서 워커의 발행 어댑터가 카프카로 바뀌어도 HTTP 클라이언트 다섯은 그대로 따라온다. "워커는 카프카만 알면 된다"가 성립하지 않는다. **그래서 BL-0055보다 앞이어야 한다** — 뒤에 하면 브로커 의존이 자리를 잡은 뒤에 옮기게 된다.
 
 ## 목표
 

@@ -85,6 +85,6 @@ assertThat(row.get("SHIP_POSTAL_CODE")).isEqualTo("04524");
 
 ## 참고
 
-- [JdbcOrderRepository](../apps/order-service/src/main/java/com/impati/commerce/order/adapter/out/persistence/JdbcOrderRepository.java)
-- [JdbcOrderRepositoryTest](../apps/order-service/src/test/java/com/impati/commerce/order/adapter/out/persistence/JdbcOrderRepositoryTest.java) — `writesEachAddressFieldToItsOwnColumn`
+- [JdbcOrderRepository](../apps/order-service/infra/persistence/src/main/java/com/impati/commerce/order/adapter/out/persistence/JdbcOrderRepository.java)
+- [JdbcOrderRepositoryTest](../apps/order-service/infra/persistence/src/test/java/com/impati/commerce/order/adapter/out/persistence/JdbcOrderRepositoryTest.java) — `writesEachAddressFieldToItsOwnColumn`
 - [problem/001](001-read-triggers-write.md) — 검증 수단이 검증 대상과 가정을 공유해 아무것도 걸러내지 못한 앞선 사례

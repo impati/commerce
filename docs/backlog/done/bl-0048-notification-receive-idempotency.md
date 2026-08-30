@@ -17,4 +17,4 @@ notification-service의 수신 경로 둘 — `/internal/notifications/events`�
 
 같은 발송 요청을 여러 번 받아도 알림이 한 번만 기록되고 한 번만 발송된다.
 
-무엇을 같은 요청으로 볼지 정해야 한다. 발신자가 부여한 키를 계약([ApiContracts](../../libs/common-contracts/src/main/java/com/impati/commerce/common/ApiContracts.java))에 실을지, 내용으로 판정할지에 따라 두 수신 경로와 두 발신 서비스가 함께 움직인다. 중복 판정의 유효 기간도 정해야 한다 — 무기한이면 정상적인 재발송까지 막힌다.
+무엇을 같은 요청으로 볼지 정해야 한다. 발신자가 부여한 키를 계약([ApiContracts](../../../libs/common-contracts/src/main/java/com/impati/commerce/common/ApiContracts.java))에 실을지, 내용으로 판정할지에 따라 두 수신 경로와 두 발신 서비스가 함께 움직인다. 중복 판정의 유효 기간도 정해야 한다 — 무기한이면 정상적인 재발송까지 막힌다.

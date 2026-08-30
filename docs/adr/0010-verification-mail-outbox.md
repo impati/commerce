@@ -31,7 +31,7 @@
 
 **원시 토큰을 아웃박스 행에 담되 종단 상태가 되면 지운다.** 발송이 나중으로 미뤄지므로 원문을 보관할 수밖에 없다. `SENT`나 `FAILED`가 되는 순간 토큰 컬럼을 비우면, 정상 경로에서 평문이 member DB에 존재하는 시간이 기록부터 발송까지 — 보통 1초 미만 — 로 묶인다.
 
-**발신은 at-least-once로 둔다. 중복 제거는 수신측 일이다.** 타임아웃 뒤에 발신자가 할 수 있는 선택은 재시도뿐이고, 포기하면 그것이 유실이다. 결과를 아는 쪽은 받은 쪽이므로 거기서 거른다 ([BL-0048](../backlog/bl-0048-notification-receive-idempotency.md)). 그때까지는 중복이 실제로 갈 수 있다.
+**발신은 at-least-once로 둔다. 중복 제거는 수신측 일이다.** 타임아웃 뒤에 발신자가 할 수 있는 선택은 재시도뿐이고, 포기하면 그것이 유실이다. 결과를 아는 쪽은 받은 쪽이므로 거기서 거른다 ([BL-0048](../backlog/done/bl-0048-notification-receive-idempotency.md)). 그때까지는 중복이 실제로 갈 수 있다.
 
 **이 교환은 인증 메일이라서 성립한다.** 중복은 같은 토큰이 든 동일한 메일 두 통이고, 토큰은 단일 사용이므로 보안 성질이 바뀌지 않는다. 유실은 계정을 못 쓰게 만든다. 결제에서는 교환비가 정반대여서 매입을 멱등으로 만들고 재시도를 확인으로 썼다 (PD-0011-R4, PD-0012-R13). **재시도의 안전성은 도메인이 정한다.**
 
@@ -69,7 +69,7 @@
 
 ### 멱등 키를 지금 계약에 넣는다 — 이 작업에서는 하지 않음
 
-중복이 아예 생기지 않는다. 그러나 계약 변경 · notification-service 마이그레이션 · 두 발신 서비스가 함께 움직여야 일관되므로 범위가 member-service 밖으로 나간다. 중복의 대가가 같은 메일 두 통인 동안은 유실을 막는 것이 먼저다. [BL-0048](../backlog/bl-0048-notification-receive-idempotency.md)에서 두 수신 경로를 함께 다룬다.
+중복이 아예 생기지 않는다. 그러나 계약 변경 · notification-service 마이그레이션 · 두 발신 서비스가 함께 움직여야 일관되므로 범위가 member-service 밖으로 나간다. 중복의 대가가 같은 메일 두 통인 동안은 유실을 막는 것이 먼저다. [BL-0048](../backlog/done/bl-0048-notification-receive-idempotency.md)에서 두 수신 경로를 함께 다룬다.
 
 ### 공용 아웃박스 라이브러리로 뺀다 — 지금은 아님
 
@@ -82,7 +82,7 @@ order-service도 같은 것이 필요하므로([BL-0052](../backlog/done/bl-0052
 대신 다음이 남는다.
 
 - **발송이 즉시가 아니다.** 최대 한 주기만큼 늦는다. 메일 도달 시간에 비하면 작지만 성질이 바뀐 것은 사실이다.
-- **중복 메일이 갈 수 있다.** [BL-0048](../backlog/bl-0048-notification-receive-idempotency.md)이 닫힐 때까지 열려 있다.
+- **중복 메일이 갈 수 있다.** [BL-0048](../backlog/done/bl-0048-notification-receive-idempotency.md)이 닫힐 때까지 열려 있다.
 - **원시 토큰이 발송까지 member DB에 존재한다.** 정상 경로는 1초 미만이지만, notification-service가 장애면 한도를 소진할 때까지 남는다.
 - **`FAILED`가 쌓이는 것을 알아챌 수단이 로그뿐이다.** ADR-0009가 남긴 것과 같은 공백이다.
 - **아웃박스가 member-service에 하나 더 생겼다.** notification-service의 것과 형태가 비슷하지만 공유하지 않는다.
@@ -90,7 +90,7 @@ order-service도 같은 것이 필요하므로([BL-0052](../backlog/done/bl-0052
 ## 재검토 조건
 
 - order-service에도 아웃박스가 생길 때 ([BL-0052](../backlog/done/bl-0052-order-notification-delivered-once.md)). 세 번째 사례이므로 공용 라이브러리 선택지가 다시 열린다.
-- 수신측이 멱등해질 때 ([BL-0048](../backlog/bl-0048-notification-receive-idempotency.md)). 중복을 감수한다는 전제가 사라진다.
+- 수신측이 멱등해질 때 ([BL-0048](../backlog/done/bl-0048-notification-receive-idempotency.md)). 중복을 감수한다는 전제가 사라진다.
 - 메시지 브로커가 들어올 때. 발송 대상이 HTTP에서 브로커로 바뀌고 재시도 책임이 옮겨간다.
 - 인증 메일 외의 발송이 member-service에 생길 때. 페이로드가 한 종류라는 전제가 깨지므로 표현 방식을 다시 본다.
 - 발송 지연이 사용자에게 문제가 될 때. 기록 직후 디스패처를 깨우는 방식을 다시 본다.

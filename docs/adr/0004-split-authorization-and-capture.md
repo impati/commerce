@@ -58,7 +58,7 @@
 ## 범위
 
 - **포함:** payment-service의 승인·매입·취소 상태 전이와 주문당 하나 제약, shipping-service의 배송 취소, order-service의 saga 순서 재배치와 보상 경로, 정책 문서 3개 대체, 각 실패 지점의 시나리오 테스트
-- **제외:** 실제 결제 대행사 연동([BL-0032](../backlog/bl-0032-payment-gateway-port-not-separated.md)), 환불과 부분 취소, 재고 예약 만료([BL-0025](../backlog/bl-0025-inventory-reservation-never-expires.md)), 체크아웃 요청 자체의 멱등성([BL-0035](../backlog/bl-0035-checkout-request-idempotency.md)), 사용자 주문 취소와 배송 취소의 연동([BL-0029](../backlog/bl-0029-order-and-shipment-status-diverge.md)), 자동 재시도 구동자
+- **제외:** 실제 결제 대행사 연동([BL-0032](../backlog/done/bl-0032-payment-gateway-port-not-separated.md)), 환불과 부분 취소, 재고 예약 만료([BL-0025](../backlog/bl-0025-inventory-reservation-never-expires.md)), 체크아웃 요청 자체의 멱등성([BL-0035](../backlog/bl-0035-checkout-request-idempotency.md)), 사용자 주문 취소와 배송 취소의 연동([BL-0029](../backlog/bl-0029-order-and-shipment-status-diverge.md)), 자동 재시도 구동자
 
 ## 완료 기준
 
@@ -83,7 +83,7 @@
 
 1. **자동 보상으로 닫히지 않는 꼬리가 하나 남는다.** 매입 성공 후 예약 확정이 실패하면 결제와 배송은 정상인데 재고 원장의 보유 수량이 줄지 않는다. 가용 수량은 예약 시점에 이미 줄어 있으므로 **초과 판매는 발생하지 않고 아무도 손해를 보지 않는다.** 되돌리는 것이 오히려 틀린 구간이라 PD-0012에 "되돌리지 않는다"로 명시했고, 실제 정리는 BL-0025가 담당한다.
 2. **마이그레이션이 기존 파일 DB에서 실패할 수 있다.** `.data/`에 같은 주문의 결제가 두 건 있으면 unique 제약 추가가 깨진다. `./gradlew test`는 매번 빈 in-memory DB라 이걸 못 잡으므로 파일 DB로 실제 기동해 확인한다. 실패하면 `rm -rf .data`가 초기화 방법이다.
-3. **매입 결과를 확인하지 못하면 환불이 필요하다.** 재시도로 대부분 확정되지만 두 번 모두 응답을 받지 못하면 환불로만 정리할 수 있다. 그 실행 절차는 이번 범위 밖이며 [BL-0039](../backlog/bl-0039-resolve-unknown-payment-outcome.md)가 담는다. 아래 `추가 결정`을 함께 본다.
+3. **매입 결과를 확인하지 못하면 환불이 필요하다.** 재시도로 대부분 확정되지만 두 번 모두 응답을 받지 못하면 환불로만 정리할 수 있다. 그 실행 절차는 이번 범위 밖이며 [BL-0039](../backlog/done/bl-0039-resolve-unknown-payment-outcome.md)가 담는다. 아래 `추가 결정`을 함께 본다.
 4. **승인의 유효기간을 정하지 않았다.** 실제 대행사는 승인에 기간을 두고 만료시킨다. 로컬 대역에는 만료가 없으므로 승인만 된 결제가 무기한 남을 수 있다. BL-0032에서 대행사 규격과 함께 본다.
 
 ## 추가 결정
@@ -94,8 +94,8 @@
 
 **매입 결과를 받지 못하면 한 번 더 시도한다.** 매입은 멱등하므로 재요청이 곧 확인이다. 별도 조회를 만들지 않아도 된다. 응답 유실의 다수는 실제로 성공이므로, 확인 없이 되돌리면 성공한 결제를 습관적으로 환불하게 된다.
 
-**두 번 모두 확인하지 못하면 되돌리되 결제 미확인으로 표시한다.** 표시는 주문 상태가 아니라 별도 열이다 — 주문 생애주기는 취소로 끝났고 모르는 것은 결제 쪽 사실이므로 축이 다르다. 상태로 만들면 종단 상태가 둘이 되어 "취소됨"을 판정하는 모든 곳이 두 값을 알아야 하고, [Order.cancel()](../../apps/order-service/src/main/java/com/impati/commerce/order/domain/OrderModels.java)이 표시를 조용히 덮어쓰는 경로도 생긴다.
+**두 번 모두 확인하지 못하면 되돌리되 결제 미확인으로 표시한다.** 표시는 주문 상태가 아니라 별도 열이다 — 주문 생애주기는 취소로 끝났고 모르는 것은 결제 쪽 사실이므로 축이 다르다. 상태로 만들면 종단 상태가 둘이 되어 "취소됨"을 판정하는 모든 곳이 두 값을 알아야 하고, [Order.cancel()](../../apps/order-service/core/src/main/java/com/impati/commerce/order/domain/OrderModels.java)이 표시를 조용히 덮어쓰는 경로도 생긴다.
 
-**환불 능력을 만든다.** [PD-0011](../policy/pd-0011-payment-authorization-and-capture.md)이 처음에 환불을 지원하지 않기로 했으나, 표시만 남기고 되돌릴 수단이 없으면 정리 경로가 거짓이 된다. 정상 흐름에는 쓰지 않고 결과 불명을 정리할 때만 쓴다. 실행 주체는 [BL-0039](../backlog/bl-0039-resolve-unknown-payment-outcome.md)로 남긴다.
+**환불 능력을 만든다.** [PD-0011](../policy/pd-0011-payment-authorization-and-capture.md)이 처음에 환불을 지원하지 않기로 했으나, 표시만 남기고 되돌릴 수단이 없으면 정리 경로가 거짓이 된다. 정상 흐름에는 쓰지 않고 결과 불명을 정리할 때만 쓴다. 실행 주체는 [BL-0039](../backlog/done/bl-0039-resolve-unknown-payment-outcome.md)로 남긴다.
 
 **같은 브랜치에서 만든 정책 문서는 대체하지 않고 고쳤다.** PD-0011과 PD-0012는 이 작업에서 만들어 `main`에 존재한 적이 없다. 대체하면 한 번도 참이었던 적 없는 문서가 목록에 남고, 그 이력은 이미 브랜치의 `git log`에 있다. 이 판단은 CLAUDE.md에 룰로 남겼다.
