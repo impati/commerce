@@ -37,7 +37,7 @@
 
 ### 실행 모듈 분리 (별도 항목)
 
-member-service를 external/internal 두 프로세스로 나누면 내부 경로를 네트워크로 분리할 수 있다. [BL-0054](../backlog/bl-0054-split-api-and-worker-modules.md)에 별도 항목으로 있으며, 그쪽은 실행 단위 구성의 문제이지 이 결정을 뒤집지 않는다.
+member-service를 external/internal 두 프로세스로 나누면 내부 경로를 네트워크로 분리할 수 있다. [BL-0054](../backlog/done/bl-0054-split-api-and-worker-modules.md)에 별도 항목으로 있으며, 그쪽은 실행 단위 구성의 문제이지 이 결정을 뒤집지 않는다.
 
 ## 범위
 

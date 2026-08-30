@@ -18,8 +18,12 @@ Java 21 + Spring Boot 3.2 기반 이커머스 마이크로서비스 레퍼런스
 | `cart-service` | 8105 | 장바구니 |
 | `payment-service` | 8106 | 결제 승인/매입 시뮬레이션 |
 | `shipping-service` | 8107 | 배송 생성, 출고, 배송 완료 |
-| `order-service` | 8108 | 주문 aggregate, checkout saga |
-| `notification-service` | 8109 | 알림 이벤트 기록 |
+| `order-service` / api | 8108 | 주문 aggregate, checkout saga |
+| `order-service` / worker | 8118 | 사건 발행, 결제 미확인 정리 |
+| `notification-service` / api | 8109 | 알림 수신·조회 |
+| `notification-service` / worker | 8119 | 메일 발송 |
+
+**두 서비스는 API와 워커로 나뉘어 있습니다** ([ADR-0014](docs/adr/0014-split-api-and-worker-modules.md)). 요청을 받는 것과 큐를 비우는 것은 스케일 축이 다르고, 카프카가 들어올 때 브로커 의존성이 워커에만 붙어야 하기 때문입니다. 실행 단위는 12개입니다.
 
 ## 실행
 

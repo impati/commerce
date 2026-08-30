@@ -34,6 +34,7 @@
 | [0011](0011-deliver-verification-mail-once.md) | 인증 메일을 한 번만 보낸다 | 승인됨 |
 | [0012](0012-order-events-as-outbox.md) | 주문 상태 전이를 사건으로 커밋하고 발행한다 | 승인됨 |
 | [0013](0013-real-database-in-the-harness.md) | 실제 DB 위에서 검증한다 | 승인됨 |
+| [0014](0014-split-api-and-worker-modules.md) | 실행 단위를 API와 워커로 나눈다 | 승인됨 |
 
 ## ADR이 없는 합의
 
