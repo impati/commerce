@@ -197,7 +197,6 @@ services:
       CLIENTS_CART_URL: http://cart-service:8105
       CLIENTS_PAYMENT_URL: http://payment-service:8106
       CLIENTS_SHIPPING_URL: http://shipping-service:8107
-      CLIENTS_NOTIFICATION_URL: http://notification-api:8109
     depends_on:
       mysql:
         condition: service_healthy
@@ -235,12 +234,18 @@ services:
       CLIENTS_CART_URL: http://cart-service:8105
       CLIENTS_PAYMENT_URL: http://payment-service:8106
       CLIENTS_SHIPPING_URL: http://shipping-service:8107
-      CLIENTS_NOTIFICATION_URL: http://notification-api:8109
+      # 사건을 브로커로 내보낸다. 알림 서비스는 부르지 않는다 (ADR-0016).
+      #
+      # 복제는 노드가 하나라 1로 내린다. 기본값이 운영 값(3/2)이므로 여기서 내리지 않으면
+      # 토픽 생성이 실패하고, 자동 생성이 꺼져 있어 발행이 조용히 계속 실패한다.
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_ORDER_EVENTS_REPLICAS: 1
+      KAFKA_ORDER_EVENTS_MIN_ISR: 1
     depends_on:
       mysql:
         condition: service_healthy
-      notification-api:
-        condition: service_started
+      kafka:
+        condition: service_healthy
       payment-service:
         condition: service_started
 
