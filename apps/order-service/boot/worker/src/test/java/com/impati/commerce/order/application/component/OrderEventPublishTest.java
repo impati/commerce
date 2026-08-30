@@ -157,9 +157,14 @@ class OrderEventPublishTest {
         assertThat(attemptsOf(order.id(), "ORDER_PAID")).isEqualTo(3);
     }
 
-    /** 한 건의 실패가 다음 건을 막지 않는다. */
+    /**
+     * 한 건이 실패하면 <b>같은 주문의 뒤 사건이 나가지 않는다</b> (ADR-0016).
+     *
+     * <p>이 성질이 순서 보장의 절반이다. 나머지 절반은 점유가 만든다 — 한 주문을 한 인스턴스만
+     * 갖는 것. 앞 건을 건너뛰고 뒤 건을 보내면 소비자가 보는 순서가 일어난 순서와 달라진다.
+     */
     @Test
-    void oneFailureDoesNotBlockTheRest() {
+    void failureStopsTheRestOfThatOrder() {
         var order = savedOrder();
         order.attachPayment("pay_iso");
         order.markPaid();
@@ -175,8 +180,41 @@ class OrderEventPublishTest {
         orderEventPublishUseCase.publishPending();
 
         assertThat(statusOf(order.id(), "ORDER_PAID")).isEqualTo("PENDING");
-        assertThat(statusOf(order.id(), "SHIPMENT_CREATED")).isEqualTo("PUBLISHED");
-        verify(notificationClient, times(2)).notify(any());
+        assertThat(statusOf(order.id(), "SHIPMENT_CREATED"))
+                .as("앞 건이 막혔으면 뒤 건도 나가면 안 된다")
+                .isEqualTo("PENDING");
+        // ORDER_CREATED 하나가 나가고 ORDER_PAID에서 막힌다. SHIPMENT_CREATED는 시도조차 하지 않는다.
+        verify(notificationClient, times(1)).notify(any());
+    }
+
+    /**
+     * 한 주문의 실패가 다른 주문을 막지 않는다.
+     *
+     * <p>순서를 지켜야 하는 범위가 주문 안이므로 주문 사이에는 서로 영향이 없다. 이것까지
+     * 막으면 사건 하나가 전체를 멈춘다.
+     */
+    @Test
+    void failureOnOneOrderDoesNotBlockAnother() {
+        var blocked = savedOrder();
+        blocked.attachPayment("pay_blocked");
+        blocked.markPaid();
+        orderChanges.commit(blocked);
+
+        var healthy = savedOrder();
+        healthy.attachPayment("pay_healthy");
+        healthy.markPaid();
+        orderChanges.commit(healthy);
+
+        doThrow(new IllegalStateException("only the blocked order fails"))
+                .when(notificationClient)
+                .notify(org.mockito.ArgumentMatchers.argThat(
+                        request -> request != null && request.body() != null
+                                && request.body().contains(blocked.id())));
+
+        orderEventPublishUseCase.publishPending();
+
+        assertThat(statusOf(blocked.id(), "ORDER_PAID")).isEqualTo("PENDING");
+        assertThat(statusOf(healthy.id(), "ORDER_PAID")).isEqualTo("PUBLISHED");
     }
 
     /** 취소 사유가 알림 본문까지 전달된다. */
