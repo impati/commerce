@@ -45,4 +45,5 @@ include 'apps:notification-service:infra:persistence'
 include 'apps:notification-service:infra:mail'
 include 'apps:notification-service:boot:api'
 include 'apps:notification-service:boot:worker'
+include 'apps:notification-service:boot:consumer'
 

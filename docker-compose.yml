@@ -278,6 +278,27 @@ services:
       mysql:
         condition: service_healthy
 
+  # 주문 사건을 받는 세 번째 실행 단위. 메일 어댑터를 갖지 않는다 (ADR-0016).
+  notification-consumer:
+    build:
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        MODULE: notification-service/boot/consumer
+        ARTIFACT: notification-consumer
+    ports:
+      - "8129:8129"
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/notification_service?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
+      DB_USERNAME: commerce
+      DB_PASSWORD: commerce
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    depends_on:
+      mysql:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
   api-gateway:
     build:
       context: .

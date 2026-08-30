@@ -14,9 +14,13 @@ import java.util.List;
 /**
  * 알림을 받아 적고 조회한다. <b>보내지 않는다.</b>
  *
- * <p>발송은 {@link MailDispatchExecutor}가 갖는다. 나뉜 이유는 둘이 다른 실행 단위에서 돌기
- * 때문이고(ADR-0014), 나뉘어야 메일 벤더를 아는 것이 보내는 쪽 하나로 좁혀지기 때문이다 —
+ * <p>발송은 워커의 {@code MailDispatchExecutor}가 갖는다. 나뉜 이유는 둘이 다른 실행 단위에서
+ * 돌기 때문이고(ADR-0014), 나뉘어야 메일 벤더를 아는 것이 보내는 쪽 하나로 좁혀지기 때문이다 —
  * 한 클래스가 겸하면 받는 쪽 컨텍스트도 {@code MailSender} 빈을 요구한다 (ADR-0015).
+ *
+ * <p>이 클래스가 core에 있는 이유는 <b>실행 단위 셋이 모두 쓰기 때문이다.</b> 컨트롤러가
+ * 부르고 컨슈머도 부른다. api에 두면 컨슈머가 api를 의존하게 되고 카프카 의존성이 api
+ * 클래스패스로 딸려 들어간다 (ADR-0016).
  */
 @Component
 public class NotificationExecutor implements NotificationUseCase {

@@ -192,6 +192,7 @@ start_service payment-service payment-service 8106
 start_service shipping-service shipping-service 8107
 start_service notification-api notification-service/boot/api 8109
 start_service notification-worker notification-service/boot/worker 8119
+start_service notification-consumer notification-service/boot/consumer 8129
 start_service order-api order-service/boot/api 8108
 start_service order-worker order-service/boot/worker 8118
 start_service api-gateway api-gateway 8080
@@ -205,6 +206,7 @@ wait_health payment-service 8106
 wait_health shipping-service 8107
 wait_health notification-api 8109
 wait_health notification-worker 8119
+wait_health notification-consumer 8129
 wait_health order-api 8108
 wait_health order-worker 8118
 wait_health api-gateway 8080

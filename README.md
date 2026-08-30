@@ -22,8 +22,9 @@ Java 21 + Spring Boot 3.2 기반 이커머스 마이크로서비스 레퍼런스
 | `order-service` / worker | 8118 | 사건 발행, 결제 미확인 정리 |
 | `notification-service` / api | 8109 | 알림 수신·조회 |
 | `notification-service` / worker | 8119 | 메일 발송 |
+| `notification-service` / consumer | 8129 | 주문 사건 구독 |
 
-**두 서비스는 API와 워커로 나뉘어 있습니다** ([ADR-0014](docs/adr/0014-split-api-and-worker-modules.md)). 요청을 받는 것과 큐를 비우는 것은 스케일 축이 다르고, 카프카가 들어올 때 브로커 의존성이 워커에만 붙어야 하기 때문입니다. 실행 단위는 12개입니다.
+**두 서비스는 실행 단위가 나뉘어 있습니다** ([ADR-0014](docs/adr/0014-split-api-and-worker-modules.md)). 요청을 받는 것과 큐를 비우는 것은 스케일 축이 다르고, 브로커 의존성이 API에 붙으면 안 되기 때문입니다. 절단면은 `adapter/in`의 종류입니다 — 컨트롤러는 api, 스케줄러는 worker, 브로커 구독은 consumer. notification은 셋이고 order는 둘이라 실행 단위가 13개입니다 ([ADR-0016](docs/adr/0016-publish-order-events-to-kafka.md)).
 
 ## 실행
 
