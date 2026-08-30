@@ -23,7 +23,10 @@ Java 21 + Spring Boot 3.2 기반 이커머스 마이크로서비스 레퍼런스
 
 ## 실행
 
+DB가 먼저 떠 있어야 합니다. 여덟 서비스가 MySQL 하나를 공유하고 서비스마다 데이터베이스를 나눕니다.
+
 ```bash
+docker compose up -d mysql
 make build
 make boot-all
 make demo
@@ -31,7 +34,24 @@ make stop
 ```
 
 `make boot-all`은 전체 bootJar를 만든 뒤 각 서비스를 로컬 프로세스로 실행합니다.
+초기화는 `docker compose down -v`로 볼륨까지 지웁니다.
 API Gateway는 `http://localhost:8080` 입니다.
+
+## 검증
+
+```bash
+make verify
+```
+
+**도커가 필요합니다.** 저장소를 가진 여덟 서비스의 테스트가 Testcontainers로 띄운 실제 MySQL 위에서 돕니다. 대역으로 검증하면 점유의 잠금 동작처럼 DB마다 다른 것이 검증되지 않은 채 남습니다 ([ADR-0013](docs/adr/0013-real-database-in-the-harness.md)).
+
+컨테이너를 매번 새로 띄우지 않으려면 `~/.testcontainers.properties`에 다음을 넣습니다.
+
+```
+testcontainers.reuse.enable=true
+```
+
+도커 없이 도는 것만 보려면 `make test-fast`입니다. pre-commit 훅이 이 형태로 돌며, **커밋이 통과했다고 전체가 통과한 것은 아닙니다.**
 
 프론트엔드:
 
