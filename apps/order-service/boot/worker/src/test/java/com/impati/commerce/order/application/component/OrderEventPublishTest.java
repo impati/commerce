@@ -1,9 +1,10 @@
 package com.impati.commerce.order.application.component;
 
 import com.impati.commerce.common.ApiContracts.Money;
-import com.impati.commerce.common.ApiContracts.NotificationEventRequest;
 import com.impati.commerce.order.application.port.in.OrderEventPublishUseCase;
-import com.impati.commerce.order.application.port.out.NotificationClient;
+import com.impati.commerce.order.application.port.out.OrderEventPublisher;
+import com.impati.commerce.order.domain.OrderModels.OrderEvent;
+import com.impati.commerce.order.domain.OrderModels.OrderEventType;
 import com.impati.commerce.order.application.component.OrderChanges;
 import com.impati.commerce.order.application.port.out.OrderRepository;
 import com.impati.commerce.order.domain.OrderModels.Address;
@@ -56,13 +57,19 @@ class OrderEventPublishTest {
     @Autowired
     private JdbcTemplate jdbc;
 
+    /**
+     * 발행 포트를 대역으로 쓴다.
+     *
+     * <p>여기서 잡는 것은 릴레이의 행동이다 — 무엇을 집고, 어떤 순서로 보내고, 실패를 어떻게
+     * 남기는가. 브로커에 실제로 어떻게 실리는지는 발행 어댑터의 테스트가 본다.
+     */
     @MockBean
-    private NotificationClient notificationClient;
+    private OrderEventPublisher orderEventPublisher;
 
     /** 사건 테이블이 테스트 간에 공유된다. 앞선 테스트가 남긴 대기 사건이 이 주기에 딸려온다. */
     @BeforeEach
     void setUp() {
-        reset(notificationClient);
+        reset(orderEventPublisher);
         jdbc.update("delete from order_events");
         jdbc.update("delete from order_lines");
         jdbc.update("delete from orders");
@@ -82,9 +89,9 @@ class OrderEventPublishTest {
         assertThat(statusOf(order.id(), "ORDER_PAID")).isEqualTo("PUBLISHED");
     }
 
-    /** 멱등 키는 사건 행 id다. 재시도가 같은 사건이므로 키가 그대로다. */
+    /** 사건이 그대로 포트로 넘어간다. 응용 계층은 그것을 무엇으로 옮길지 모른다. */
     @Test
-    void sendsTheEventIdAsIdempotencyKey() {
+    void handsTheEventItselfToThePort() {
         var order = savedOrder();
         order.attachPayment("pay_key");
         order.markPaid();
@@ -92,28 +99,30 @@ class OrderEventPublishTest {
 
         orderEventPublishUseCase.publishPending();
 
-        var captor = ArgumentCaptor.forClass(NotificationEventRequest.class);
-        verify(notificationClient).notify(captor.capture());
-        var request = captor.getValue();
-        assertThat(request.eventType()).isEqualTo("OrderPaid");
-        assertThat(request.idempotencyKey()).isEqualTo(eventIdOf(order.id(), "ORDER_PAID"));
+        var captor = ArgumentCaptor.forClass(OrderEvent.class);
+        verify(orderEventPublisher, times(2)).publish(captor.capture());
+        assertThat(captor.getAllValues())
+                .extracting(event -> event.type().name())
+                .containsExactly("ORDER_CREATED", "ORDER_PAID");
+        assertThat(captor.getAllValues().get(1).id()).isEqualTo(eventIdOf(order.id(), "ORDER_PAID"));
     }
 
     /**
-     * 이 구독자가 관심 없는 사건은 알리지 않지만 발행은 성공이다.
+     * 소비자가 없는 사건도 발행한다.
      *
-     * <p>사건을 남기는 기준은 소비자가 아니라 상태 전이이므로, 소비자 없는 사건이 있는 것은
-     * 정상이다. 그것이 아웃박스에 영원히 남으면 안 된다.
+     * <p>예전에는 발행 어댑터가 알림 없는 사건을 걸러 보내지 않았다. 대역이 발행자와 소비자를
+     * 겸했기 때문이며, 브로커에서는 <b>누가 관심 있는지 발행자가 알 수 없다.</b> 걸러 보내면
+     * 두 번째 소비자가 그 사건을 영원히 받지 못한다 (ADR-0016).
      */
     @Test
-    void settlesEventsThatThisSubscriberIgnores() {
+    void publishesEventsEvenWhenNoConsumerWantsThem() {
         var order = savedOrder();
 
         var settled = orderEventPublishUseCase.publishPending();
 
         assertThat(settled).isEqualTo(1);
         assertThat(statusOf(order.id(), "ORDER_CREATED")).isEqualTo("PUBLISHED");
-        verify(notificationClient, never()).notify(any());
+        verify(orderEventPublisher, times(1)).publish(any());
     }
 
     /**
@@ -123,18 +132,22 @@ class OrderEventPublishTest {
      */
     @Test
     void recordsFailureAndGivesUpAtTheLimit() {
-        doThrow(new IllegalStateException("notification down")).when(notificationClient).notify(any());
+        // ORDER_PAID만 실패시킨다. 전부 실패시키면 앞선 ORDER_CREATED에서 막혀 ORDER_PAID가
+        // 시도조차 되지 않는다 — 순서 보장의 결과이며 여기서 보려는 것은 재시도와 종단이다.
+        doThrow(new IllegalStateException("broker down"))
+                .when(orderEventPublisher)
+                .publish(org.mockito.ArgumentMatchers.argThat(
+                        event -> event != null && event.type() == OrderEventType.ORDER_PAID));
         var order = savedOrder();
         order.attachPayment("pay_fail");
         order.markPaid();
         orderChanges.commit(order);
 
-        // 첫 주기가 두 사건을 집는다. ORDER_CREATED는 알림이 없어 곧바로 종단되고,
-        // ORDER_PAID만 실패로 남는다.
+        // 첫 주기가 두 사건을 집는다. ORDER_CREATED는 나가고 ORDER_PAID만 실패로 남는다.
         orderEventPublishUseCase.publishPending();
         assertThat(statusOf(order.id(), "ORDER_PAID")).isEqualTo("PENDING");
         assertThat(attemptsOf(order.id(), "ORDER_PAID")).isEqualTo(1);
-        assertThat(lastErrorOf(order.id(), "ORDER_PAID")).contains("notification down");
+        assertThat(lastErrorOf(order.id(), "ORDER_PAID")).contains("broker down");
 
         // 점유가 시각을 밀어뒀으므로 그냥 다시 부르면 집히지 않는다. 시각을 되돌려 다음 주기를
         // 흉내 낸다 — 백오프가 실재한다는 것도 함께 확인된다.
@@ -173,9 +186,9 @@ class OrderEventPublishTest {
         orderChanges.commit(order);
 
         doThrow(new IllegalStateException("only paid fails"))
-                .when(notificationClient)
-                .notify(org.mockito.ArgumentMatchers.argThat(
-                        request -> request != null && "OrderPaid".equals(request.eventType())));
+                .when(orderEventPublisher)
+                .publish(org.mockito.ArgumentMatchers.argThat(
+                        event -> event != null && event.type() == OrderEventType.ORDER_PAID));
 
         orderEventPublishUseCase.publishPending();
 
@@ -183,8 +196,9 @@ class OrderEventPublishTest {
         assertThat(statusOf(order.id(), "SHIPMENT_CREATED"))
                 .as("앞 건이 막혔으면 뒤 건도 나가면 안 된다")
                 .isEqualTo("PENDING");
-        // ORDER_CREATED 하나가 나가고 ORDER_PAID에서 막힌다. SHIPMENT_CREATED는 시도조차 하지 않는다.
-        verify(notificationClient, times(1)).notify(any());
+        // ORDER_CREATED가 나가고 ORDER_PAID에서 막힌다 — 그 실패한 시도까지 둘이다.
+        // SHIPMENT_CREATED는 시도조차 하지 않는다.
+        verify(orderEventPublisher, times(2)).publish(any());
     }
 
     /**
@@ -206,10 +220,9 @@ class OrderEventPublishTest {
         orderChanges.commit(healthy);
 
         doThrow(new IllegalStateException("only the blocked order fails"))
-                .when(notificationClient)
-                .notify(org.mockito.ArgumentMatchers.argThat(
-                        request -> request != null && request.body() != null
-                                && request.body().contains(blocked.id())));
+                .when(orderEventPublisher)
+                .publish(org.mockito.ArgumentMatchers.argThat(
+                        event -> event != null && blocked.id().equals(event.orderId())));
 
         orderEventPublishUseCase.publishPending();
 
@@ -217,18 +230,26 @@ class OrderEventPublishTest {
         assertThat(statusOf(healthy.id(), "ORDER_PAID")).isEqualTo("PUBLISHED");
     }
 
-    /** 취소 사유가 알림 본문까지 전달된다. */
+    /**
+     * 취소 사유가 사건에 실려 나간다.
+     *
+     * <p>그 사유로 어떤 문구를 만들지는 여기의 관심이 아니다 — 사건은 사실만 담고 문구는
+     * 소비자가 만든다 (ADR-0016).
+     */
     @Test
-    void rendersCancellationReasonFromTheEvent() {
+    void carriesTheCancellationReasonOnTheEvent() {
         var order = savedOrder();
         order.cancel("payment declined");
         orderChanges.commit(order);
 
         orderEventPublishUseCase.publishPending();
 
-        var captor = ArgumentCaptor.forClass(NotificationEventRequest.class);
-        verify(notificationClient).notify(captor.capture());
-        assertThat(captor.getValue().body()).contains("payment declined");
+        var captor = ArgumentCaptor.forClass(OrderEvent.class);
+        verify(orderEventPublisher, times(2)).publish(captor.capture());
+        assertThat(captor.getAllValues())
+                .filteredOn(event -> event.type() == OrderEventType.ORDER_CANCELLED)
+                .singleElement()
+                .satisfies(event -> assertThat(event.payload()).containsEntry("reason", "payment declined"));
     }
 
     private void releaseBackoff() {

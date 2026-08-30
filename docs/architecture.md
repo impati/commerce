@@ -67,19 +67,39 @@ sequenceDiagram
     alt 매입 성공
         O->>Inv: POST /internal/reservations/{id}/commit
         O->>Cart: POST /internal/carts/clear
-        O->>N: POST /internal/notifications/events
+        O->>O: 사건을 아웃박스에 커밋
         O-->>G: CheckoutResponse
         G-->>C: Order + Payment + Shipment
     else 매입 전 실패
         O->>Ship: POST /internal/shipments/{id}/cancel
         O->>Pay: POST /internal/payments/{id}/cancel
         O->>Inv: POST /internal/reservations/{id}/release
-        O->>O: Cancel Order
-        O->>N: POST /internal/notifications/events
+        O->>O: Cancel Order (사건을 아웃박스에 커밋)
         O-->>G: 402 payment_declined 또는 409 conflict
         G-->>C: error
     end
 ```
+
+알림은 이 흐름 안에 없다. 주문은 사건을 아웃박스에 커밋하고 끝나며, 그 뒤는 비동기다
+([ADR-0012](adr/0012-order-events-as-outbox.md), [ADR-0016](adr/0016-publish-order-events-to-kafka.md)).
+
+```mermaid
+sequenceDiagram
+    participant OW as order-worker
+    participant K as kafka
+    participant NC as notification-consumer
+    participant NW as notification-worker
+
+    OW->>OW: 주문 단위로 사건 점유 (순서를 지킨다)
+    OW->>K: order-events (key = orderId, acks=all)
+    K-->>NC: 사건
+    NC->>NC: 문구를 만들고 알림으로 기록 (멱등 키 = 사건 id)
+    NC->>K: 오프셋 커밋 (기록 성공 뒤에만)
+    NW->>NW: 메일 아웃박스를 비운다
+```
+
+**주문은 누가 소비하는지 모른다.** 소비자를 늘리는 것이 발신자의 변경이 아니며, 알림이 없는
+사건이 있는 것도 정상이다 — 사건을 남기는 기준은 소비자가 아니라 상태 전이다.
 
 ## Project Architecture
 

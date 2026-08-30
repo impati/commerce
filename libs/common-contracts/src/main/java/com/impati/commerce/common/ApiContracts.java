@@ -179,17 +179,6 @@ public final class ApiContracts {
     }
 
     /**
-     * POST /internal/notifications/events — 주문 사건에서 나온 알림 기록 요청.
-     *
-     * <p>{@code idempotencyKey}는 발신자가 부여한 중복 판정 키이며 필수다. 발신자는 응답을 못
-     * 받으면 처리 여부를 알 수 없고 그 상태에서 할 수 있는 선택은 재시도뿐이므로, 중복을
-     * 없애는 것은 결과를 아는 수신측의 일이다 (ADR-0012).
-     */
-    public record NotificationEventRequest(
-            String eventType, String memberId, String subject, String body, String idempotencyKey) {
-    }
-
-    /**
      * 주문 사건 토픽의 메시지. order-service가 발행하고 소비자들이 받는다 (ADR-0016).
      *
      * <p><b>지시가 아니라 사실이다.</b> "이 문구로 알려라"가 아니라 "주문이 결제됐다"를 담는다.

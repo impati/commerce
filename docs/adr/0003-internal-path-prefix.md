@@ -59,7 +59,6 @@ ADR-0002는 서비스 간 신뢰 경계를 배포 토폴로지로 강제하기�
 | payment | `POST /payments/capture` | `POST /internal/payments/capture` | order의 결제 |
 | shipping | `POST /shipments` | `POST /internal/shipments` | order의 배송 생성 |
 | shipping | `GET /shipments/{shipmentId}` | `GET /internal/shipments/{shipmentId}` | 호출자 없음. 조회 등급이 내부다 |
-| notification | `POST /notifications/events` | `POST /internal/notifications/events` | order의 알림 요청 |
 | notification | `POST /notifications/email-verifications` | `POST /internal/notifications/email-verifications` | member의 인증 메일 요청 |
 | notification | `GET /notifications/outbox` | `GET /internal/notifications/outbox` | 운영용. 호출자 없음 |
 

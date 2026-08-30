@@ -1,6 +1,7 @@
 package com.impati.commerce.notification;
 
 import com.impati.commerce.common.ApiContracts.OrderEventMessage;
+import com.impati.commerce.notification.application.port.in.NotificationUseCase;
 import com.impati.commerce.notification.application.port.out.NotificationRepository;
 import com.impati.commerce.test.RequiresDatabase;
 import com.impati.commerce.test.RequiresKafka;
@@ -12,14 +13,19 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.kafka.support.serializer.JsonSerializer;
 
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 
 /**
  * 사건이 실제 브로커를 거쳐 알림이 되는지 확인한다 (ADR-0016).
@@ -34,6 +40,9 @@ class OrderEventConsumerTest {
 
     @Autowired
     private NotificationRepository notificationRepository;
+
+    @SpyBean
+    private NotificationUseCase notificationUseCase;
 
     @Value("${commerce.kafka.order-events-topic}")
     private String topic;
@@ -105,6 +114,34 @@ class OrderEventConsumerTest {
 
         await().atMost(Duration.ofSeconds(20)).untilAsserted(() ->
                 assertThat(notificationsOf("mem_consume_4")).containsExactly("Order paid"));
+    }
+
+    /**
+     * 처리에 실패하면 오프셋이 올라가지 않고 같은 레코드가 다시 온다.
+     *
+     * <p>이것이 없으면 실패한 사건이 사라진다. 스프링 카프카의 <b>기본 동작이 그쪽</b>이라 —
+     * 몇 번 재시도한 뒤 로그만 남기고 오프셋을 올린다 — 아무것도 하지 않으면 조용한 유실을
+     * 고른 것이 된다 (ADR-0016).
+     *
+     * <p>재시도가 무한이므로 여기서 한 번만 실패시킨다. 영구 실패를 넣으면 이 테스트가 끝나지
+     * 않는데, 그 <b>끝나지 않는 것이 의도한 동작</b>이다.
+     */
+    @Test
+    void aFailedRecordComesBackInsteadOfBeingSkipped() {
+        var failedOnce = new AtomicBoolean(false);
+        doAnswer(invocation -> {
+            if (failedOnce.compareAndSet(false, true)) {
+                throw new IllegalStateException("database down");
+            }
+            return invocation.callRealMethod();
+        }).when(notificationUseCase).record(any(), eq("mem_consume_5"), any(), any(), any());
+
+        send(new OrderEventMessage(
+                "evt_consume_retry", "ORDER_PAID", "ord_consume_5", "mem_consume_5", Map.of()));
+
+        await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
+                assertThat(notificationsOf("mem_consume_5")).containsExactly("Order paid"));
+        assertThat(failedOnce).isTrue();
     }
 
     private List<String> notificationsOf(String memberId) {

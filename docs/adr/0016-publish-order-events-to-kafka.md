@@ -5,7 +5,7 @@
 
 ## 맥락과 의도
 
-주문 사건 발행이 로컬 대역이다. [HttpOrderEventPublisher](../../apps/order-service/infra/publisher/http/src/main/java/com/impati/commerce/order/adapter/out/publisher/HttpOrderEventPublisher.java)가 notification-service를 직접 부르므로 발신자가 소비자를 알고, 팬아웃이 실재하지 않으며, "발행 성공 = 소비 완료"라는 가정이 대역 위에서 통과한다. [ADR-0012](0012-order-events-as-outbox.md)가 포트를 완성 상태로 만들어둔 이유가 이 교체이고, 이 작업이 그 설계를 검증한다.
+주문 사건 발행이 로컬 대역이다. `HttpOrderEventPublisher`(이 작업이 지운다)가 notification-service를 직접 부르므로 발신자가 소비자를 알고, 팬아웃이 실재하지 않으며, "발행 성공 = 소비 완료"라는 가정이 대역 위에서 통과한다. [ADR-0012](0012-order-events-as-outbox.md)가 포트를 완성 상태로 만들어둔 이유가 이 교체이고, 이 작업이 그 설계를 검증한다.
 
 교체를 준비하면서 **순서가 이미 깨져 있다는 것**이 드러났다. 카프카는 순서를 깨지 않는다 — 같은 파티션에 들어간 것은 들어간 순서로 나온다. 깨는 곳은 릴레이다.
 
@@ -128,7 +128,7 @@ Testcontainers 카프카를 쓴다. 검증 대상이 브로커의 실제 동작�
 5. 같은 사건이 두 번 도착해도 알림이 한 줄이다
 6. order-api와 notification-api 클래스패스에 카프카가 없다
 7. `NotificationEventRequest`와 `/internal/notifications/events`가 저장소에 없다
-8. `make boot-all`(13개)과 `make demo`에서 사건 4개가 `PUBLISHED`이고 알림 4건이 기록된다
+8. `make boot-all`(13개)과 `make demo`에서 사건 4개가 `PUBLISHED`이고 알림 **3건**이 기록된다 — `ORDER_CREATED`는 알리지 않으므로 사건 수와 알림 수가 다르다
 
 ## 위임된 결정
 
