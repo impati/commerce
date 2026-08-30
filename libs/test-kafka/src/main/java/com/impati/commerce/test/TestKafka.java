@@ -6,8 +6,11 @@ import org.apache.kafka.clients.admin.NewTopic;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.utility.DockerImageName;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -31,7 +34,13 @@ public final class TestKafka {
     /** 컨텍스트마다 다른 토픽을 주기 위한 일련번호. */
     private static final AtomicInteger NEXT = new AtomicInteger();
 
+    /** 지운 토픽이 실제로 사라지기를 기다리는 상한. */
+    private static final Duration DELETE_TIMEOUT = Duration.ofSeconds(30);
+
     private static final KafkaContainer CONTAINER = start();
+
+    /** 이번 실행이 만든 것. 끝나면 지운다. */
+    private static final Set<String> CREATED = ConcurrentHashMap.newKeySet();
 
     private TestKafka() {
     }
@@ -39,6 +48,7 @@ public final class TestKafka {
     private static KafkaContainer start() {
         var container = new KafkaContainer(IMAGE).withReuse(true);
         container.start();
+        Runtime.getRuntime().addShutdownHook(new Thread(TestKafka::deleteCreated));
         return container;
     }
 
@@ -58,6 +68,13 @@ public final class TestKafka {
     public static String createTopic(String name) {
         var topic = sanitize(name) + "-" + NEXT.incrementAndGet();
         try (var admin = Admin.create(Map.of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers()))) {
+            // 먼저 지우는 이유는 컨테이너가 재사용될 수 있기 때문이다. 일련번호는 JVM마다 0에서
+            // 시작하는데 컨테이너는 실행을 넘어 살아남으므로, 지우지 않으면 두 번째 실행이 이미
+            // 있는 이름을 만들려다 실패하거나 지난 실행의 사건을 물려받는다.
+            //
+            // Makefile이 재사용을 켜라고 안내하므로 그 안내를 따른 사람이 먼저 겪는다.
+            deleteTopics(admin, List.of(topic));
+            awaitAbsent(admin, List.of(topic));
             admin.createTopics(List.of(new NewTopic(topic, PARTITIONS, (short) 1))).all().get();
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
@@ -65,7 +82,64 @@ public final class TestKafka {
         } catch (Exception failure) {
             throw new IllegalStateException("test topic creation failed: " + topic, failure);
         }
+        CREATED.add(topic);
         return topic;
+    }
+
+    /**
+     * 이번 실행이 만든 토픽을 지운다.
+     *
+     * <p>컨테이너를 재사용하면 실행마다 쌓인다. 지우는 것이 다음 실행의 정확성에 필요하지는
+     * 않지만 — 만들 때 먼저 지우므로 — 쌓아둘 이유도 없다.
+     */
+    private static void deleteCreated() {
+        if (CREATED.isEmpty()) {
+            return;
+        }
+        try (var admin = Admin.create(Map.of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers()))) {
+            deleteTopics(admin, List.copyOf(CREATED));
+        } catch (Exception ignored) {
+            // 정리 실패가 테스트 결과를 바꾸지 않는다. 다음 실행이 같은 이름을 다시 지운다.
+        }
+    }
+
+    /** 없는 토픽을 지우는 것은 오류가 아니다. 있으면 지우고 없으면 넘어간다. */
+    private static void deleteTopics(Admin admin, List<String> topics) {
+        try {
+            admin.deleteTopics(topics).all().get();
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("test topic deletion interrupted", interrupted);
+        } catch (Exception missing) {
+            // UnknownTopicOrPartitionException이 대부분이다. 지울 것이 없었다는 뜻이다.
+        }
+    }
+
+    /**
+     * 토픽이 실제로 사라질 때까지 기다린다.
+     *
+     * <p><b>삭제는 수락으로 끝나지 않는다.</b> {@code deleteTopics().get()}이 돌아와도 브로커는
+     * 아직 지우는 중일 수 있고, 그 상태에서 같은 이름을 만들려 하면
+     * {@code "Topic is marked for deletion"}으로 거절당한다. {@code libs:test-database}에 이
+     * 단계가 없는 것은 MySQL의 {@code drop database}가 동기이기 때문이다.
+     */
+    private static void awaitAbsent(Admin admin, List<String> topics) {
+        var deadline = System.nanoTime() + DELETE_TIMEOUT.toNanos();
+        while (System.nanoTime() < deadline) {
+            try {
+                var existing = admin.listTopics().names().get();
+                if (topics.stream().noneMatch(existing::contains)) {
+                    return;
+                }
+                Thread.sleep(100);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("waiting for test topic deletion interrupted", interrupted);
+            } catch (Exception unavailable) {
+                // 브로커가 잠시 답하지 않는 것은 기다릴 이유이지 끝낼 이유가 아니다.
+            }
+        }
+        throw new IllegalStateException("test topics were not deleted in time: " + topics);
     }
 
     /** 토픽 이름에 쓸 수 없는 문자를 걷어낸다. 테스트가 넘기는 이름은 자유 문자열이다. */
