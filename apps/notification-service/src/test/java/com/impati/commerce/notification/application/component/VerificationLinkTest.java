@@ -4,9 +4,6 @@ import com.impati.commerce.notification.application.port.in.NotificationUseCase;
 import com.impati.commerce.notification.application.port.in.OutboxEntry;
 import com.impati.commerce.notification.application.port.out.MailSender;
 import com.impati.commerce.test.RequiresDatabase;
-import com.impati.commerce.test.TestDatabase;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -29,10 +26,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 @RequiresDatabase
 class VerificationLinkTest {
 
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        TestDatabase.apply(registry, "notification-verification-link");
-    }
     @Autowired
     private NotificationUseCase notificationUseCase;
 

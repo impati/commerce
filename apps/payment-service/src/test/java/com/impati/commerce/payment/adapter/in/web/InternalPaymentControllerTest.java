@@ -4,9 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.impati.commerce.common.ApiContracts.AuthorizePaymentRequest;
 import com.impati.commerce.common.ApiContracts.Money;
 import com.impati.commerce.test.RequiresDatabase;
-import com.impati.commerce.test.TestDatabase;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -29,10 +26,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 class InternalPaymentControllerTest {
 
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        TestDatabase.apply(registry, "payment-web");
-    }
     @Autowired
     private MockMvc mockMvc;
 

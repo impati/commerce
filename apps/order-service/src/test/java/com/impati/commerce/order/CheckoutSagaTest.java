@@ -18,9 +18,6 @@ import com.impati.commerce.order.application.port.out.OrderRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import com.impati.commerce.test.RequiresDatabase;
-import com.impati.commerce.test.TestDatabase;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -78,10 +75,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 class CheckoutSagaTest {
 
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        TestDatabase.apply(registry, "order-saga");
-    }
     private static final String MEMBER_URL = "http://localhost:8101";
     private static final String CATALOG_URL = "http://localhost:8102";
     private static final String INVENTORY_URL = "http://localhost:8104";

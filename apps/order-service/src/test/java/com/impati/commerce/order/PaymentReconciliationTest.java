@@ -13,9 +13,6 @@ import com.impati.commerce.order.domain.OrderModels.OrderLine;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import com.impati.commerce.test.RequiresDatabase;
-import com.impati.commerce.test.TestDatabase;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -66,10 +63,6 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 @RequiresDatabase
 class PaymentReconciliationTest {
 
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        TestDatabase.apply(registry, "order-reconcile");
-    }
     private static final String PAYMENT_URL = "http://localhost:8106";
     private static final String MEMBER_ID = "mem_reconcile";
     private static final Duration RETRY_DELAY = Duration.ofSeconds(60);

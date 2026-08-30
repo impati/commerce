@@ -1,6 +1,5 @@
 package com.impati.commerce.test;
 
-import org.springframework.test.context.DynamicPropertyRegistry;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
@@ -34,6 +33,9 @@ public final class TestDatabase {
 
     private static final MySQLContainer<?> CONTAINER = start();
 
+    /** 이번 실행이 만든 것. 끝나면 지운다. */
+    private static final java.util.Set<String> CREATED = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
     private TestDatabase() {
     }
 
@@ -43,6 +45,7 @@ public final class TestDatabase {
                 .withUrlParam("forceConnectionTimeZoneToSession", "true")
                 .withReuse(true);
         container.start();
+        Runtime.getRuntime().addShutdownHook(new Thread(TestDatabase::dropCreated));
         return container;
     }
 
@@ -56,29 +59,44 @@ public final class TestDatabase {
         var database = sanitize(name) + "_" + NEXT.incrementAndGet();
         // 만드는 것과 권한을 주는 것 모두 root로 한다. 컨테이너의 일반 사용자는 기본
         // 데이터베이스에만 권한이 있어서 새로 만든 것에 접속하지 못한다.
-        try (var admin = DriverManager.getConnection(CONTAINER.getJdbcUrl(), "root", CONTAINER.getPassword());
-             var statement = admin.createStatement()) {
-            statement.execute("create database " + database);
-            statement.execute("grant all privileges on `" + database + "`.* to '" + CONTAINER.getUsername() + "'@'%'");
-            statement.execute("flush privileges");
-        } catch (Exception failure) {
-            throw new IllegalStateException("test database cannot be created: " + database, failure);
-        }
+        //
+        // 먼저 지우는 이유는 컨테이너가 재사용될 수 있기 때문이다. 일련번호는 JVM마다 0에서
+        // 시작하는데 컨테이너는 실행을 넘어 살아남으므로, 지우지 않으면 두 번째 실행이 이미
+        // 있는 이름을 만들려다 실패하거나 <b>지난 실행의 데이터를 물려받는다</b>.
+        run("drop database if exists `" + database + "`",
+                "create database `" + database + "`",
+                "grant all privileges on `" + database + "`.* to '" + CONTAINER.getUsername() + "'@'%'",
+                "flush privileges");
+        CREATED.add(database);
         return CONTAINER.getJdbcUrl().replaceFirst("/" + CONTAINER.getDatabaseName() + "\\?", "/" + database + "?");
     }
 
     /**
-     * 이 컨텍스트가 쓸 데이터베이스를 만들고 접속 정보를 등록한다.
+     * 이번 실행이 만든 데이터베이스를 지운다.
      *
-     * <p>테스트 클래스마다 {@code @DynamicPropertySource}로 부른다. 공용 상위 클래스에 두지 않는
-     * 이유는 스프링이 컨텍스트를 설정으로 캐시하기 때문이다 — 같은 설정으로 보이면 컨텍스트를
-     * 공유하고, 그러면 데이터베이스도 공유되어 격리가 사라진다.
+     * <p>컨테이너를 재사용하면 실행마다 쌓인다. 지우는 것이 다음 실행의 정확성에 필요하지는
+     * 않지만 — 만들 때 먼저 지우므로 — 쌓아둘 이유도 없다.
      */
-    public static void apply(DynamicPropertyRegistry registry, String name) {
-        var url = createDatabase(name);
-        registry.add("spring.datasource.url", () -> url);
-        registry.add("spring.datasource.username", TestDatabase::username);
-        registry.add("spring.datasource.password", TestDatabase::password);
+    private static void dropCreated() {
+        if (CREATED.isEmpty()) {
+            return;
+        }
+        try {
+            run(CREATED.stream().map(db -> "drop database if exists `" + db + "`").toArray(String[]::new));
+        } catch (RuntimeException ignored) {
+            // 정리 실패가 테스트 결과를 바꾸지 않는다. 다음 실행이 같은 이름을 다시 지운다.
+        }
+    }
+
+    private static void run(String... statements) {
+        try (var admin = DriverManager.getConnection(CONTAINER.getJdbcUrl(), "root", CONTAINER.getPassword());
+             var statement = admin.createStatement()) {
+            for (var sql : statements) {
+                statement.execute(sql);
+            }
+        } catch (Exception failure) {
+            throw new IllegalStateException("test database statement failed", failure);
+        }
     }
 
     public static String username() {

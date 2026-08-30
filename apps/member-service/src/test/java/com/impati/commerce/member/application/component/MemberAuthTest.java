@@ -6,9 +6,6 @@ import com.impati.commerce.member.application.port.in.SessionUseCase;
 import com.impati.commerce.member.application.port.out.NotificationClient;
 import com.impati.commerce.member.application.port.out.SecureTokens;
 import com.impati.commerce.test.RequiresDatabase;
-import com.impati.commerce.test.TestDatabase;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -49,10 +46,6 @@ import static org.mockito.Mockito.verifyNoInteractions;
 @RequiresDatabase
 class MemberAuthTest {
 
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        TestDatabase.apply(registry, "member-auth");
-    }
     /** 테스트가 앞으로 돌릴 수 있는 시계. */
     static class MutableClock extends Clock {
         private Instant now = Instant.parse("2026-07-25T00:00:00Z");

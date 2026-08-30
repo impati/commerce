@@ -7,9 +7,6 @@ import com.impati.commerce.common.ApiContracts.Money;
 import com.impati.commerce.common.ApiContracts.SkuResponse;
 import org.junit.jupiter.api.BeforeEach;
 import com.impati.commerce.test.RequiresDatabase;
-import com.impati.commerce.test.TestDatabase;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -25,10 +22,6 @@ import static org.mockito.Mockito.when;
 @RequiresDatabase
 class CartExecutorTest {
 
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        TestDatabase.apply(registry, "cart-app");
-    }
     private static final String SKU_ID = "sku_tee_white_m";
 
     @Autowired

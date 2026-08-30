@@ -4,9 +4,6 @@ import com.impati.commerce.shipping.application.port.out.ShipmentRepository;
 import com.impati.commerce.shipping.domain.ShippingModels.Address;
 import com.impati.commerce.shipping.domain.ShippingModels.Shipment;
 import com.impati.commerce.test.RequiresDatabase;
-import com.impati.commerce.test.TestDatabase;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -18,10 +15,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 @RequiresDatabase
 class JdbcShipmentRepositoryTest {
 
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        TestDatabase.apply(registry, "shipping-repo");
-    }
     @Autowired
     private ShipmentRepository shipmentRepository;
 

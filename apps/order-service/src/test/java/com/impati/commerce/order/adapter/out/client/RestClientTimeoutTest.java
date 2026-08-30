@@ -3,7 +3,6 @@ package com.impati.commerce.order.adapter.out.client;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import com.impati.commerce.test.RequiresDatabase;
-import com.impati.commerce.test.TestDatabase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -36,10 +35,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @RequiresDatabase
 class RestClientTimeoutTest {
 
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        TestDatabase.apply(registry, "order-timeout");
-    }
     private static ServerSocket silentServer;
     private static ExecutorService acceptor;
 

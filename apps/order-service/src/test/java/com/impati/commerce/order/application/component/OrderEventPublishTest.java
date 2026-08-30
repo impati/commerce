@@ -11,9 +11,6 @@ import com.impati.commerce.order.domain.OrderModels.Order;
 import com.impati.commerce.order.domain.OrderModels.OrderLine;
 import org.junit.jupiter.api.BeforeEach;
 import com.impati.commerce.test.RequiresDatabase;
-import com.impati.commerce.test.TestDatabase;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -47,10 +44,6 @@ import static org.mockito.Mockito.verify;
 @RequiresDatabase
 class OrderEventPublishTest {
 
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        TestDatabase.apply(registry, "order-event-publish");
-    }
     @Autowired
     private OrderEventPublishUseCase orderEventPublishUseCase;
 

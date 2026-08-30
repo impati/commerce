@@ -13,9 +13,14 @@ dependencyManagement {
 }
 
 dependencies {
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'org.assertj:assertj-core'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
     api 'org.testcontainers:mysql'
     api 'org.testcontainers:junit-jupiter'
     api 'org.springframework:spring-test'
+    api 'org.springframework.boot:spring-boot-test'
     api 'org.springframework:spring-context'
     api 'com.mysql:mysql-connector-j'
     api 'org.junit.jupiter:junit-jupiter-api'

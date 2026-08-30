@@ -4,9 +4,6 @@ import com.impati.commerce.common.ApiContracts.NotificationEventRequest;
 import com.impati.commerce.order.application.port.out.NotificationClient;
 import org.junit.jupiter.api.BeforeEach;
 import com.impati.commerce.test.RequiresDatabase;
-import com.impati.commerce.test.TestDatabase;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.client.MockServerRestClientCustomizer;
@@ -42,10 +39,6 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 @Import(NotificationFailureSurfacesTest.MockServerConfig.class)
 class NotificationFailureSurfacesTest {
 
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        TestDatabase.apply(registry, "order-notify-failure");
-    }
     private static final String NOTIFICATION_URL = "http://localhost:8109";
 
     @TestConfiguration

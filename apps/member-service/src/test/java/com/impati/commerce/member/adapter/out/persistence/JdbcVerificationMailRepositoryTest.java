@@ -6,9 +6,6 @@ import com.impati.commerce.member.domain.MemberModels.Member;
 import com.impati.commerce.member.domain.MemberModels.PasswordHash;
 import com.impati.commerce.member.domain.MemberModels.VerificationMail;
 import com.impati.commerce.test.RequiresDatabase;
-import com.impati.commerce.test.TestDatabase;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -44,10 +41,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 @RequiresDatabase
 class JdbcVerificationMailRepositoryTest {
 
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        TestDatabase.apply(registry, "member-vmail");
-    }
     private static final Duration RETRY_DELAY = Duration.ofMinutes(1);
 
     static class MutableClock extends Clock {

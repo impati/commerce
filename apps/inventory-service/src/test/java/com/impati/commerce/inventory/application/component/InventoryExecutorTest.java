@@ -5,9 +5,6 @@ import com.impati.commerce.inventory.application.port.in.StockLine;
 import com.impati.commerce.inventory.application.port.in.StockDetails;
 import com.impati.commerce.common.DomainException;
 import com.impati.commerce.test.RequiresDatabase;
-import com.impati.commerce.test.TestDatabase;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -25,10 +22,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @RequiresDatabase
 class InventoryExecutorTest {
 
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        TestDatabase.apply(registry, "inventory-app");
-    }
     @Autowired
     private InventoryUseCase inventoryUseCase;
 

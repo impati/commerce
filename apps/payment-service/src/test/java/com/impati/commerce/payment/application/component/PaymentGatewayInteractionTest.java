@@ -4,9 +4,6 @@ import com.impati.commerce.common.ApiContracts.Money;
 import com.impati.commerce.payment.application.port.out.PaymentGateway;
 import org.junit.jupiter.api.BeforeEach;
 import com.impati.commerce.test.RequiresDatabase;
-import com.impati.commerce.test.TestDatabase;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -30,10 +27,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @RequiresDatabase
 class PaymentGatewayInteractionTest {
 
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        TestDatabase.apply(registry, "payment-gateway");
-    }
     private static final Money AMOUNT = Money.krw(58_000);
 
     @TestConfiguration

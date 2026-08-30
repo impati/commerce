@@ -3,9 +3,6 @@ package com.impati.commerce.notification.adapter.out.persistence;
 import com.impati.commerce.notification.application.port.out.NotificationRepository;
 import com.impati.commerce.notification.domain.NotificationModels.Notification;
 import com.impati.commerce.test.RequiresDatabase;
-import com.impati.commerce.test.TestDatabase;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -19,10 +16,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 @RequiresDatabase
 class JdbcNotificationRepositoryTest {
 
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        TestDatabase.apply(registry, "notification-repo");
-    }
     @Autowired
     private NotificationRepository notificationRepository;
 

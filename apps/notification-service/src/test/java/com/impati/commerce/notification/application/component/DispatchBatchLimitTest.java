@@ -5,9 +5,6 @@ import com.impati.commerce.notification.application.port.out.MailSender;
 import com.impati.commerce.notification.support.MutableClock;
 import com.impati.commerce.notification.support.TestClockConfig;
 import com.impati.commerce.test.RequiresDatabase;
-import com.impati.commerce.test.TestDatabase;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -38,10 +35,6 @@ import static org.mockito.Mockito.when;
 @Import(TestClockConfig.class)
 class DispatchBatchLimitTest {
 
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        TestDatabase.apply(registry, "notification-batch");
-    }
     @Autowired
     private NotificationUseCase notificationUseCase;
 

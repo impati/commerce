@@ -1,9 +1,6 @@
 package com.impati.commerce.payment;
 
 import com.impati.commerce.test.RequiresDatabase;
-import com.impati.commerce.test.TestDatabase;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
@@ -17,10 +14,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 @RequiresDatabase
 class PaymentServiceApplicationTest {
 
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        TestDatabase.apply(registry, "payment-ctx");
-    }
     @Test
     void contextLoads() {
     }

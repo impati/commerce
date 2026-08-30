@@ -4,9 +4,6 @@ import com.impati.commerce.member.application.port.in.RegistrationUseCase;
 import com.impati.commerce.member.application.port.in.VerificationMailDispatchUseCase;
 import org.junit.jupiter.api.BeforeEach;
 import com.impati.commerce.test.RequiresDatabase;
-import com.impati.commerce.test.TestDatabase;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -56,10 +53,6 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 @RequiresDatabase
 class VerificationMailDispatchTest {
 
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        TestDatabase.apply(registry, "member-dispatch");
-    }
     private static final String NOTIFICATION_URL =
             "http://localhost:8109/internal/notifications/email-verifications";
     private static final Duration RETRY_DELAY = Duration.ofSeconds(60);
