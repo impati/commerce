@@ -130,8 +130,6 @@ configure([
         project(':apps:order-service:infra:persistence'),
         project(':apps:order-service:boot:api'),
         project(':apps:order-service:boot:worker'),
-        project(':apps:order-service:infra:client:member'),
-        project(':apps:order-service:infra:client:notification'),
         project(':apps:payment-service'),
         project(':apps:notification-service:infra:persistence'),
         project(':apps:notification-service:boot:api'),
