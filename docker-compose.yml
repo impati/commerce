@@ -21,6 +21,43 @@ services:
       timeout: 3s
       retries: 20
 
+  # 주문 사건이 흐르는 브로커. KRaft 단일 노드이며 주키퍼를 두지 않는다 (ADR-0016).
+  #
+  # 운영은 replication.factor=3 · min.insync.replicas=2로 유실을 막지만 여기는 노드가 하나라
+  # 그 값을 쓸 수 없다. 로컬에서 확인되는 것은 흐름이고, 복제가 실제로 유실을 막는지는 아니다.
+  #
+  # 토픽 자동 생성을 끈다. 켜두면 없는 토픽이 브로커 기본값(파티션 1)으로 조용히 만들어지고,
+  # 파티션이 하나면 키와 무관하게 전부 한 곳에 떨어져 순서 보장이 지켜지는 것처럼 보인다.
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    environment:
+      # base64로 인코딩된 16바이트 UUID여야 한다. 임의 문자열을 넣으면 기동 전 검사에서
+      # 거절된다. 고정값인 이유는 바뀌면 기존 데이터 디렉터리와 맞지 않기 때문이다.
+      CLUSTER_ID: f4ssEU0-Sl-cbQ4aKzxNXg
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      KAFKA_LISTENERS: PLAINTEXT://kafka:29092,CONTROLLER://kafka:29093,PLAINTEXT_HOST://0.0.0.0:9092
+      # 호스트 쪽 광고 주소는 매핑된 포트여야 한다. 컨테이너 포트를 광고하면 호스트의
+      # 클라이언트가 부트스트랩에는 성공하고 그 뒤 닫힌 포트로 안내받아 실패한다.
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:${KAFKA_PORT:-9192}
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    ports:
+      # 9092도 흔한 포트라 다른 프로젝트의 브로커와 부딪힌다. mysql과 같은 이유로 호스트 쪽만 옮긴다.
+      - "${KAFKA_PORT:-9192}:9092"
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
   member-service:
     build:
       context: .
@@ -160,7 +197,6 @@ services:
       CLIENTS_CART_URL: http://cart-service:8105
       CLIENTS_PAYMENT_URL: http://payment-service:8106
       CLIENTS_SHIPPING_URL: http://shipping-service:8107
-      CLIENTS_NOTIFICATION_URL: http://notification-api:8109
     depends_on:
       mysql:
         condition: service_healthy
@@ -198,12 +234,18 @@ services:
       CLIENTS_CART_URL: http://cart-service:8105
       CLIENTS_PAYMENT_URL: http://payment-service:8106
       CLIENTS_SHIPPING_URL: http://shipping-service:8107
-      CLIENTS_NOTIFICATION_URL: http://notification-api:8109
+      # 사건을 브로커로 내보낸다. 알림 서비스는 부르지 않는다 (ADR-0016).
+      #
+      # 복제는 노드가 하나라 1로 내린다. 기본값이 운영 값(3/2)이므로 여기서 내리지 않으면
+      # 토픽 생성이 실패하고, 자동 생성이 꺼져 있어 발행이 조용히 계속 실패한다.
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_ORDER_EVENTS_REPLICAS: 1
+      KAFKA_ORDER_EVENTS_MIN_ISR: 1
     depends_on:
       mysql:
         condition: service_healthy
-      notification-api:
-        condition: service_started
+      kafka:
+        condition: service_healthy
       payment-service:
         condition: service_started
 
@@ -239,6 +281,27 @@ services:
       DB_PASSWORD: commerce
     depends_on:
       mysql:
+        condition: service_healthy
+
+  # 주문 사건을 받는 세 번째 실행 단위. 메일 어댑터를 갖지 않는다 (ADR-0016).
+  notification-consumer:
+    build:
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        MODULE: notification-service/boot/consumer
+        ARTIFACT: notification-consumer
+    ports:
+      - "8129:8129"
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/notification_service?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
+      DB_USERNAME: commerce
+      DB_PASSWORD: commerce
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    depends_on:
+      mysql:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
 
   api-gateway:

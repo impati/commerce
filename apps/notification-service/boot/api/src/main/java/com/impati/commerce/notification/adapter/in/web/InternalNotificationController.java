@@ -1,7 +1,6 @@
 package com.impati.commerce.notification.adapter.in.web;
 
 import com.impati.commerce.common.ApiContracts.EmailVerificationMailRequest;
-import com.impati.commerce.common.ApiContracts.NotificationEventRequest;
 import com.impati.commerce.common.ApiContracts.NotificationResponse;
 import com.impati.commerce.common.ApiContracts.OutboxEntryResponse;
 import com.impati.commerce.notification.application.port.in.NotificationUseCase;
@@ -17,8 +16,11 @@ import java.util.List;
 /**
  * 게이트웨이가 노출하지 않는 경로. 형제 서비스와 운영이 부른다 (ADR-0003).
  *
- * <p>알림 기록은 order-service가, 인증 메일 요청은 member-service가 부른다. 둘 다 임의의
- * {@code memberId} 앞으로 알림을 만들 수 있으므로 사용자에게 열 수 없다.
+ * <p>인증 메일 요청을 member-service가 부른다. 임의의 {@code memberId} 앞으로 알림을 만들 수
+ * 있으므로 사용자에게 열 수 없다.
+ *
+ * <p>주문 사건에서 나온 알림은 여기로 오지 않는다. 카프카 컨슈머가 받으며, 그 경로는 HTTP가
+ * 아니므로 게이트웨이 등급과 무관하다 (ADR-0016).
  */
 @RestController
 @RequestMapping("/internal/notifications")
@@ -27,13 +29,6 @@ public class InternalNotificationController {
 
     public InternalNotificationController(NotificationUseCase notificationUseCase) {
         this.notificationUseCase = notificationUseCase;
-    }
-
-    @PostMapping("/events")
-    NotificationResponse record(@RequestBody NotificationEventRequest request) {
-        return NotificationResponseMapper.from(notificationUseCase.record(
-                request.eventType(), request.memberId(), request.subject(), request.body(),
-                request.idempotencyKey()));
     }
 
     @PostMapping("/email-verifications")

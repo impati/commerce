@@ -179,14 +179,34 @@ public final class ApiContracts {
     }
 
     /**
-     * POST /internal/notifications/events — 주문 사건에서 나온 알림 기록 요청.
+     * 주문 사건 토픽의 메시지. order-service가 발행하고 소비자들이 받는다 (ADR-0016).
      *
-     * <p>{@code idempotencyKey}는 발신자가 부여한 중복 판정 키이며 필수다. 발신자는 응답을 못
-     * 받으면 처리 여부를 알 수 없고 그 상태에서 할 수 있는 선택은 재시도뿐이므로, 중복을
-     * 없애는 것은 결과를 아는 수신측의 일이다 (ADR-0012).
+     * <p><b>지시가 아니라 사실이다.</b> "이 문구로 알려라"가 아니라 "주문이 결제됐다"를 담는다.
+     * 알림 문구는 소비자 한 명의 표현이므로 여기 넣으면 두 번째 소비자가 쓸 수 없다. 소비자가
+     * 더 많은 정보를 필요로 하면 order-service에 되물어 간다.
+     *
+     * <p>{@code eventId}는 사건 행의 식별자이며 <b>소비자의 멱등 키</b>다. 브로커가
+     * at-least-once이므로 같은 사건이 두 번 도착할 수 있고, 재시도는 같은 사건이라 키가 그대로다.
+     * 새 전이는 새 사건이므로 새 키이고, 그래서 중복 판정에 유효 기간을 두지 않아도 정상적인
+     * 알림이 막히지 않는다.
+     *
+     * <p>{@code orderId}가 파티션 키다. 같은 주문의 사건이 한 파티션에 떨어져 일어난 순서로
+     * 소비된다.
+     *
+     * <p>{@code payload}는 사건별로 다른 사실이다. 종류가 늘어도 타입이 바뀌지 않아야 하므로
+     * 열지 않고 맵으로 둔다 — 사건 하나 추가가 계약 변경이 되면 "새 전이 = 새 사건" 규칙을
+     * 쓸 수 없다.
+     *
+     * <p>JSON으로 직렬화하므로 <b>필드를 지우거나 타입을 바꾸면 소비자가 조용히 깨진다.</b>
+     * 더하는 것만 안전하다.
      */
-    public record NotificationEventRequest(
-            String eventType, String memberId, String subject, String body, String idempotencyKey) {
+    public record OrderEventMessage(
+            String eventId,
+            String type,
+            String orderId,
+            String memberId,
+            Map<String, String> payload
+    ) {
     }
 
     /** POST /members/verifications — 이메일 소유 인증 토큰. 단일 사용이며 짧은 만료를 갖는다. */

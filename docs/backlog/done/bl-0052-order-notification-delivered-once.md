@@ -7,7 +7,7 @@
 
 order-service의 알림 발신과 notification-service의 주문 알림 수신이 양쪽 다 뚫려 있다. 두 구멍은 방향이 반대이고 원인이 하나다.
 
-**나가는 쪽은 실패가 사라진다.** [HttpNotificationClient](../../../apps/order-service/infra/client/notification/src/main/java/com/impati/commerce/order/adapter/out/client/HttpNotificationClient.java)가 알림 호출의 예외를 통째로 삼킨다.
+**나가는 쪽은 실패가 사라진다.** `HttpNotificationClient`(BL-0055에서 사라졌다)가 알림 호출의 예외를 통째로 삼킨다.
 
 ```java
 try {
