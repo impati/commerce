@@ -54,10 +54,14 @@ public class OrderEventPublishExecutor implements OrderEventPublishUseCase {
      * 임차가 만료되면 아직 처리 중인 건을 다른 인스턴스가 집는다. 그러면 같은 주문을 둘이
      * 갖게 되어 순서 보장이 무너지므로 설정 값의 조합으로 깨뜨릴 수 없게 막는다.
      *
-     * <p><b>건당 최악 시간은 발행의 타임아웃이다.</b> 상수로 두지 않고 같은 설정을 받는 이유는
-     * 두 값이 어긋날 수 있기 때문이다 — 발행 타임아웃을 올리면 한 건이 그만큼 오래 걸릴 수
-     * 있는데, 임차 계산이 옛 값을 쓰면 검사를 통과한 채로 임차가 배치를 못 덮는다. 그 결과가
-     * 정확히 이 검사가 막으려는 상황이다.
+     * <p><b>건당 최악 시간은 {@code max-block + send-timeout}이다.</b> 상수로 두지 않고 같은
+     * 설정을 받는 이유는 값들이 어긋날 수 있기 때문이다 — 타임아웃을 올리면 한 건이 그만큼 오래
+     * 걸릴 수 있는데, 임차 계산이 옛 값을 쓰면 검사를 통과한 채로 임차가 배치를 못 덮는다. 그
+     * 결과가 정확히 이 검사가 막으려는 상황이다.
+     *
+     * <p>{@code max-block}을 더하는 이유는 {@code KafkaTemplate.send()}가 버퍼가 차거나
+     * 메타데이터가 없을 때 Future를 돌려주기 전에 그만큼 블로킹하기 때문이다. 스레드가 붙잡히는
+     * 최악은 그 블로킹과 결과 대기의 합이다 (ADR-0017).
      */
     public OrderEventPublishExecutor(
             OrderEventRepository orderEventRepository,
@@ -65,7 +69,8 @@ public class OrderEventPublishExecutor implements OrderEventPublishUseCase {
             @Value("${orders.event-publish-orders-per-cycle:10}") int orderBatchSize,
             @Value("${orders.event-publish-retry-delay:60s}") Duration retryDelay,
             @Value("${orders.event-publish-max-attempts:5}") int maxAttempts,
-            @Value("${commerce.kafka.send-timeout:4s}") Duration worstCasePerEvent
+            @Value("${commerce.kafka.send-timeout:17s}") Duration sendTimeout,
+            @Value("${commerce.kafka.max-block:5s}") Duration maxBlock
     ) {
         if (orderBatchSize <= 0) {
             throw new IllegalArgumentException(
@@ -79,10 +84,15 @@ public class OrderEventPublishExecutor implements OrderEventPublishUseCase {
             throw new IllegalArgumentException(
                     "orders.event-publish-max-attempts must be positive but was " + maxAttempts);
         }
-        if (worstCasePerEvent.isNegative() || worstCasePerEvent.isZero()) {
+        if (sendTimeout.isNegative() || sendTimeout.isZero()) {
             throw new IllegalArgumentException(
-                    "commerce.kafka.send-timeout must be positive but was " + worstCasePerEvent);
+                    "commerce.kafka.send-timeout must be positive but was " + sendTimeout);
         }
+        if (maxBlock.isNegative() || maxBlock.isZero()) {
+            throw new IllegalArgumentException(
+                    "commerce.kafka.max-block must be positive but was " + maxBlock);
+        }
+        var worstCasePerEvent = maxBlock.plus(sendTimeout);
         var leaseNeeded = worstCasePerEvent.multipliedBy((long) orderBatchSize * MAX_EVENTS_PER_ORDER);
         if (retryDelay.compareTo(leaseNeeded) < 0) {
             throw new IllegalArgumentException(
