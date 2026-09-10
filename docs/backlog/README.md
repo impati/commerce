@@ -6,6 +6,12 @@
 
 **상태는 위치로 구분한다.** 이 디렉터리에는 열린 항목만 두고, 완료한 항목은 [done/](done/)으로 옮긴다. 완료 항목을 지우지 않는 이유는 채번 때문이다 — 다음 `BL-NNNN`은 `done/`까지 세서 정하고 번호를 재사용하지 않는다.
 
+## 후보 판단 기준
+
+현재 코드와 호출 흐름에서 문제가 발생할 수 있는 경로와 영향을 확인한 뒤 후보로 삼는다. 실제 장애 기록이 없어도 현재 경로에서 성립하는 실패는 대상이지만, 아직 없는 기능이나 호출자를 가정해야만 생기는 문제는 미리 해결하지 않는다. 해당 기능이 생길 때 다시 판단한다.
+
+기존 백로그도 작업 시작 전에 이 기준으로 재검토한다. 후보에서 제외하기로 한 항목은 완료로 옮기지 않고 삭제하며, 이유는 커밋에 남긴다. 삭제한 ID는 재사용하지 않고 채번할 때 삭제 이력도 확인한다.
+
 ## 다른 문서와의 경계
 
 | 위치 | 담는 것 |
@@ -27,21 +33,17 @@ make todo
 
 위에서부터 먼저 한다. 이 순서는 항목 파일에 적지 않는다 — 순서는 바뀌고 항목은 남는다.
 
-1~2는 한 줄기다. 아웃박스(BL-0052)·인프라(BL-0053)·실행 단위 분리(BL-0054)가 끝났고, 의존까지 나눈 뒤(1) 발행을 카프카로 갈아끼운다(2). 순서는 저장소 자신의 결정에서 나온다 — [ADR-0010](../adr/0010-verification-mail-outbox.md)이 "브로커는 아웃박스의 대안이 아니라 아웃박스 뒤에 오는 것"이라고 정했고, API 모듈이 브로커 의존성을 갖지 않으려면 분리가 카프카보다 앞이어야 한다.
-
-3~6은 이전에 정한 순서이고 상대 순서를 그대로 두었다. 7~8은 결제 정합성 작업(BL-0034·0032·0041·0042)에서 나온 것들이다.
+기존 항목의 상대 순서는 유지한다. 다음 작업을 고를 때 아래 기준으로 현재 코드에서 문제가 성립하는지 먼저 확인한다.
 
 | 순서 | 항목 | 왜 이 순서인가 |
 | --- | --- | --- |
-| 1 | [BL-0064](bl-0064-publish-timeout-misjudges-success.md) 발행 타임아웃이 성공을 오판한다 | 성공한 사건이 FAILED로 종단되면 그 주문이 영구히 막힌다. 설정 값 관계만 바로잡으면 되므로 앞에 둔다 |
-| 2 | [BL-0062](bl-0062-cancel-is-not-idempotent.md) 주문 취소를 멱등하게 | 사건이 두 번 쌓여 알림이 두 번 가고, 순서 보장이 기대는 전제가 깨진다 |
-| 3 | [BL-0061](bl-0061-single-rest-client-builder.md) 빌더 주입을 없앤다 | BL-0060에서 실제로 깨졌다. 세 서비스가 이미 어기고 있고 클라이언트가 둘이 되는 순간 드러난다 |
-| 4 | [BL-0005](bl-0005-token-storage-to-cookie.md) 프론트 토큰 보관을 쿠키로 | XSS로 토큰이 읽힌다 |
-| 5 | [BL-0006](bl-0006-local-profile-smoke.md) local 프로파일 스모크 | 하네스가 못 보는 구간이다. 급하지 않다 |
-| 6 | [BL-0007](bl-0007-password-policy-to-domain.md) 비밀번호 정책을 도메인으로 | 클래스 리뷰에서 나왔다. 지금 동작에는 문제가 없다 |
-| 7 | [BL-0008](bl-0008-duplicate-signup-conflict-response.md) 동시 가입 경합 응답 | 위와 같다 |
-| 8 | [BL-0036](bl-0036-clients-leak-protocol-errors.md) + [BL-0037](bl-0037-downstream-failure-reported-as-conflict.md) 오류 변환과 상태 코드 | 원인이 하나다 — 하위 서비스 장애가 `conflict`로 옮겨져 409로 나가고, 전송 실패는 아예 변환되지 않는다. 담을 종류(`unavailable`, `outcomeUnknown`)는 [BL-0034](done/bl-0034-checkout-payment-integrity.md)와 [BL-0039](done/bl-0039-resolve-unknown-payment-outcome.md)에서 이미 생겼으므로 남은 것은 클라이언트 다섯에 적용하는 일이다. **한 작업으로 묶어 새 번호를 딴다** |
-| 9 | [BL-0030](bl-0030-policy-verification-gaps.md) 정책 규칙 검증 공백 | 상품 노출 전체와 체크아웃 R1~R4. 크지만 기계적이라 앞의 것들이 끝난 뒤가 낫다 |
+| 1 | [BL-0061](bl-0061-single-rest-client-builder.md) 빌더 주입을 없앤다 | BL-0060에서 실제로 깨졌다. 세 서비스가 이미 어기고 있고 클라이언트가 둘이 되는 순간 드러난다 |
+| 2 | [BL-0005](bl-0005-token-storage-to-cookie.md) 프론트 토큰 보관을 쿠키로 | XSS로 토큰이 읽힌다 |
+| 3 | [BL-0006](bl-0006-local-profile-smoke.md) local 프로파일 스모크 | 하네스가 못 보는 구간이다. 급하지 않다 |
+| 4 | [BL-0007](bl-0007-password-policy-to-domain.md) 비밀번호 정책을 도메인으로 | 클래스 리뷰에서 나왔다. 지금 동작에는 문제가 없다 |
+| 5 | [BL-0008](bl-0008-duplicate-signup-conflict-response.md) 동시 가입 경합 응답 | 위와 같다 |
+| 6 | [BL-0036](bl-0036-clients-leak-protocol-errors.md) + [BL-0037](bl-0037-downstream-failure-reported-as-conflict.md) 오류 변환과 상태 코드 | 원인이 하나다 — 하위 서비스 장애가 `conflict`로 옮겨져 409로 나가고, 전송 실패는 아예 변환되지 않는다. 담을 종류(`unavailable`, `outcomeUnknown`)는 [BL-0034](done/bl-0034-checkout-payment-integrity.md)와 [BL-0039](done/bl-0039-resolve-unknown-payment-outcome.md)에서 이미 생겼으므로 남은 것은 클라이언트 다섯에 적용하는 일이다. **한 작업으로 묶어 새 번호를 딴다** |
+| 7 | [BL-0030](bl-0030-policy-verification-gaps.md) 정책 규칙 검증 공백 | 상품 노출 전체와 체크아웃 R1~R4. 크지만 기계적이라 앞의 것들이 끝난 뒤가 낫다 |
 
 ## 순서를 정하지 않은 항목
 
