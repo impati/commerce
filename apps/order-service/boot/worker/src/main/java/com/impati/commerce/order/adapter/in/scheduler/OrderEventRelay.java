@@ -13,6 +13,9 @@ import org.springframework.stereotype.Component;
  * <p>인스턴스가 여러 개여도 된다. 같은 사건을 두 번 집는 것은 저장소의 점유가 막고, 장애 중
  * 부하는 최소 간격이 묶는다. 그 둘이 여기가 아니라 저장소에 있는 것이 요점이다 — 진입점을
  * 늘려도 성질이 유지된다.
+ *
+ * <p>전용 스케줄러에서 돈다 (ADR-0017). 브로커가 아플 때 한 주기가 스레드를 오래 붙잡는 것은
+ * 정당한 배압이지만, 기본 스케줄러를 함께 쓰면 그 배압이 결제 미확인 정리까지 굶긴다.
  */
 @Component
 public class OrderEventRelay {
@@ -22,7 +25,8 @@ public class OrderEventRelay {
         this.orderEventPublishUseCase = orderEventPublishUseCase;
     }
 
-    @Scheduled(fixedDelayString = "${orders.event-publish-interval:1000}")
+    @Scheduled(scheduler = "orderEventRelayScheduler",
+            fixedDelayString = "${orders.event-publish-interval:1000}")
     void publish() {
         orderEventPublishUseCase.publishPending();
     }

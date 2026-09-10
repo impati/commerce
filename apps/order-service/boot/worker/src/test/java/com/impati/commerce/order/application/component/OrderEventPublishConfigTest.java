@@ -11,17 +11,20 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
 /**
- * 잘못된 설정으로는 뜨지 않는다 (ADR-0012).
+ * 잘못된 설정으로는 뜨지 않는다 (ADR-0012, ADR-0017).
  *
- * <p>네 값 모두 <b>조용히 잘못 도는</b> 실패를 만든다 — 예외도 로그도 없이 사건이 나가지 않거나
+ * <p>값 모두 <b>조용히 잘못 도는</b> 실패를 만든다 — 예외도 로그도 없이 사건이 나가지 않거나
  * 두 번 나간다. 오타 하나로 그렇게 되느니 기동에 실패하는 편이 낫다.
  */
 class OrderEventPublishConfigTest {
-    /** 출하되는 값. 주문 3 × 사건 5 × 4초 = 60초를 덮는다. */
-    private static final Duration VALID_DELAY = Duration.ofSeconds(90);
+    /** 출하되는 값. 주문 3 × 사건 5 × (max-block 5초 + send 17초) = 330초를 덮는다. */
+    private static final Duration VALID_DELAY = Duration.ofSeconds(360);
 
-    /** 발행 타임아웃의 출하 기본값. 건당 최악 시간이 이 값이다. */
-    private static final Duration SEND_TIMEOUT = Duration.ofSeconds(4);
+    /** 발행 타임아웃의 출하 기본값. */
+    private static final Duration SEND_TIMEOUT = Duration.ofSeconds(17);
+
+    /** send()가 버퍼 참·메타데이터 없음에 블로킹하는 상한의 출하 기본값. */
+    private static final Duration MAX_BLOCK = Duration.ofSeconds(5);
 
     /** 0이면 점유가 아무것도 집지 못한다. */
     @Test
@@ -52,9 +55,6 @@ class OrderEventPublishConfigTest {
      *
      * <p>한 번에 집은 건을 다 처리하기 전에 임차가 만료되면 아직 처리 중인 주문을 다른
      * 인스턴스가 집는다. 한 주문을 둘이 갖게 되므로 순서 보장이 거기서 무너진다 (ADR-0016).
-     *
-     * <p>건당 최악 4초 — 발행 한 번의 외부 호출이고 common-http 기본 타임아웃(연결 1초 ·
-     * 읽기 3초)에 묶여 있다. 한 주문이 갖는 사건은 상태 전이 종류만큼이다.
      */
     @Test
     void rejectsLeaseShorterThanTheBatch() {
@@ -63,7 +63,7 @@ class OrderEventPublishConfigTest {
                 .hasMessageContaining("cover the whole batch");
     }
 
-    /** 기본값은 이 관계를 만족한다. 주문 3 × 사건 5 × 4초 = 60초 ≤ 90초. */
+    /** 기본값은 이 관계를 만족한다. 주문 3 × 사건 5 × 22초 = 330초 ≤ 360초. */
     @Test
     void acceptsTheShippedDefaults() {
         assertThatCode(() -> executor(3, VALID_DELAY, 5)).doesNotThrowAnyException();
@@ -77,27 +77,49 @@ class OrderEventPublishConfigTest {
      */
     @Test
     void aLongerSendTimeoutTightensTheLeaseCheck() {
-        assertThatThrownBy(() -> executor(3, VALID_DELAY, 5, Duration.ofSeconds(10)))
+        assertThatThrownBy(() -> executor(3, VALID_DELAY, 5, Duration.ofSeconds(30), MAX_BLOCK))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("cover the whole batch");
     }
 
-    /** 0이면 발행이 기다리지 않는 셈이고, 임차 계산도 0이 되어 검사가 무력해진다. */
+    /**
+     * max-block도 건당 최악에 포함된다.
+     *
+     * <p>{@code send()}가 버퍼 참·메타데이터 없음에 블로킹하는 시간을 빼면, 버퍼가 차는 바로 그
+     * 순간 임차가 배치를 못 덮어 순서 보장이 무너진다. send-timeout이 작아도 max-block이 크면
+     * 검사가 걸려야 한다 (ADR-0017).
+     */
+    @Test
+    void maxBlockIsCountedInTheWorstCase() {
+        assertThatThrownBy(() -> executor(3, VALID_DELAY, 5, Duration.ofSeconds(1), Duration.ofSeconds(30)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("cover the whole batch");
+    }
+
+    /** 0이면 발행이 기다리지 않는 셈이고, 임차 계산도 무력해진다. */
     @Test
     void rejectsNonPositiveSendTimeout() {
-        assertThatThrownBy(() -> executor(3, VALID_DELAY, 5, Duration.ZERO))
+        assertThatThrownBy(() -> executor(3, VALID_DELAY, 5, Duration.ZERO, MAX_BLOCK))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("send-timeout");
     }
 
+    /** 0이면 send()의 블로킹 항이 사라져 임차 계산이 실제 스레드 점유를 과소평가한다. */
+    @Test
+    void rejectsNonPositiveMaxBlock() {
+        assertThatThrownBy(() -> executor(3, VALID_DELAY, 5, SEND_TIMEOUT, Duration.ZERO))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("max-block");
+    }
+
     private OrderEventPublishExecutor executor(int orderBatchSize, Duration retryDelay, int maxAttempts) {
-        return executor(orderBatchSize, retryDelay, maxAttempts, SEND_TIMEOUT);
+        return executor(orderBatchSize, retryDelay, maxAttempts, SEND_TIMEOUT, MAX_BLOCK);
     }
 
     private OrderEventPublishExecutor executor(
-            int orderBatchSize, Duration retryDelay, int maxAttempts, Duration sendTimeout) {
+            int orderBatchSize, Duration retryDelay, int maxAttempts, Duration sendTimeout, Duration maxBlock) {
         return new OrderEventPublishExecutor(
                 mock(OrderEventRepository.class), mock(OrderEventPublisher.class),
-                orderBatchSize, retryDelay, maxAttempts, sendTimeout);
+                orderBatchSize, retryDelay, maxAttempts, sendTimeout, maxBlock);
     }
 }

@@ -3,9 +3,7 @@ package com.impati.commerce.order.adapter.out.publisher;
 import com.impati.commerce.common.ApiContracts.OrderEventMessage;
 import com.impati.commerce.order.application.port.out.OrderEventPublisher;
 import com.impati.commerce.order.domain.OrderModels.OrderEvent;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.util.concurrent.ExecutionException;
@@ -30,7 +28,6 @@ import java.util.concurrent.TimeoutException;
  * <p>구독자의 판단은 여기 없다. 사건은 사실만 담고 문구를 만드는 것도 관심 없는 사건을 거르는
  * 것도 소비자의 일이다.
  */
-@Component
 public class KafkaOrderEventPublisher implements OrderEventPublisher {
     private final KafkaTemplate<String, OrderEventMessage> kafkaTemplate;
     private final String topic;
@@ -38,8 +35,8 @@ public class KafkaOrderEventPublisher implements OrderEventPublisher {
 
     public KafkaOrderEventPublisher(
             KafkaTemplate<String, OrderEventMessage> kafkaTemplate,
-            @Value("${commerce.kafka.order-events-topic}") String topic,
-            @Value("${commerce.kafka.send-timeout:4s}") Duration sendTimeout
+            String topic,
+            Duration sendTimeout
     ) {
         if (sendTimeout.isNegative() || sendTimeout.isZero()) {
             throw new IllegalArgumentException(
