@@ -55,10 +55,10 @@
 
 - 정리가 얼마나 자주 도는가와 최소 재시도 간격이 얼마인가. 운영값이다.
 - 정리를 무엇이 구동하는가와 배타성을 어떻게 확보하는가.
-- 체크아웃 롤백의 배송 취소나 예약 해제가 실패한 경우 무엇이 참인가. 이 정책은 결제만 다룬다 (R10, [BL-0033](../backlog/bl-0033-checkout-compensation-can-fail-silently.md)).
+- 체크아웃 롤백의 배송 취소나 예약 해제가 실패한 경우 무엇이 참인가. 이 정책은 결제만 다룬다 (R10, [BL-0057](../backlog/bl-0057-checkout-interruption-recovery.md)).
 - 정리가 오래 실패하는 것을 누가 어떻게 알아채는가.
 - 승인만 되고 매입되지 않은 결제 전체를 정리하는가. 이 정책의 대상은 표시된 주문의 결제 하나다.
-- 매입 후 예약 확정이 실패한 주문을 어떻게 정리하는가 ([PD-0012-R9](pd-0012-checkout-and-compensation.md), [BL-0038](../backlog/bl-0038-captured-order-leaves-uncommitted-reservation.md)).
+- 매입 후 예약 확정이 실패한 주문을 어떻게 정리하는가 ([PD-0012-R9](pd-0012-checkout-and-compensation.md), [BL-0057](../backlog/bl-0057-checkout-interruption-recovery.md)).
 
 ## 고려한 대안
 
