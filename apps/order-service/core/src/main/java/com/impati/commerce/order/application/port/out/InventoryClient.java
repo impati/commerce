@@ -2,6 +2,7 @@ package com.impati.commerce.order.application.port.out;
 
 import com.impati.commerce.common.ApiContracts.ReservationResponse;
 import com.impati.commerce.common.ApiContracts.ReserveInventoryRequest;
+import java.util.Optional;
 
 /** inventory-service 호출 포트. 구현은 {@code adapter/out/client}에 둔다. */
 public interface InventoryClient {
@@ -10,4 +11,6 @@ public interface InventoryClient {
     void commitReservation(String reservationId);
 
     void releaseReservation(String reservationId);
+
+    Optional<ReservationResponse> reservationForOrder(String orderId);
 }

@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.ResponseEntity;
 
 /**
  * 주문 API.
@@ -28,11 +29,18 @@ public class OrderController {
     }
 
     @PostMapping("/checkouts")
-    CheckoutResponse checkout(
+    ResponseEntity<CheckoutResponse> checkout(
             @RequestHeader("X-Member-Id") String memberId,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
             @RequestBody CheckoutRequest request
     ) {
-        return OrderResponseMapper.from(orderUseCase.checkout(memberId, request.paymentToken(), request.addressId()));
+        var result = orderUseCase.checkout(
+                memberId, idempotencyKey, request.paymentToken(), request.addressId());
+        var response = OrderResponseMapper.from(result);
+        if ("PROCESSING".equals(result.order().checkoutStatus())) {
+            return ResponseEntity.accepted().body(response);
+        }
+        return ResponseEntity.status(result.newlyAccepted() ? 201 : 200).body(response);
     }
 
     @GetMapping("/orders/{orderId}")

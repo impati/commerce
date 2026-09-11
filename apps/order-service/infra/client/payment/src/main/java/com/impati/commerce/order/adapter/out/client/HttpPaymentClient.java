@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
+import java.util.Optional;
 
 @Component
 public class HttpPaymentClient implements PaymentClient {
@@ -36,7 +37,10 @@ public class HttpPaymentClient implements PaymentClient {
             if (exception.getStatusCode().value() == 402) {
                 throw DomainException.paymentDeclined("payment was declined by issuer");
             }
-            throw DomainException.conflict("payment service error: " + exception.getStatusText());
+            if (exception.getStatusCode().value() == 409) {
+                throw DomainException.conflict("payment request conflicts with the existing payment");
+            }
+            throw DomainException.unavailable("payment service error: " + exception.getStatusText());
         } catch (ResourceAccessException exception) {
             throw DomainException.outcomeUnknown("payment authorization outcome unknown: " + exception.getMessage());
         }
@@ -78,6 +82,20 @@ public class HttpPaymentClient implements PaymentClient {
         }
     }
 
+    @Override
+    public Optional<PaymentResponse> paymentForOrder(String orderId) {
+        try {
+            return Optional.ofNullable(restClient.get()
+                    .uri("/internal/payments/orders/{orderId}", orderId)
+                    .retrieve().body(PaymentResponse.class));
+        } catch (RestClientResponseException exception) {
+            if (exception.getStatusCode().value() == 404) return Optional.empty();
+            throw DomainException.unavailable("payment service error: " + exception.getStatusText());
+        } catch (ResourceAccessException exception) {
+            throw DomainException.unavailable("payment lookup failed: " + exception.getMessage());
+        }
+    }
+
     /**
      * 승인 이후의 호출은 거절될 수 없다. 이미 확보된 대금을 다루는 것이므로 발급사가 다시
      * 판단하지 않는다. 실패는 전부 결제 시스템 오류다.
@@ -89,7 +107,10 @@ public class HttpPaymentClient implements PaymentClient {
                     .retrieve()
                     .body(PaymentResponse.class);
         } catch (RestClientResponseException exception) {
-            throw DomainException.conflict("payment service error: " + exception.getStatusText());
+            if (exception.getStatusCode().value() == 409) {
+                throw DomainException.conflict("payment transition conflicts with its current state");
+            }
+            throw DomainException.unavailable("payment service error: " + exception.getStatusText());
         } catch (ResourceAccessException exception) {
             throw DomainException.outcomeUnknown("payment " + action + " outcome unknown: " + exception.getMessage());
         }

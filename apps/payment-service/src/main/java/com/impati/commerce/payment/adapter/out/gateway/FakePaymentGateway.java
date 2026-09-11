@@ -33,9 +33,17 @@ public class FakePaymentGateway implements PaymentGateway {
     private static final String CARD = "CARD";
 
     private final Map<String, String> transactions = new ConcurrentHashMap<>();
+    private final Map<String, GatewayAuthorization> authorizations = new ConcurrentHashMap<>();
 
     @Override
-    public Authorization authorize(String orderId, Money amount, String paymentToken) {
+    public synchronized Authorization authorize(String orderId, Money amount, String paymentToken) {
+        var existing = authorizations.get(orderId);
+        if (existing != null) {
+            if (!existing.amount().equals(amount) || !existing.paymentToken().equals(paymentToken)) {
+                throw new IllegalStateException("order already has a different gateway authorization");
+            }
+            return existing.authorization();
+        }
         if (DECLINE_TOKENS.contains(paymentToken)) {
             log.info("gateway declined order={} amount={}", orderId, amount.amount());
             return Authorization.declined("issuer declined the card");
@@ -43,8 +51,10 @@ public class FakePaymentGateway implements PaymentGateway {
 
         var transactionId = Ids.newId("txn");
         transactions.put(transactionId, "AUTHORIZED");
+        var authorization = Authorization.approved(transactionId, CARD);
+        authorizations.put(orderId, new GatewayAuthorization(amount, paymentToken, authorization));
         log.info("gateway authorized order={} amount={} transaction={}", orderId, amount.amount(), transactionId);
-        return Authorization.approved(transactionId, CARD);
+        return authorization;
     }
 
     @Override
@@ -66,5 +76,8 @@ public class FakePaymentGateway implements PaymentGateway {
     private void move(String transactionId, String to) {
         transactions.put(transactionId, to);
         log.info("gateway {} transaction={}", to.toLowerCase(), transactionId);
+    }
+
+    private record GatewayAuthorization(Money amount, String paymentToken, Authorization authorization) {
     }
 }

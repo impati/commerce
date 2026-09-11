@@ -47,12 +47,21 @@ public class InventoryExecutor implements InventoryUseCase {
         var reservedLines = lines.stream()
                 .map(line -> new ReservedLine(line.skuId(), line.quantity()))
                 .toList();
+        var existing = inventoryRepository.findReservationByOrderId(orderId);
+        if (existing.isPresent()) {
+            return sameReservation(existing.get(), reservedLines);
+        }
         var locked = lockFor(reservedLines);
+
+        existing = inventoryRepository.findReservationByOrderId(orderId);
+        if (existing.isPresent()) {
+            return sameReservation(existing.get(), reservedLines);
+        }
 
         for (var line : reservedLines) {
             var stock = requireStock(locked, line.skuId());
             if (stock.available() < line.quantity()) {
-                throw DomainException.conflict("insufficient stock for " + line.skuId());
+                throw DomainException.outOfStock("insufficient stock for " + line.skuId());
             }
         }
         for (var line : reservedLines) {
@@ -70,6 +79,12 @@ public class InventoryExecutor implements InventoryUseCase {
     @Override
     public ReservationDetails commit(String reservationId) {
         var reservation = getReservation(reservationId);
+        if (reservation.status().equals("COMMITTED")) {
+            return InventoryMapper.toDetails(reservation);
+        }
+        if (!reservation.status().equals("RESERVED")) {
+            throw DomainException.conflict("released reservation cannot be committed");
+        }
         var locked = lockFor(reservation.lines());
         for (var line : reservation.lines()) {
             var stock = requireStock(locked, line.skuId());
@@ -85,6 +100,12 @@ public class InventoryExecutor implements InventoryUseCase {
     @Override
     public ReservationDetails release(String reservationId) {
         var reservation = getReservation(reservationId);
+        if (reservation.status().equals("RELEASED")) {
+            return InventoryMapper.toDetails(reservation);
+        }
+        if (!reservation.status().equals("RESERVED")) {
+            throw DomainException.conflict("committed reservation cannot be released");
+        }
         var locked = lockFor(reservation.lines());
         for (var line : reservation.lines()) {
             var stock = requireStock(locked, line.skuId());
@@ -100,6 +121,20 @@ public class InventoryExecutor implements InventoryUseCase {
     @Override
     public List<StockDetails> stock() {
         return inventoryRepository.stock().stream().map(InventoryMapper::toDetails).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ReservationDetails reservationForOrder(String orderId) {
+        return InventoryMapper.toDetails(inventoryRepository.findReservationByOrderId(orderId)
+                .orElseThrow(() -> DomainException.notFound("reservation not found for order")));
+    }
+
+    private ReservationDetails sameReservation(Reservation existing, List<ReservedLine> requested) {
+        if (!existing.lines().equals(requested)) {
+            throw DomainException.conflict("order already has a different inventory reservation");
+        }
+        return InventoryMapper.toDetails(existing);
     }
 
     /** 시드가 이미 들어가 있는지 확인한다. 파일 DB에서는 재시작마다 시드를 넣으면 재고가 늘어난다. */

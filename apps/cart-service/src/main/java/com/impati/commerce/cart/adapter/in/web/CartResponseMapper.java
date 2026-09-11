@@ -17,7 +17,8 @@ final class CartResponseMapper {
     static CartResponse from(CartDetails cart) {
         return new CartResponse(
                 cart.memberId(),
-                cart.lines().stream().map(line -> new CartLineResponse(line.skuId(), line.quantity())).toList()
+                cart.lines().stream().map(line -> new CartLineResponse(line.skuId(), line.quantity())).toList(),
+                cart.version()
         );
     }
 }

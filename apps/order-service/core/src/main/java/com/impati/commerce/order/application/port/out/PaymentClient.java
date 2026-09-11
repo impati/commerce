@@ -2,6 +2,7 @@ package com.impati.commerce.order.application.port.out;
 
 import com.impati.commerce.common.ApiContracts.AuthorizePaymentRequest;
 import com.impati.commerce.common.ApiContracts.PaymentResponse;
+import java.util.Optional;
 
 /**
  * payment-service 호출 포트. 구현은 {@code adapter/out/client}에 둔다.
@@ -24,7 +25,7 @@ public interface PaymentClient {
      * 매입된 대금을 되돌린다 (PD-0011-R8).
      *
      * <p>고객 명세서에 청구와 환불 두 줄이 남으므로 정상 흐름에서는 쓰지 않는다. 매입 결과를
-     * 확인하지 못한 채 되돌린 주문을 정리할 때만 쓴다 (PD-0015-R2).
+     * 확인하지 못한 채 되돌린 주문을 정리할 때만 쓴다 (PD-0017-R6).
      */
     PaymentResponse refundPayment(String paymentId);
 
@@ -36,4 +37,6 @@ public interface PaymentClient {
      * 매입된 결제를 취소하려 한다.
      */
     PaymentResponse payment(String paymentId);
+
+    Optional<PaymentResponse> paymentForOrder(String orderId);
 }

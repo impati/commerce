@@ -12,6 +12,8 @@ public interface InventoryUseCase {
 
     ReservationDetails release(String reservationId);
 
+    ReservationDetails reservationForOrder(String orderId);
+
     List<StockDetails> stock();
 
     /** 시드가 이미 들어가 있는지 확인한다. 파일 DB에서는 재시작마다 넣으면 재고가 늘어난다. */

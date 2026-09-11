@@ -2,6 +2,10 @@ package com.impati.commerce.cart.adapter.in.web;
 
 import com.impati.commerce.cart.application.port.in.CartUseCase;
 import com.impati.commerce.common.ApiContracts.CartResponse;
+import com.impati.commerce.common.ApiContracts.CartLineResponse;
+import com.impati.commerce.common.ApiContracts.CheckoutCartRequest;
+import com.impati.commerce.common.ApiContracts.CheckoutCartResponse;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -25,5 +29,19 @@ public class InternalCartController {
     @PostMapping("/clear")
     CartResponse clear(@RequestHeader("X-Member-Id") String memberId) {
         return CartResponseMapper.from(cartUseCase.clear(memberId));
+    }
+
+    @PostMapping("/checkout")
+    CheckoutCartResponse checkout(
+            @RequestHeader("X-Member-Id") String memberId,
+            @RequestBody CheckoutCartRequest request
+    ) {
+        var snapshot = cartUseCase.checkout(memberId, request.orderId(), request.expectedVersion());
+        return new CheckoutCartResponse(
+                snapshot.orderId(),
+                snapshot.memberId(),
+                snapshot.lines().stream()
+                        .map(line -> new CartLineResponse(line.skuId(), line.quantity()))
+                        .toList());
     }
 }

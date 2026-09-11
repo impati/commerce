@@ -22,11 +22,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>컬럼 값을 직접 읽는다. 저장 후 조회해서 비교하면 쓰기와 읽기가 같은 방향으로 틀렸을 때
  * 그대로 통과한다.
  *
- * <p>정리기가 이 컨텍스트에서 돌지 않도록 인터벌을 크게 덮는다.
+ * <p>릴레이가 이 컨텍스트에서 사건을 가져가지 않도록 인터벌을 크게 덮는다.
  */
 @SpringBootTest(properties = {
-        "orders.payment-reconcile-interval=3600000",
-        // 릴레이도 끈다. 이 테스트는 사건이 PENDING으로 남아 있는 것을 단정하는데, 릴레이가
+        // 이 테스트는 사건이 PENDING으로 남아 있는 것을 단정하는데, 릴레이가
         // 집어가면 attempts와 next_attempt_after가 움직여 단정이 깨진다.
         "orders.event-publish-interval=3600000"
 })

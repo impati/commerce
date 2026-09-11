@@ -242,7 +242,6 @@ public final class OrderModels {
         private String paymentId;
         private String shipmentId;
         private String inventoryReservationId;
-        private boolean paymentOutcomeUnknown;
 
         /**
          * 아직 저장되지 않은 사건.
@@ -254,6 +253,17 @@ public final class OrderModels {
 
         public Order(String memberId, List<OrderLine> lines, Address shippingAddress) {
             this(Ids.newId("ord"), memberId, lines, shippingAddress);
+            recordCreated();
+        }
+
+        /** 체크아웃 접수 식별자와 외부 멱등 키가 같아야 할 때 서버가 먼저 만든 ID를 사용한다. */
+        public static Order create(String id, String memberId, List<OrderLine> lines, Address shippingAddress) {
+            var order = new Order(id, memberId, lines, shippingAddress);
+            order.recordCreated();
+            return order;
+        }
+
+        private void recordCreated() {
             record(OrderEventType.ORDER_CREATED, Map.of(
                     "totalAmount", String.valueOf(total().amount()),
                     "totalCurrency", total().currency()));
@@ -283,15 +293,13 @@ public final class OrderModels {
                 String status,
                 String paymentId,
                 String shipmentId,
-                String inventoryReservationId,
-                boolean paymentOutcomeUnknown
+                String inventoryReservationId
         ) {
             var order = new Order(id, memberId, lines, shippingAddress);
             order.status = status;
             order.paymentId = paymentId;
             order.shipmentId = shipmentId;
             order.inventoryReservationId = inventoryReservationId;
-            order.paymentOutcomeUnknown = paymentOutcomeUnknown;
             return order;
         }
 
@@ -325,17 +333,6 @@ public final class OrderModels {
 
         public String inventoryReservationId() {
             return inventoryReservationId;
-        }
-
-        /**
-         * 매입 결과를 확인하지 못한 채 취소됐는가 (PD-0012-R12).
-         *
-         * <p>주문 생애주기는 취소로 끝났다. 모르는 것은 결제 쪽 사실이므로 상태가 아니라
-         * 별도로 둔다 — 상태에 넣으면 종단 상태가 둘이 되어 "취소됨"을 판정하는 모든 곳이
-         * 두 값을 알아야 한다.
-         */
-        public boolean paymentOutcomeUnknown() {
-            return paymentOutcomeUnknown;
         }
 
         public Money total() {
@@ -403,31 +400,15 @@ public final class OrderModels {
          * 자르지 않으면 사유가 길다는 이유로 <b>취소 자체가 롤백된다</b>.
          */
         public void cancel(String reason) {
+            if (status.equals("CANCELLED")) {
+                return;
+            }
             if (status.equals("DELIVERED")) {
                 throw DomainException.conflict("delivered order cannot be cancelled");
             }
             this.status = "CANCELLED";
             record(OrderEventType.ORDER_CANCELLED, Map.of(
                     "reason", OrderEvent.truncate(reason == null ? "" : reason, OrderEvent.MAX_REASON_LENGTH)));
-        }
-
-        /**
-         * 매입 결과를 확인하지 못했다고 표시한다. 환불이 필요한지 나중에 결제에 물어야 한다.
-         *
-         * <p>결제가 붙어 있지 않으면 표시할 수 없다. 표시의 뜻은 "이 결제가 매입됐는지 모른다"
-         * 이므로 물어볼 대상이 없으면 성립하지 않고, 그런 주문이 표시되면 정리가 영영 끝나지
-         * 않는다 (PD-0015-R2).
-         */
-        public void markPaymentOutcomeUnknown() {
-            if (paymentId == null) {
-                throw DomainException.conflict("order without a payment cannot have an unknown outcome");
-            }
-            this.paymentOutcomeUnknown = true;
-        }
-
-        /** 결과가 확인되어 정리가 끝났다. 다시 조회 대상이 되지 않는다. */
-        public void resolvePaymentOutcome() {
-            this.paymentOutcomeUnknown = false;
         }
 
         private void record(OrderEventType type, Map<String, String> payload) {

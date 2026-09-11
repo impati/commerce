@@ -24,6 +24,7 @@ import org.springframework.stereotype.Component;
 import com.impati.commerce.common.DomainException;
 import com.impati.commerce.gateway.support.MemberServiceAvailability;
 import org.springframework.web.client.RestClient;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientResponseException;
 
@@ -190,13 +191,14 @@ public class GatewayClients {
                 .body(CartResponse.class);
     }
 
-    public CheckoutResponse checkout(String memberId, CheckoutRequest request) {
+    public ResponseEntity<CheckoutResponse> checkout(String memberId, String idempotencyKey, CheckoutRequest request) {
         return orders.post()
                 .uri("/checkouts")
                 .header(MEMBER_ID_HEADER, memberId)
+                .header("Idempotency-Key", idempotencyKey)
                 .body(request)
                 .retrieve()
-                .body(CheckoutResponse.class);
+                .toEntity(CheckoutResponse.class);
     }
 
     public OrderResponse order(String memberId, String orderId) {
@@ -232,4 +234,3 @@ public class GatewayClients {
                 });
     }
 }
-

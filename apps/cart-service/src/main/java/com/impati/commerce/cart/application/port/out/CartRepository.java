@@ -13,4 +13,6 @@ public interface CartRepository {
     Optional<Cart> findByMemberId(String memberId);
 
     void save(Cart cart);
+
+    Cart checkout(String memberId, String orderId, long expectedVersion);
 }

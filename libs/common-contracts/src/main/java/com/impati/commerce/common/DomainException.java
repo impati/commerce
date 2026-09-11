@@ -34,6 +34,18 @@ public class DomainException extends RuntimeException {
         return new DomainException("payment_declined", message, 402);
     }
 
+    public static DomainException cartEmpty(String message) {
+        return new DomainException("cart_empty", message, 409);
+    }
+
+    public static DomainException cartChanged(String message) {
+        return new DomainException("cart_changed", message, 409);
+    }
+
+    public static DomainException outOfStock(String message) {
+        return new DomainException("out_of_stock", message, 409);
+    }
+
     /**
      * 협력자에게 요청은 보냈으나 결과를 받지 못했다. 실패가 아니라 <b>모름</b>이다.
      *

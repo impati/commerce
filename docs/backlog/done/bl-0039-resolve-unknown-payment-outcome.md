@@ -5,7 +5,7 @@
 
 ## 배경
 
-체크아웃이 매입 결과를 두 번 모두 확인하지 못하면 주문을 되돌리고 결제 미확인으로 표시한다 ([PD-0012-R12](../../policy/pd-0012-checkout-and-compensation.md)). 표시된 주문은 조회로 찾을 수 있고, 결제에 매입 여부를 물어 매입됐으면 환불할 수 있다 ([PD-0011-R8](../../policy/pd-0011-payment-authorization-and-capture.md), [PD-0011-R9](../../policy/pd-0011-payment-authorization-and-capture.md)).
+체크아웃이 매입 결과를 두 번 모두 확인하지 못하면 주문을 되돌리고 결제 미확인으로 표시했다. 표시된 주문은 조회로 찾을 수 있고, 결제에 매입 여부를 물어 매입됐으면 환불할 수 있었다 ([PD-0011-R8](../../policy/pd-0011-payment-authorization-and-capture.md), [PD-0011-R9](../../policy/pd-0011-payment-authorization-and-capture.md)). 현재 이 절차는 PD-0017의 체크아웃 진행 상태와 보상으로 대체됐다.
 
 **그 일을 하는 주체가 없다.** 찾을 수단과 되돌릴 수단은 있는데 둘을 잇는 절차가 없어서, 표시된 주문은 아무도 보지 않으면 그대로 쌓인다. 그동안 고객의 대금은 나간 채로 있고 주문은 취소로 보인다.
 

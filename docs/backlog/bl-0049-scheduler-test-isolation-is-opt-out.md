@@ -12,7 +12,7 @@
 | notification | `NotificationServiceApplicationTest`, `JdbcNotificationRepositoryTest` | 1초 |
 | order | `JdbcOrderRepositoryTest`, `RestClientTimeoutTest` | 60초 |
 
-`JdbcOrderRepositoryTest`는 하필 `claimForPaymentReconciliation`의 배타성을 검증하는데 정리기가 같은 컨텍스트에서 돌고 있다. 지금 깨지지 않는 것은 단정 창이 좁아서일 뿐이고, 컨텍스트는 JVM 수명 내내 캐시되므로 다른 테스트가 도는 동안에도 계속 틴다.
+주문 영속성 테스트는 체크아웃 진행 상태의 점유 배타성을 검증하는데 복구 스케줄러가 같은 컨텍스트에서 돌 수 있다. 지금 깨지지 않는 것은 단정 창이 좁아서일 뿐이고, 컨텍스트는 JVM 수명 내내 캐시되므로 다른 테스트가 도는 동안에도 계속 틴다.
 
 **덮는 방식 자체도 끄는 것이 아니다.** 인터벌을 1시간으로 둬도 `@Scheduled(fixedDelay)`는 초기 지연이 지정되지 않으면 컨텍스트 기동 직후 한 번 실행한다. 실측으로 확인했다 — 인터벌 3600000인 컨텍스트에서 발송기가 1회 발동한다. 지금 무해한 이유는 그 시점에 작업 큐가 비어 있어서일 뿐이라 설계가 아니라 운이다. 여러 테스트가 "사실상 끈다"고 적은 주석은 그래서 사실과 다르다.
 

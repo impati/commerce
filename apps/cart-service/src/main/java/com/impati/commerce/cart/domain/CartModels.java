@@ -37,9 +37,21 @@ public final class CartModels {
     public static final class Cart {
         private final String memberId;
         private final List<CartLine> lines = new ArrayList<>();
+        private long version;
 
         public Cart(String memberId) {
             this.memberId = memberId;
+        }
+
+        public static Cart restore(String memberId, long version) {
+            var cart = new Cart(memberId);
+            cart.version = version;
+            return cart;
+        }
+
+        /** 영속화 어댑터가 저장된 라인을 복원할 때만 쓴다. 버전은 바꾸지 않는다. */
+        public void restoreLine(String skuId, int quantity) {
+            lines.add(new CartLine(skuId, quantity));
         }
 
         public String memberId() {
@@ -50,6 +62,10 @@ public final class CartModels {
             return List.copyOf(lines);
         }
 
+        public long version() {
+            return version;
+        }
+
         public void add(String skuId, int quantity) {
             if (quantity <= 0) {
                 throw DomainException.validation("cart quantity must be positive");
@@ -57,14 +73,17 @@ public final class CartModels {
             for (var line : lines) {
                 if (line.skuId().equals(skuId)) {
                     line.changeQuantity(line.quantity() + quantity);
+                    version++;
                     return;
                 }
             }
             lines.add(new CartLine(skuId, quantity));
+            version++;
         }
 
         public void clear() {
             lines.clear();
+            version++;
         }
     }
 }

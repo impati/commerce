@@ -33,7 +33,10 @@ final class OrderResponseMapper {
                 from(order.shippingAddress()),
                 order.paymentId(),
                 order.shipmentId(),
-                order.inventoryReservationId()
+                order.inventoryReservationId(),
+                order.checkoutStatus(),
+                order.paymentCleanupStatus(),
+                order.failureCode()
         );
     }
 

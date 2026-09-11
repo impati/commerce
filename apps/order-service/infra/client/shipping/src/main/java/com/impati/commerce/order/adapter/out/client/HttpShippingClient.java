@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
+import java.util.Optional;
 
 @Component
 public class HttpShippingClient implements ShippingClient {
@@ -46,8 +47,25 @@ public class HttpShippingClient implements ShippingClient {
         }
     }
 
+    @Override
+    public Optional<ShipmentResponse> shipmentForOrder(String orderId) {
+        try {
+            return Optional.ofNullable(restClient.get()
+                    .uri("/internal/shipments/orders/{orderId}", orderId)
+                    .retrieve().body(ShipmentResponse.class));
+        } catch (RestClientResponseException exception) {
+            if (exception.getStatusCode().value() == 404) return Optional.empty();
+            throw shippingError(exception);
+        } catch (ResourceAccessException exception) {
+            throw DomainException.unavailable("shipment lookup failed: " + exception.getMessage());
+        }
+    }
+
     /** HTTP 상태를 도메인 언어로 옮긴다. 이걸 하지 않으면 프로토콜 예외가 응용 계층까지 올라간다. */
     private static DomainException shippingError(RestClientResponseException exception) {
-        return DomainException.conflict("shipping service error: " + exception.getStatusText());
+        if (exception.getStatusCode().value() == 409) {
+            return DomainException.conflict("shipment request conflicts with the existing shipment");
+        }
+        return DomainException.unavailable("shipping service error: " + exception.getStatusText());
     }
 }

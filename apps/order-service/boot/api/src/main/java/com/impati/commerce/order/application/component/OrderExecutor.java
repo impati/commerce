@@ -1,291 +1,174 @@
 package com.impati.commerce.order.application.component;
 
 import com.impati.commerce.common.ApiContracts.AddressResponse;
-import com.impati.commerce.common.ApiContracts.AuthorizePaymentRequest;
-import com.impati.commerce.common.ApiContracts.CreateShipmentRequest;
 import com.impati.commerce.common.ApiContracts.PaymentResponse;
-import com.impati.commerce.common.ApiContracts.ReservationLine;
-import com.impati.commerce.common.ApiContracts.ReserveInventoryRequest;
 import com.impati.commerce.common.ApiContracts.ShipmentResponse;
 import com.impati.commerce.common.DomainException;
+import com.impati.commerce.common.Ids;
 import com.impati.commerce.order.application.port.in.CheckoutResult;
 import com.impati.commerce.order.application.port.in.OrderDetails;
 import com.impati.commerce.order.application.port.in.OrderUseCase;
 import com.impati.commerce.order.application.port.out.CartClient;
 import com.impati.commerce.order.application.port.out.CatalogClient;
-import com.impati.commerce.order.application.port.out.InventoryClient;
+import com.impati.commerce.order.application.port.out.CheckoutProgressRepository;
 import com.impati.commerce.order.application.port.out.MemberClient;
 import com.impati.commerce.order.application.port.out.OrderRepository;
 import com.impati.commerce.order.application.port.out.PaymentClient;
 import com.impati.commerce.order.application.port.out.ShippingClient;
+import com.impati.commerce.order.domain.CheckoutProgress;
 import com.impati.commerce.order.domain.OrderModels.Order;
 import com.impati.commerce.order.domain.OrderModels.OrderLine;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 
-/**
- * checkout saga를 조율한다.
- *
- * <p>협력자가 여덟인 것은 이 서비스가 saga 조율자이기 때문이다. 각 협력자를 별도 포트로 두어
- * 어떤 서비스에 의존하는지가 생성자에 그대로 드러나게 한다.
- *
- * <p>순서의 핵심은 <b>매입이 마지막 되돌릴 수 있는 단계보다 뒤에 있다</b>는 것이다
- * (PD-0012-R5). 매입 전의 실패는 배송 취소·승인 취소·예약 해제로 흔적 없이 정리되고,
- * 매입 후에는 되돌리지 않는다 (PD-0012-R6, PD-0012-R8).
- */
+/** 체크아웃 접수와 주문 조회를 제공한다. 단계 실행은 API와 워커가 공유하는 {@link CheckoutExecution}이 맡는다. */
 @Component
 public class OrderExecutor implements OrderUseCase {
-    private static final Logger log = LoggerFactory.getLogger(OrderExecutor.class);
-
     private final OrderRepository orderRepository;
+    private final CheckoutProgressRepository progressRepository;
+    private final CheckoutChanges checkoutChanges;
     private final OrderChanges orderChanges;
+    private final CheckoutExecution checkoutExecution;
     private final MemberClient memberClient;
     private final CartClient cartClient;
     private final CatalogClient catalogClient;
-    private final InventoryClient inventoryClient;
     private final PaymentClient paymentClient;
     private final ShippingClient shippingClient;
 
     public OrderExecutor(
             OrderRepository orderRepository,
+            CheckoutProgressRepository progressRepository,
+            CheckoutChanges checkoutChanges,
             OrderChanges orderChanges,
+            CheckoutExecution checkoutExecution,
             MemberClient memberClient,
             CartClient cartClient,
             CatalogClient catalogClient,
-            InventoryClient inventoryClient,
             PaymentClient paymentClient,
             ShippingClient shippingClient
     ) {
         this.orderRepository = orderRepository;
+        this.progressRepository = progressRepository;
+        this.checkoutChanges = checkoutChanges;
         this.orderChanges = orderChanges;
+        this.checkoutExecution = checkoutExecution;
         this.memberClient = memberClient;
         this.cartClient = cartClient;
         this.catalogClient = catalogClient;
-        this.inventoryClient = inventoryClient;
         this.paymentClient = paymentClient;
         this.shippingClient = shippingClient;
     }
 
     @Override
-    public CheckoutResult checkout(String memberId, String paymentToken, String addressId) {
+    public CheckoutResult checkout(
+            String memberId,
+            String idempotencyKey,
+            String paymentToken,
+            String addressId
+    ) {
+        validateKey(idempotencyKey);
+        var fingerprint = fingerprint(paymentToken, addressId);
+        var existing = progressRepository.findByMemberAndKey(memberId, idempotencyKey);
+        if (existing.isPresent()) {
+            ensureSameRequest(existing.get(), fingerprint);
+            return result(existing.get(), false);
+        }
+
         var member = memberClient.member(memberId);
         var address = OrderMapper.toAddress(selectAddress(member.addresses(), addressId));
         var cart = cartClient.cart(memberId);
-        if (cart.lines().isEmpty()) {
-            throw DomainException.validation("cart is empty");
-        }
+        if (cart.lines().isEmpty()) throw DomainException.cartEmpty("cart is empty");
 
         var orderLines = cart.lines().stream().map(line -> {
             var sku = catalogClient.sku(line.skuId());
             var product = catalogClient.product(sku.productId());
-            return new OrderLine(
-                    sku.id(),
-                    product.id(),
-                    product.name(),
-                    sku.name(),
-                    line.quantity(),
-                    sku.price()
-            );
+            return new OrderLine(sku.id(), product.id(), product.name(), sku.name(), line.quantity(), sku.price());
         }).toList();
-        var order = new Order(memberId, orderLines, address);
-        orderChanges.commit(order);
+        var orderId = Ids.newId("ord");
+        var order = Order.create(orderId, memberId, orderLines, address);
+        var progress = new CheckoutProgress(
+                orderId, memberId, idempotencyKey, fingerprint, paymentToken, cart.version());
 
-        String reservationId = null;
-        String paymentId = null;
+        if (!checkoutChanges.create(order, progress)) {
+            var raced = progressRepository.findByMemberAndKey(memberId, idempotencyKey)
+                    .orElseThrow(() -> DomainException.conflict("checkout acceptance raced without a result"));
+            ensureSameRequest(raced, fingerprint);
+            return result(raced, false);
+        }
+
+        progressRepository.claim(orderId, CheckoutRecoveryExecutor.LEASE_DURATION)
+                .ifPresent(checkoutExecution::run);
+        return result(progressRepository.findByOrderId(orderId).orElseThrow(), true);
+    }
+
+    private CheckoutResult result(CheckoutProgress progress, boolean newlyAccepted) {
+        var order = order(progress.orderId());
+        PaymentResponse payment = null;
         ShipmentResponse shipment = null;
-        var captureAttempted = new AtomicBoolean(false);
-        PaymentResponse payment;
-        try {
-            reservationId = inventoryClient.reserve(new ReserveInventoryRequest(
-                    order.id(),
-                    cart.lines().stream()
-                            .map(line -> new ReservationLine(line.skuId(), line.quantity()))
-                            .toList()
-            )).id();
-            order.attachReservation(reservationId);
-            orderChanges.commit(order);
-
-            paymentId = paymentClient.authorizePayment(new AuthorizePaymentRequest(
-                    order.id(),
-                    memberId,
-                    order.total(),
-                    paymentToken
-            )).id();
-            order.attachPayment(paymentId);
-            orderChanges.commit(order);
-
-            shipment = shippingClient.createShipment(new CreateShipmentRequest(
-                    order.id(),
-                    memberId,
-                    OrderMapper.toResponse(address)
-            ));
-
-            captureAttempted.set(true);
-            payment = capture(paymentId);
-        } catch (RuntimeException exception) {
-            rollbackBeforeCapture(
-                    order, reservationId, paymentId, shipment, captureAttempted.get(), exception);
-            throw exception;
-        }
-
-        // 매입이 끝났다. 여기부터는 아무것도 되돌리지 않는다 (PD-0012-R8).
-        order.markPaid();
-        order.attachShipment(shipment.id(), shipment.trackingNumber());
-        orderChanges.commit(order);
-
-        commitReservationQuietly(order, reservationId);
-        clearCartQuietly(order, memberId);
-        return new CheckoutResult(OrderMapper.toDetails(order), payment, shipment);
-    }
-
-    /**
-     * 매입한다. 결과를 받지 못하면 한 번 더 시도한다 (PD-0012-R13).
-     *
-     * <p>응답 유실은 매입이 실패했다는 뜻이 아니다. 요청은 갔고 상대는 처리를 마쳤을 수
-     * 있으므로, 다시 부르면 대개 그 결과를 그대로 돌려받는다 — 매입은 멱등하다
-     * (PD-0011-R4). 재시도가 곧 확인이므로 별도 조회가 필요 없다.
-     *
-     * <p>두 번 모두 결과를 받지 못하면 여기서는 확정할 수 없다. 그대로 올려보내고
-     * 되돌리는 쪽이 판단한다.
-     */
-    private PaymentResponse capture(String paymentId) {
-        try {
-            return paymentClient.capturePayment(paymentId);
-        } catch (DomainException exception) {
-            if (!exception.code().equals("outcome_unknown")) {
-                throw exception;
+        if (progress.outcome() == CheckoutProgress.Outcome.SUCCEEDED) {
+            try {
+                if (progress.paymentId() != null) payment = paymentClient.payment(progress.paymentId());
+                shipment = shippingClient.shipmentForOrder(progress.orderId()).orElse(null);
+            } catch (RuntimeException ignored) {
+                // 구매 결과는 주문 DB에 확정돼 있다. 응답 장식 조회 실패가 성공을 뒤집지 않는다.
             }
-            log.warn("capture outcome unknown, retrying once payment={}", paymentId);
-            return paymentClient.capturePayment(paymentId);
         }
+        return new CheckoutResult(OrderMapper.toDetails(order, progress), payment, shipment, newlyAccepted);
     }
 
-    /**
-     * 매입 전 실패를 되돌린다 (PD-0012-R6). 장바구니는 그대로 둔다 (PD-0012-R7).
-     *
-     * <p>각 단계를 독립적으로 시도한다. 하나가 실패해도 나머지를 시도하며, 원래 실패 원인이
-     * 그대로 올라간다 — 되돌리는 도중에 새 예외를 던지면 왜 실패했는지가 사라지고 남은
-     * 단계도 실행되지 않는다.
-     *
-     * <p>예약 해제에 조건이 없는 것은 매입 전에는 예약이 확정된 적이 없기 때문이다. 확정은
-     * 매입 뒤에 일어난다 (PD-0012-R5).
-     */
-    private void rollbackBeforeCapture(
-            Order order,
-            String reservationId,
-            String paymentId,
-            ShipmentResponse shipment,
-            boolean captureAttempted,
-            RuntimeException cause
-    ) {
-        if (shipment != null) {
-            compensate("cancel-shipment", shipment.id(), () -> shippingClient.cancelShipment(shipment.id()), cause);
-        }
-        if (paymentId != null) {
-            var id = paymentId;
-            compensate("cancel-payment", id, () -> paymentClient.cancelPayment(id), cause);
-        }
-        if (reservationId != null) {
-            var id = reservationId;
-            compensate("release-reservation", id, () -> inventoryClient.releaseReservation(id), cause);
-        }
-        // 매입을 시도했는데 결과를 못 받은 경우에만 표시한다. 그 앞 단계의 결과 불명은
-        // 아직 대금이 움직이지 않았으므로 환불 대상이 아니다.
-        var captureOutcomeUnknown = captureAttempted
-                && cause instanceof DomainException domain
-                && domain.code().equals("outcome_unknown");
-        // 취소되지 않은 주문에 취소를 알리지 않는다 (PD-0012-R11). 이제 이 규칙을 지키는 것은
-        // 여기의 분기가 아니라 애그리거트다 — 취소 사건은 cancel()이 성공해야 쌓이고, 그 저장이
-        // 실패하면 같은 트랜잭션이라 사건도 커밋되지 않는다.
-        compensate("cancel-order", order.id(), () -> {
-            order.cancel(cause.getMessage());
-            if (captureOutcomeUnknown) {
-                // 매입 여부를 모른 채 취소한다. 환불이 필요한지 나중에 결제에 물어야 한다.
-                order.markPaymentOutcomeUnknown();
-            }
-            orderChanges.commit(order);
-        }, cause);
-    }
-
-    /** 성공하면 {@code true}. 실패는 원인에 붙이고 삼켜서 남은 보상이 계속 돌게 한다. */
-    private boolean compensate(String step, String id, Runnable action, RuntimeException cause) {
-        try {
-            action.run();
-            return true;
-        } catch (RuntimeException failure) {
-            cause.addSuppressed(failure);
-            log.error("checkout compensation failed step={} id={} cause={}", step, id, cause.getMessage(), failure);
-            return false;
-        }
-    }
-
-    /**
-     * 실패해도 되돌리지 않는다 (PD-0012-R9). 예약된 재고는 예약 시점에 이미 가용 수량에서
-     * 빠져 있으므로 초과 판매가 생기지 않는다. 남는 것은 보유 수량이 줄지 않은 상태다.
-     */
-    private void commitReservationQuietly(Order order, String reservationId) {
-        try {
-            inventoryClient.commitReservation(reservationId);
-        } catch (RuntimeException failure) {
-            log.error("reservation not committed for paid order order={} reservation={}",
-                    order.id(), reservationId, failure);
-        }
-    }
-
-    /** 실패해도 되돌리지 않는다 (PD-0012-R8). 장바구니에 같은 물건이 남는다. */
-    private void clearCartQuietly(Order order, String memberId) {
-        try {
-            cartClient.clearCart(memberId);
-        } catch (RuntimeException failure) {
-            log.error("cart not cleared for paid order order={}", order.id(), failure);
-        }
-    }
-
-    /**
-     * 요청자 소유의 주문만 돌려준다.
-     *
-     * <p>없는 주문과 남의 주문을 같은 응답으로 거절한다. 구분하면 어떤 주문 id가 존재하는지
-     * 알아낼 수 있다.
-     */
     @Override
     public OrderDetails getOwned(String memberId, String orderId) {
-        var order = getOrder(orderId);
-        if (!order.memberId().equals(memberId)) {
-            throw DomainException.notFound("order not found");
-        }
-        return OrderMapper.toDetails(order);
+        var order = order(orderId);
+        if (!order.memberId().equals(memberId)) throw DomainException.notFound("order not found");
+        return OrderMapper.toDetails(order, progressRepository.findByOrderId(orderId).orElse(null));
     }
 
     @Override
     public OrderDetails markDelivered(String orderId) {
-        var order = getOrder(orderId);
+        var order = order(orderId);
         order.markDelivered();
         orderChanges.commit(order);
-        return OrderMapper.toDetails(order);
+        return OrderMapper.toDetails(order, progressRepository.findByOrderId(orderId).orElse(null));
     }
 
     private AddressResponse selectAddress(List<AddressResponse> addresses, String addressId) {
-        if (addresses.isEmpty()) {
-            throw DomainException.validation("member has no delivery address");
-        }
+        if (addresses.isEmpty()) throw DomainException.validation("member has no delivery address");
         if (addressId == null || addressId.isBlank()) {
-            return addresses.stream()
-                    .filter(AddressResponse::defaultAddress)
-                    .findFirst()
-                    .orElse(addresses.getFirst());
+            return addresses.stream().filter(AddressResponse::defaultAddress).findFirst().orElse(addresses.getFirst());
         }
-        return addresses.stream()
-                .filter(address -> address.id().equals(addressId))
-                .findFirst()
+        return addresses.stream().filter(address -> address.id().equals(addressId)).findFirst()
                 .orElseThrow(() -> DomainException.validation("address does not belong to member"));
     }
 
-    private Order getOrder(String orderId) {
+    private Order order(String orderId) {
         return orderRepository.findById(orderId)
                 .orElseThrow(() -> DomainException.notFound("order not found"));
+    }
+
+    private static void validateKey(String key) {
+        if (key == null || key.isBlank() || key.length() > 128) {
+            throw DomainException.validation("Idempotency-Key is required and must be at most 128 characters");
+        }
+    }
+
+    private static void ensureSameRequest(CheckoutProgress existing, String fingerprint) {
+        if (!existing.requestFingerprint().equals(fingerprint)) {
+            throw DomainException.conflict("idempotency key was already used for a different checkout request");
+        }
+    }
+
+    private static String fingerprint(String paymentToken, String addressId) {
+        try {
+            var digest = MessageDigest.getInstance("SHA-256");
+            var source = String.valueOf(paymentToken) + "\u0000" + String.valueOf(addressId);
+            return HexFormat.of().formatHex(digest.digest(source.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException(impossible);
+        }
     }
 }

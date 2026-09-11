@@ -39,7 +39,6 @@ import static org.mockito.Mockito.verify;
  */
 @SpringBootTest(properties = {
         "orders.event-publish-interval=3600000",
-        "orders.payment-reconcile-interval=3600000",
         "orders.event-publish-max-attempts=3"
 })
 @RequiresDatabase

@@ -207,8 +207,10 @@ project(':apps:order-service:boot:worker') {
     dependencies {
         implementation project(':apps:order-service:core')
         implementation project(':apps:order-service:infra:persistence')
-        // 결제 정리가 부르는 하나와, 사건 발행이 쓰는 어댑터.
-        implementation project(':apps:order-service:infra:client:payment')
+        // 중단된 체크아웃이 어느 단계에서든 다시 시작할 수 있어야 하므로 네 클라이언트를 모두 둔다.
+        ['cart', 'inventory', 'payment', 'shipping'].each {
+            implementation project(":apps:order-service:infra:client:$it")
+        }
         implementation project(':apps:order-service:infra:publisher:kafka')
     }
 }

@@ -17,7 +17,8 @@ final class CartMapper {
     static CartDetails toDetails(Cart cart) {
         return new CartDetails(
                 cart.memberId(),
-                cart.lines().stream().map(line -> new CartLine(line.skuId(), line.quantity())).toList()
+                cart.lines().stream().map(line -> new CartLine(line.skuId(), line.quantity())).toList(),
+                cart.version()
         );
     }
 }

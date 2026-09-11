@@ -1,7 +1,9 @@
 package com.impati.commerce.cart.application.component;
 
 import com.impati.commerce.cart.application.port.in.CartDetails;
+import com.impati.commerce.cart.application.port.in.CartLine;
 import com.impati.commerce.cart.application.port.in.CartUseCase;
+import com.impati.commerce.cart.application.port.in.CheckoutCartDetails;
 import com.impati.commerce.cart.application.port.out.CartRepository;
 import com.impati.commerce.cart.application.port.out.CatalogClient;
 import com.impati.commerce.cart.domain.CartModels.Cart;
@@ -37,6 +39,15 @@ public class CartExecutor implements CartUseCase {
         cart.clear();
         cartRepository.save(cart);
         return CartMapper.toDetails(cart);
+    }
+
+    @Override
+    public CheckoutCartDetails checkout(String memberId, String orderId, long expectedVersion) {
+        var snapshot = cartRepository.checkout(memberId, orderId, expectedVersion);
+        return new CheckoutCartDetails(
+                orderId,
+                memberId,
+                snapshot.lines().stream().map(line -> new CartLine(line.skuId(), line.quantity())).toList());
     }
 
     private Cart loadOrNew(String memberId) {

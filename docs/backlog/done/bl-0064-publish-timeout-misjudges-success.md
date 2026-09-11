@@ -5,7 +5,7 @@
 
 ## 배경
 
-[KafkaOrderEventPublisher](../../apps/order-service/infra/publisher/kafka/src/main/java/com/impati/commerce/order/adapter/out/publisher/KafkaOrderEventPublisher.java)가 전송 결과를 `commerce.kafka.send-timeout`(기본 4초)만큼 기다리고 넘으면 예외를 던진다. 그런데 **카프카 프로듀서의 `delivery.timeout.ms`를 설정하지 않아 기본값 120초가 적용된다.**
+[KafkaOrderEventPublisher](../../../apps/order-service/infra/publisher/kafka/src/main/java/com/impati/commerce/order/adapter/out/publisher/KafkaOrderEventPublisher.java)가 전송 결과를 `commerce.kafka.send-timeout`(기본 4초)만큼 기다리고 넘으면 예외를 던진다. 그런데 **카프카 프로듀서의 `delivery.timeout.ms`를 설정하지 않아 기본값 120초가 적용된다.**
 
 | | 값 |
 | --- | --- |
@@ -18,13 +18,13 @@
 
 그 결과가 셋이다.
 
-**성공한 사건이 FAILED로 종단될 수 있다.** 매 시도가 4초를 넘기면 실제로는 매번 성공하는데도 `attempts`가 오르고, 한도에 닿으면 `FAILED`가 된다. [BL-0055](done/bl-0055-publish-order-events-to-kafka.md)에서 `FAILED`는 그 주문을 영구히 막도록 만들었으므로, **이후 사건이 영영 발행되지 않는다.** 차단은 정당한 영구 실패에만 일어나야 하는데 잘못된 판정으로도 일어난다.
+**성공한 사건이 FAILED로 종단될 수 있다.** 매 시도가 4초를 넘기면 실제로는 매번 성공하는데도 `attempts`가 오르고, 한도에 닿으면 `FAILED`가 된다. [BL-0055](bl-0055-publish-order-events-to-kafka.md)에서 `FAILED`는 그 주문을 영구히 막도록 만들었으므로, **이후 사건이 영영 발행되지 않는다.** 차단은 정당한 영구 실패에만 일어나야 하는데 잘못된 판정으로도 일어난다.
 
 **토픽에 불필요한 중복이 쌓인다.** 소비측 멱등 키가 지우지만 보존 공간과 처리를 낭비한다.
 
 **아웃박스의 상태가 사실과 다르다.** `FAILED`인데 토픽에는 들어 있는 상태가 되고, 운영자가 그것을 모른 채 판단하게 된다.
 
-**순서는 깨지지 않는다.** 사건 N이 확정되기 전에는 N+1을 보내지 않으므로 좀비 레코드는 항상 우리가 다시 보낼 사건의 중복이고, 첫 사본이 언제나 뒤 사건보다 낮은 오프셋을 갖는다. 이 항목은 순서 문제가 아니다 — 그쪽은 [BL-0063](bl-0063-ordering-guarantee-is-conditional.md)이 담는다.
+**순서는 깨지지 않는다.** 사건 N이 확정되기 전에는 N+1을 보내지 않으므로 좀비 레코드는 항상 우리가 다시 보낼 사건의 중복이고, 첫 사본이 언제나 뒤 사건보다 낮은 오프셋을 갖는다. 이 항목은 순서 문제가 아니다 — 그쪽은 [BL-0063](../bl-0063-ordering-guarantee-is-conditional.md)이 담는다.
 
 **임차 계산도 문제없다.** `WORST_CASE_PER_EVENT`가 `send-timeout`을 쓰는데, 그 값은 우리 스레드가 붙잡히는 시간의 상한이 맞다. 잘못된 것은 시간 계산이 아니라 실패 판정뿐이다.
 

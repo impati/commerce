@@ -71,6 +71,6 @@ make todo
 | [BL-0044](bl-0044-session-resolve-ignores-member-status.md) 세션 확인이 회원 상태를 무시 | 차단·탈퇴를 붙이는 순간 조용히 성립한다 |
 | [BL-0049](bl-0049-scheduler-test-isolation-is-opt-out.md) 테스트의 스케줄러 격리가 규율에 달려 있다 | 이미 네 곳에서 샜다. 하네스 자신의 신뢰성 문제다 |
 | [BL-0056](bl-0056-commit-unit-for-other-services.md) 나머지 서비스의 커밋 단위 | 지금 맞는 이유가 우연이다 ([ADR-0012](../adr/0012-order-events-as-outbox.md)) |
-| [BL-0057](bl-0057-checkout-interruption-recovery.md) 체크아웃 중단 복구 | 외부 처리 후 진행 상태 유실과 미완료 보상·후속 처리. BL-0033·BL-0038을 흡수 |
+| [BL-0057](bl-0057-checkout-interruption-recovery.md) 체크아웃 중단 복구 | 외부 처리 후 진행 상태 유실과 미완료 보상·후속 처리. BL-0033·BL-0035·BL-0038을 흡수 |
 | [BL-0058](bl-0058-delivered-endpoint-is-not-classified-internal.md) 배송 완료 경로의 등급 | 주석이 등급을 선언한다 ([ADR-0003](../adr/0003-internal-path-prefix.md)) |
 | [BL-0059](bl-0059-errors-are-strings-not-types.md) 실패를 문자열로 다룬다 | 자르기로 막은 것은 증상이다. [BL-0036](bl-0036-clients-leak-protocol-errors.md)과 맞닿아 있다 |

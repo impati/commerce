@@ -2,12 +2,14 @@ package com.impati.commerce.cart.adapter.out.persistence;
 
 import com.impati.commerce.cart.application.port.out.CartRepository;
 import com.impati.commerce.cart.domain.CartModels.Cart;
+import com.impati.commerce.common.DomainException;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
+import java.util.Map;
 
 /**
  * 이름 바인딩만 쓴다. 위치 기반 {@code ?}는 타입이 같은 인접 컬럼의 값이 뒤바뀌어도 잡히지 않는다.
@@ -17,12 +19,15 @@ import java.util.Optional;
  */
 @Repository
 public class JdbcCartRepository implements CartRepository {
-    private static final String SELECT_CART = "select member_id from carts where member_id = :member_id";
+    private static final String SELECT_CART = "select member_id, version from carts where member_id = :member_id";
+    private static final String LOCK_CART = SELECT_CART + " for update";
     private static final String INSERT_CART = """
-            insert into carts (member_id)
-            select :member_id
+            insert into carts (member_id, version)
+            select :member_id, :version
              where not exists (select 1 from carts where member_id = :member_id)
             """;
+    private static final String UPDATE_CART_VERSION =
+            "update carts set version = :version where member_id = :member_id";
     private static final String SELECT_LINES = """
             select sku_id, quantity
               from cart_lines
@@ -33,6 +38,25 @@ public class JdbcCartRepository implements CartRepository {
     private static final String INSERT_LINE = """
             insert into cart_lines (member_id, sku_id, line_no, quantity)
             values (:member_id, :sku_id, :line_no, :quantity)
+            """;
+    private static final String SELECT_SNAPSHOT = """
+            select order_id, member_id, cart_version
+              from cart_checkout_snapshots
+             where order_id = :order_id
+            """;
+    private static final String SELECT_SNAPSHOT_LINES = """
+            select sku_id, quantity
+              from cart_checkout_snapshot_lines
+             where order_id = :order_id
+             order by line_no
+            """;
+    private static final String INSERT_SNAPSHOT = """
+            insert into cart_checkout_snapshots (order_id, member_id, cart_version)
+            values (:order_id, :member_id, :cart_version)
+            """;
+    private static final String INSERT_SNAPSHOT_LINE = """
+            insert into cart_checkout_snapshot_lines (order_id, sku_id, line_no, quantity)
+            values (:order_id, :sku_id, :line_no, :quantity)
             """;
 
     private final NamedParameterJdbcTemplate jdbc;
@@ -45,13 +69,14 @@ public class JdbcCartRepository implements CartRepository {
     @Transactional(readOnly = true)
     public Optional<Cart> findByMemberId(String memberId) {
         var params = new MapSqlParameterSource("member_id", memberId);
-        var exists = !jdbc.queryForList(SELECT_CART, params, String.class).isEmpty();
-        if (!exists) {
+        var headers = jdbc.query(SELECT_CART, params,
+                (rs, rowNum) -> Cart.restore(rs.getString("member_id"), rs.getLong("version")));
+        if (headers.isEmpty()) {
             return Optional.empty();
         }
-        var cart = new Cart(memberId);
+        var cart = headers.getFirst();
         jdbc.query(SELECT_LINES, params, rs -> {
-            cart.add(rs.getString("sku_id"), rs.getInt("quantity"));
+            cart.restoreLine(rs.getString("sku_id"), rs.getInt("quantity"));
         });
         return Optional.of(cart);
     }
@@ -59,8 +84,11 @@ public class JdbcCartRepository implements CartRepository {
     @Override
     @Transactional
     public void save(Cart cart) {
-        var params = new MapSqlParameterSource("member_id", cart.memberId());
+        var params = new MapSqlParameterSource()
+                .addValue("member_id", cart.memberId())
+                .addValue("version", cart.version());
         jdbc.update(INSERT_CART, params);
+        jdbc.update(UPDATE_CART_VERSION, params);
         jdbc.update(DELETE_LINES, params);
 
         var lines = cart.lines();
@@ -72,5 +100,61 @@ public class JdbcCartRepository implements CartRepository {
                     .addValue("line_no", index)
                     .addValue("quantity", line.quantity()));
         }
+    }
+
+    /** 장바구니 행 잠금 안에서 버전 확인, 사본 저장과 현재 라인 삭제를 한 번에 수행한다. */
+    @Override
+    @Transactional
+    public Cart checkout(String memberId, String orderId, long expectedVersion) {
+        var memberParams = new MapSqlParameterSource("member_id", memberId);
+        var locked = jdbc.query(LOCK_CART, memberParams,
+                (rs, rowNum) -> Cart.restore(rs.getString("member_id"), rs.getLong("version")));
+        if (locked.isEmpty()) {
+            throw DomainException.cartEmpty("cart is empty");
+        }
+
+        var snapshotParams = new MapSqlParameterSource("order_id", orderId);
+        var snapshots = jdbc.query(SELECT_SNAPSHOT, snapshotParams, (rs, rowNum) -> {
+            if (!memberId.equals(rs.getString("member_id"))) {
+                throw DomainException.conflict("checkout snapshot belongs to another member");
+            }
+            return Cart.restore(memberId, rs.getLong("cart_version"));
+        });
+        if (!snapshots.isEmpty()) {
+            var snapshot = snapshots.getFirst();
+            jdbc.query(SELECT_SNAPSHOT_LINES, snapshotParams,
+                            (rs, rowNum) -> Map.entry(rs.getString("sku_id"), rs.getInt("quantity")))
+                    .forEach(line -> snapshot.restoreLine(line.getKey(), line.getValue()));
+            return snapshot;
+        }
+
+        var cart = locked.getFirst();
+        if (cart.version() != expectedVersion) {
+            throw DomainException.cartChanged("cart changed after checkout started");
+        }
+        jdbc.query(SELECT_LINES, memberParams,
+                        (rs, rowNum) -> Map.entry(rs.getString("sku_id"), rs.getInt("quantity")))
+                .forEach(line -> cart.restoreLine(line.getKey(), line.getValue()));
+        if (cart.lines().isEmpty()) {
+            throw DomainException.cartEmpty("cart is empty");
+        }
+
+        jdbc.update(INSERT_SNAPSHOT, new MapSqlParameterSource()
+                .addValue("order_id", orderId)
+                .addValue("member_id", memberId)
+                .addValue("cart_version", expectedVersion));
+        for (var index = 0; index < cart.lines().size(); index++) {
+            var line = cart.lines().get(index);
+            jdbc.update(INSERT_SNAPSHOT_LINE, new MapSqlParameterSource()
+                    .addValue("order_id", orderId)
+                    .addValue("sku_id", line.skuId())
+                    .addValue("line_no", index)
+                    .addValue("quantity", line.quantity()));
+        }
+        jdbc.update(DELETE_LINES, memberParams);
+        jdbc.update(UPDATE_CART_VERSION, new MapSqlParameterSource()
+                .addValue("member_id", memberId)
+                .addValue("version", expectedVersion + 1));
+        return cart;
     }
 }
