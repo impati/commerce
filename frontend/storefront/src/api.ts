@@ -44,12 +44,12 @@ export class ApiError extends Error {
 async function send(path: string, init?: RequestInit): Promise<Response> {
   const token = session.readAccess();
   return fetch(`${apiBase}${path}`, {
+    ...init,
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...init?.headers
-    },
-    ...init
+    }
   });
 }
 
@@ -194,11 +194,16 @@ export const api = {
     });
   },
 
-  checkout(): Promise<Checkout> {
+  checkout(idempotencyKey: string): Promise<Checkout> {
     return request<Checkout>('/checkout', {
       method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
       body: JSON.stringify({ paymentToken: 'card_test_success' })
     });
+  },
+
+  order(orderId: string): Promise<Checkout['order']> {
+    return request<Checkout['order']>(`/orders/${orderId}`);
   },
 
   ship(shipmentId: string): Promise<Shipment> {

@@ -52,6 +52,7 @@ export type CartLine = {
 export type Cart = {
   memberId: string;
   lines: CartLine[];
+  version: number;
 };
 
 export type Address = {
@@ -85,6 +86,9 @@ export type Order = {
   paymentId: string | null;
   shipmentId: string | null;
   inventoryReservationId: string | null;
+  checkoutStatus: 'PROCESSING' | 'SUCCEEDED' | 'FAILED' | null;
+  paymentCleanupStatus: 'NONE' | 'CHECKING' | 'CANCELLING' | 'REFUNDING' | 'DONE' | null;
+  failureCode: string | null;
 };
 
 export type Payment = {
@@ -108,8 +112,8 @@ export type Shipment = {
 
 export type Checkout = {
   order: Order;
-  payment: Payment;
-  shipment: Shipment;
+  payment: Payment | null;
+  shipment: Shipment | null;
 };
 
 export type Stock = {

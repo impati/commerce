@@ -138,7 +138,8 @@ export const displayHome: DisplayHome = {
 
 export const initialCart: Cart = {
   memberId: demoMemberId,
-  lines: []
+  lines: [],
+  version: 0
 };
 
 export const initialStock: Stock[] = [
@@ -195,7 +196,10 @@ export function createDemoCheckout(cart: Cart): Checkout {
       },
       paymentId,
       shipmentId,
-      inventoryReservationId: reservationId
+      inventoryReservationId: reservationId,
+      checkoutStatus: 'SUCCEEDED',
+      paymentCleanupStatus: 'NONE',
+      failureCode: null
     },
     payment: {
       id: paymentId,

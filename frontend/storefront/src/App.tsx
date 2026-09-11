@@ -144,6 +144,25 @@ export function App() {
       const result = await fetchStorefront(current !== null);
       if (ignore) return;
       applyStorefront(result);
+      if (current) {
+        const pending = session.readPendingCheckout(current.id);
+        if (pending?.orderId) {
+          try {
+            const order = await api.order(pending.orderId);
+            setCheckout({ order, payment: null, shipment: null });
+            if (order.checkoutStatus === 'PROCESSING') {
+              window.setTimeout(() => pollCheckout(order.id, 0), 1500);
+            } else {
+              session.clearPendingCheckout(current.id);
+              setNotice(order.checkoutStatus === 'FAILED'
+                ? `Checkout failed (${order.failureCode ?? 'CHECKOUT_FAILED'}).`
+                : 'Checkout completed');
+            }
+          } catch {
+            setNotice('A pending checkout will be checked again on retry.');
+          }
+        }
+      }
       setBusy(null);
     }
 
@@ -219,6 +238,7 @@ export function App() {
     } catch {
       // 서버가 이미 폐기했거나 닿지 않아도 로컬 세션은 지운다
     }
+    if (member) session.clearPendingCheckout(member.id);
     session.clear();
     setMember(null);
     setCheckout(null);
@@ -228,6 +248,7 @@ export function App() {
 
   /** 세션이 끊겼다. 로그인 화면으로 돌려보낸다. */
   function handleExpiredSession() {
+    if (member) session.clearPendingCheckout(member.id);
     session.clear();
     setMember(null);
     setAuthNotice('세션이 만료됐습니다. 다시 로그인해주세요.');
@@ -267,38 +288,91 @@ export function App() {
       return;
     }
     setBusy('checkout');
+    const pending = session.readPendingCheckout(member.id) ?? { idempotencyKey: crypto.randomUUID() };
+    session.writePendingCheckout(member.id, pending);
     try {
-      const result = await api.checkout();
+      let result: Checkout;
+      try {
+        result = await api.checkout(pending.idempotencyKey);
+      } catch (first) {
+        if (first instanceof UnauthorizedError) throw first;
+        result = await api.checkout(pending.idempotencyKey);
+      }
+      session.writePendingCheckout(member.id, {
+        idempotencyKey: pending.idempotencyKey,
+        orderId: result.order.id
+      });
       setCheckout(result);
       setShipment(result.shipment);
-      setCart({ memberId: member.id, lines: [] });
-      setStock((current) => reduceStock(current, cart.lines));
-      setNotifications((current) => [
-        ...current,
-        {
-          id: `ntf_ui_${Date.now()}`,
-          eventType: 'OrderPaid',
-          memberId: member.id,
-          subject: 'Order paid',
-          body: `Order ${result.order.id} has been paid.`
-        }
-      ]);
-      setNotice('Checkout completed');
+      try {
+        setCart(await api.cart());
+      } catch {
+        // 주문 접수 결과는 이미 받았다. 장바구니 조회 실패가 그 결과를 뒤집지는 않는다.
+      }
+      if (result.order.checkoutStatus === 'PROCESSING') {
+        setNotice('Checkout is processing');
+        window.setTimeout(() => pollCheckout(result.order.id, 0), 1500);
+      } else {
+        finishCheckout(result.order);
+      }
     } catch (error) {
       if (error instanceof UnauthorizedError) {
         handleExpiredSession();
         return;
       }
-      setApiMode('demo');
-      const result = fallback.checkout(cart);
-      setCheckout(result);
-      setShipment(result.shipment);
-      setCart({ memberId: member.id, lines: [] });
-      setStock((current) => reduceStock(current, cart.lines));
-      setNotice('Checkout completed');
+      setNotice('Checkout response was not received. Retry uses the same request key.');
     } finally {
       setBusy(null);
     }
+  }
+
+  async function pollCheckout(orderId: string, attempt: number) {
+    if (!member || attempt >= 30) {
+      setNotice('Checkout is still processing. Reload to check the order again.');
+      return;
+    }
+    try {
+      const order = await api.order(orderId);
+      setCheckout((current) => current ? { ...current, order } : { order, payment: null, shipment: null });
+      if (order.checkoutStatus === 'PROCESSING') {
+        window.setTimeout(() => pollCheckout(orderId, attempt + 1), 1500);
+        return;
+      }
+      finishCheckout(order);
+    } catch (error) {
+      if (error instanceof UnauthorizedError) {
+        handleExpiredSession();
+        return;
+      }
+      window.setTimeout(() => pollCheckout(orderId, attempt + 1), 1500);
+    }
+  }
+
+  function finishCheckout(order: Checkout['order']) {
+    if (!member) return;
+    session.clearPendingCheckout(member.id);
+    if (order.checkoutStatus === 'FAILED') {
+      const cleanup = order.paymentCleanupStatus && order.paymentCleanupStatus !== 'DONE'
+        ? ' Payment cleanup is in progress.'
+        : '';
+      setNotice(`Checkout failed (${order.failureCode ?? 'CHECKOUT_FAILED'}).${cleanup}`);
+      return;
+    }
+    setStock((current) => reduceStock(
+      current,
+      order.lines.map((line) => ({ skuId: line.skuId, quantity: line.quantity }))
+    ));
+    setNotifications((current) => [
+      ...current,
+      {
+        id: `ntf_ui_${Date.now()}`,
+        eventType: 'OrderPaid',
+        memberId: member.id,
+        subject: 'Order paid',
+        body: `Order ${order.id} has been paid.`
+      }
+    ]);
+    setNotice('Checkout completed');
   }
 
   async function shipOrder() {
@@ -697,4 +771,3 @@ function reduceStock(stock: Stock[], lines: Cart['lines']): Stock[] {
     };
   });
 }
-
