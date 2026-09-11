@@ -36,7 +36,7 @@ public class NotificationExecutor implements NotificationUseCase {
     }
 
     /**
-     * 사건을 기록한다. 발송하지 않는다 (PD-0009-R1).
+     * 사건을 기록한다. 발송하지 않는다 (PD-0016-R1).
      *
      * <p>같은 멱등 키로 다시 오면 먼저 적힌 것을 그대로 돌려준다. 부르는 쪽은 응답을 못 받았을
      * 때 재시도할 수밖에 없으므로, 그 재시도가 두 줄이 되지 않게 하는 것이 여기의 일이다

@@ -12,7 +12,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 기록만 남기는 알림은 발송 대상이 아니다 (PD-0009-R2).
+ * 기록만 남기는 알림은 발송 대상이 아니다 (PD-0016-R2).
  *
  * <p>받는 쪽 테스트다. 예전에는 발송 테스트와 한 파일에 있었지만, 수신과 발송이 다른 실행
  * 단위가 되면서 갈렸다 (ADR-0015).

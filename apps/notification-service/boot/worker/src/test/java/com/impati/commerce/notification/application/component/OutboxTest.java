@@ -50,7 +50,7 @@ class OutboxTest {
     @MockBean
     private MailSender mailSender;
 
-    /** [PD-0009-R1] 기록만으로는 발송되지 않는다. 메일 시스템 장애가 가입 실패가 되지 않게 하는 성질이다. */
+    /** [PD-0016-R1] 기록만으로는 발송되지 않는다. 메일 시스템 장애가 가입 실패가 되지 않게 하는 성질이다. */
     @Test
     void recordsPendingWithoutSending() {
         doNothing().when(mailSender).send(anyString(), anyString(), anyString(), anyString());
@@ -63,7 +63,7 @@ class OutboxTest {
         assertThat(entry.body()).contains("tok_pending");
     }
 
-    /** [PD-0009-R1] 기록된 알림이 별도 발송으로 나가는 것을 잡는다. 발송 주기는 보지 않는다. */
+    /** [PD-0016-R1] 기록된 알림이 별도 발송으로 나가는 것을 잡는다. 발송 주기는 보지 않는다. */
     @Test
     void dispatchMarksSent() {
         doNothing().when(mailSender).send(anyString(), anyString(), anyString(), anyString());
@@ -77,7 +77,7 @@ class OutboxTest {
     }
 
     /**
-     * [PD-0009-R4] 발송 실패가 기록으로 남는다. 예외를 삼켜 사라지게 하지 않는다. 3회를 채우면 실패로 확정된다.
+     * [PD-0016-R4] 발송 실패가 기록으로 남는다. 예외를 삼켜 사라지게 하지 않는다. 3회를 채우면 실패로 확정된다.
      *
      * <p>주기 사이에 시계를 미는 이유는 점유가 다음 시도 시각을 밀어두기 때문이다. 밀지 않으면
      * 두 번째 주기가 같은 건을 집지 못해 시도 횟수가 늘지 않는다 (ADR-0011).
