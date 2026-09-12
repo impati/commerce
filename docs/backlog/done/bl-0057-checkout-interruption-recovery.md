@@ -5,7 +5,7 @@
 
 ## 배경
 
-[OrderExecutor.checkout](../../apps/order-service/boot/api/src/main/java/com/impati/commerce/order/application/component/OrderExecutor.java)은 재고 예약, 결제 승인, 배송 생성, 매입을 외부 서비스에 요청하고 주문에 결과를 저장한다. 외부 처리와 주문 저장은 하나의 트랜잭션이 아니므로, 외부에서는 성공했지만 주문에는 결과가 남지 않은 채 중단될 수 있다.
+[OrderExecutor.checkout](../../../apps/order-service/boot/api/src/main/java/com/impati/commerce/order/application/component/OrderExecutor.java)은 재고 예약, 결제 승인, 배송 생성, 매입을 외부 서비스에 요청하고 주문에 결과를 저장한다. 외부 처리와 주문 저장은 하나의 트랜잭션이 아니므로, 외부에서는 성공했지만 주문에는 결과가 남지 않은 채 중단될 수 있다.
 
 원래 이 항목은 매입 성공 후 주문 확정 저장이 실패하는 구간을 다뤘다. 이때 결제는 매입됐지만 주문은 `CREATED`로 남고, `payment_outcome_unknown`도 표시되지 않아 기존 결제 정리기의 대상에서 빠진다.
 
@@ -23,7 +23,7 @@
 
 매입이 확인된 주문은 취소로 되돌리지 않고 주문 확정을 이어서 완료한다. 매입 전 단계의 재개·보상 기준과 결과를 확인할 수 없는 경우의 처리는 인터뷰에서 정한다.
 
-보상이 실패해도 원래 체크아웃 실패 원인을 보존하고, 미완료 보상을 찾아 마무리할 수 있다. 매입된 주문의 미확정 재고 예약은 찾아서 확정하며, 방치된 예약과 구분해 이미 팔린 재고를 해제하지 않는다. 예약 만료 자체는 [BL-0025](bl-0025-inventory-reservation-never-expires.md)에 남긴다.
+보상이 실패해도 원래 체크아웃 실패 원인을 보존하고, 미완료 보상을 찾아 마무리할 수 있다. 매입된 주문의 미확정 재고 예약은 찾아서 확정하며, 방치된 예약과 구분해 이미 팔린 재고를 해제하지 않는다. 예약 만료 자체는 [BL-0025](../bl-0025-inventory-reservation-never-expires.md)에 남긴다.
 
 매입 후 재고 확정과 장바구니 처리까지 완료 여부와 안전한 후속 처리 기준을 다룬다. 중단 후 재개나 반복 실행이 중복 외부 처리, 중복 사건 또는 고객이 새로 담은 상품의 삭제로 이어지지 않아야 한다.
 

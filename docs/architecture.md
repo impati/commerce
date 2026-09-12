@@ -80,6 +80,10 @@ sequenceDiagram
         O-->>G: PROCESSING + orderId
         W->>O: 진행 상태 점유
         W->>Inv: 저장된 단계부터 재개
+        C->>G: GET /orders/{orderId}/checkout-result
+        G->>O: GET /orders/{orderId}/checkout-result
+        O-->>G: 주문 + 결제 + 배송 결과
+        G-->>C: 주문 + 결제 + 배송 결과
     end
     G-->>C: Order + checkoutStatus
 ```

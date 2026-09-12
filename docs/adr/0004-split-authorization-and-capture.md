@@ -58,7 +58,7 @@
 ## 범위
 
 - **포함:** payment-service의 승인·매입·취소 상태 전이와 주문당 하나 제약, shipping-service의 배송 취소, order-service의 saga 순서 재배치와 보상 경로, 정책 문서 3개 대체, 각 실패 지점의 시나리오 테스트
-- **제외:** 실제 결제 대행사 연동([BL-0032](../backlog/done/bl-0032-payment-gateway-port-not-separated.md)), 환불과 부분 취소, 재고 예약 만료([BL-0025](../backlog/bl-0025-inventory-reservation-never-expires.md)), 체크아웃 요청 자체의 멱등성([BL-0057](../backlog/bl-0057-checkout-interruption-recovery.md)), 사용자 주문 취소와 배송 취소의 연동([BL-0029](../backlog/bl-0029-order-and-shipment-status-diverge.md)), 자동 재시도 구동자
+- **제외:** 실제 결제 대행사 연동([BL-0032](../backlog/done/bl-0032-payment-gateway-port-not-separated.md)), 환불과 부분 취소, 재고 예약 만료([BL-0025](../backlog/bl-0025-inventory-reservation-never-expires.md)), 체크아웃 요청 자체의 멱등성([BL-0057](../backlog/done/bl-0057-checkout-interruption-recovery.md)), 사용자 주문 취소와 배송 취소의 연동([BL-0029](../backlog/bl-0029-order-and-shipment-status-diverge.md)), 자동 재시도 구동자
 
 ## 완료 기준
 
