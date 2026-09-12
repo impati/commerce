@@ -206,6 +206,10 @@ export const api = {
     return request<Checkout['order']>(`/orders/${orderId}`);
   },
 
+  checkoutResult(orderId: string): Promise<Checkout> {
+    return request<Checkout>(`/orders/${orderId}/checkout-result`);
+  },
+
   ship(shipmentId: string): Promise<Shipment> {
     return request<Shipment>(`/shipments/${shipmentId}/ship`, { method: 'POST', body: '{}' });
   },

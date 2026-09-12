@@ -145,23 +145,7 @@ export function App() {
       if (ignore) return;
       applyStorefront(result);
       if (current) {
-        const pending = session.readPendingCheckout(current.id);
-        if (pending?.orderId) {
-          try {
-            const order = await api.order(pending.orderId);
-            setCheckout({ order, payment: null, shipment: null });
-            if (order.checkoutStatus === 'PROCESSING') {
-              window.setTimeout(() => pollCheckout(order.id, 0), 1500);
-            } else {
-              session.clearPendingCheckout(current.id);
-              setNotice(order.checkoutStatus === 'FAILED'
-                ? `Checkout failed (${order.failureCode ?? 'CHECKOUT_FAILED'}).`
-                : 'Checkout completed');
-            }
-          } catch {
-            setNotice('A pending checkout will be checked again on retry.');
-          }
-        }
+        await resumePendingCheckout(current.id);
       }
       setBusy(null);
     }
@@ -224,6 +208,7 @@ export function App() {
       const current = await api.me();
       setMember(current);
       applyStorefront(await fetchStorefront(true));
+      await resumePendingCheckout(current.id);
       setAuthNotice('');
     } catch (error) {
       setAuthNotice(error instanceof Error ? error.message : '요청이 실패했습니다.');
@@ -238,7 +223,6 @@ export function App() {
     } catch {
       // 서버가 이미 폐기했거나 닿지 않아도 로컬 세션은 지운다
     }
-    if (member) session.clearPendingCheckout(member.id);
     session.clear();
     setMember(null);
     setCheckout(null);
@@ -248,7 +232,6 @@ export function App() {
 
   /** 세션이 끊겼다. 로그인 화면으로 돌려보낸다. */
   function handleExpiredSession() {
-    if (member) session.clearPendingCheckout(member.id);
     session.clear();
     setMember(null);
     setAuthNotice('세션이 만료됐습니다. 다시 로그인해주세요.');
@@ -279,16 +262,16 @@ export function App() {
   }
 
   async function runCheckout() {
-    if (cart.lines.length === 0) {
-      setNotice('Cart is empty');
-      return;
-    }
     if (!member) {
       setAuthNotice('주문하려면 로그인해주세요.');
       return;
     }
-    setBusy('checkout');
     const pending = session.readPendingCheckout(member.id) ?? { idempotencyKey: crypto.randomUUID() };
+    if (cart.lines.length === 0 && !session.readPendingCheckout(member.id)) {
+      setNotice('Cart is empty');
+      return;
+    }
+    setBusy('checkout');
     session.writePendingCheckout(member.id, pending);
     try {
       let result: Checkout;
@@ -298,23 +281,12 @@ export function App() {
         if (first instanceof UnauthorizedError) throw first;
         result = await api.checkout(pending.idempotencyKey);
       }
-      session.writePendingCheckout(member.id, {
-        idempotencyKey: pending.idempotencyKey,
-        orderId: result.order.id
-      });
-      setCheckout(result);
-      setShipment(result.shipment);
       try {
         setCart(await api.cart());
       } catch {
         // 주문 접수 결과는 이미 받았다. 장바구니 조회 실패가 그 결과를 뒤집지는 않는다.
       }
-      if (result.order.checkoutStatus === 'PROCESSING') {
-        setNotice('Checkout is processing');
-        window.setTimeout(() => pollCheckout(result.order.id, 0), 1500);
-      } else {
-        finishCheckout(result.order);
-      }
+      await acceptCheckoutResult(result, member.id, pending.idempotencyKey);
     } catch (error) {
       if (error instanceof UnauthorizedError) {
         handleExpiredSession();
@@ -326,31 +298,66 @@ export function App() {
     }
   }
 
-  async function pollCheckout(orderId: string, attempt: number) {
-    if (!member || attempt >= 30) {
-      setNotice('Checkout is still processing. Reload to check the order again.');
-      return;
-    }
+  async function resumePendingCheckout(memberId: string) {
+    const pending = session.readPendingCheckout(memberId);
+    if (!pending) return;
     try {
-      const order = await api.order(orderId);
-      setCheckout((current) => current ? { ...current, order } : { order, payment: null, shipment: null });
-      if (order.checkoutStatus === 'PROCESSING') {
-        window.setTimeout(() => pollCheckout(orderId, attempt + 1), 1500);
-        return;
-      }
-      finishCheckout(order);
+      const result = pending.orderId
+        ? await api.checkoutResult(pending.orderId)
+        : await api.checkout(pending.idempotencyKey);
+      await acceptCheckoutResult(result, memberId, pending.idempotencyKey);
     } catch (error) {
       if (error instanceof UnauthorizedError) {
         handleExpiredSession();
         return;
       }
-      window.setTimeout(() => pollCheckout(orderId, attempt + 1), 1500);
+      setNotice('A pending checkout will be checked again on retry.');
     }
   }
 
-  function finishCheckout(order: Checkout['order']) {
-    if (!member) return;
-    session.clearPendingCheckout(member.id);
+  async function acceptCheckoutResult(result: Checkout, memberId: string, idempotencyKey: string) {
+    session.writePendingCheckout(memberId, { idempotencyKey, orderId: result.order.id });
+    setCheckout(result);
+    setShipment(result.shipment);
+    if (result.order.checkoutStatus === 'PROCESSING') {
+      setNotice('Checkout is processing');
+      window.setTimeout(() => pollCheckout(result.order.id, memberId, 0), 1500);
+      return;
+    }
+    if (result.order.checkoutStatus === 'SUCCEEDED' && !result.shipment) {
+      setNotice('Checkout completed. Loading shipment details.');
+      window.setTimeout(() => pollCheckout(result.order.id, memberId, 0), 1500);
+      return;
+    }
+    await finishCheckout(result, memberId);
+  }
+
+  async function pollCheckout(orderId: string, memberId: string, attempt: number) {
+    if (attempt >= 30) {
+      setNotice('Checkout is still processing. Reload to check the order again.');
+      return;
+    }
+    try {
+      const result = await api.checkoutResult(orderId);
+      setCheckout(result);
+      setShipment(result.shipment);
+      if (result.order.checkoutStatus === 'PROCESSING') {
+        window.setTimeout(() => pollCheckout(orderId, memberId, attempt + 1), 1500);
+        return;
+      }
+      await finishCheckout(result, memberId);
+    } catch (error) {
+      if (error instanceof UnauthorizedError) {
+        handleExpiredSession();
+        return;
+      }
+      window.setTimeout(() => pollCheckout(orderId, memberId, attempt + 1), 1500);
+    }
+  }
+
+  async function finishCheckout(result: Checkout, memberId: string) {
+    const order = result.order;
+    session.clearPendingCheckout(memberId);
     if (order.checkoutStatus === 'FAILED') {
       const cleanup = order.paymentCleanupStatus && order.paymentCleanupStatus !== 'DONE'
         ? ' Payment cleanup is in progress.'
@@ -358,20 +365,9 @@ export function App() {
       setNotice(`Checkout failed (${order.failureCode ?? 'CHECKOUT_FAILED'}).${cleanup}`);
       return;
     }
-    setStock((current) => reduceStock(
-      current,
-      order.lines.map((line) => ({ skuId: line.skuId, quantity: line.quantity }))
-    ));
-    setNotifications((current) => [
-      ...current,
-      {
-        id: `ntf_ui_${Date.now()}`,
-        eventType: 'OrderPaid',
-        memberId: member.id,
-        subject: 'Order paid',
-        body: `Order ${order.id} has been paid.`
-      }
-    ]);
+    const [stockResult, notificationsResult] = await Promise.allSettled([api.stock(), api.notifications()]);
+    if (stockResult.status === 'fulfilled') setStock(stockResult.value);
+    if (notificationsResult.status === 'fulfilled') setNotifications(notificationsResult.value);
     setNotice('Checkout completed');
   }
 
@@ -642,7 +638,8 @@ export function App() {
               className="checkout-button"
               type="button"
               onClick={runCheckout}
-              disabled={busy === 'checkout' || cart.lines.length === 0}
+              disabled={busy === 'checkout' || checkout?.order.checkoutStatus === 'PROCESSING'
+                || (cart.lines.length === 0 && !(member && session.readPendingCheckout(member.id)))}
             >
               {busy === 'checkout' ? <Loader2 className="spin" size={18} /> : <CreditCard size={18} />}
               Checkout
@@ -758,16 +755,4 @@ function addLine(cart: Cart, skuId: string): Cart {
     };
   }
   return { ...cart, lines: [...cart.lines, { skuId, quantity: 1 }] };
-}
-
-function reduceStock(stock: Stock[], lines: Cart['lines']): Stock[] {
-  return stock.map((item) => {
-    const line = lines.find((candidate) => candidate.skuId === item.skuId);
-    if (!line) return item;
-    return {
-      ...item,
-      onHand: Math.max(0, item.onHand - line.quantity),
-      available: Math.max(0, item.available - line.quantity)
-    };
-  });
 }
