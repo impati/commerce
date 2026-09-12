@@ -47,6 +47,8 @@ public class JdbcInventoryRepository implements InventoryRepository {
 
     private static final String SELECT_RESERVATION =
             "select id, order_id, status from reservations where id = :id";
+    private static final String SELECT_RESERVATION_BY_ORDER =
+            "select id, order_id, status from reservations where order_id = :order_id";
     private static final String INSERT_RESERVATION = """
             insert into reservations (id, order_id, status)
             values (:id, :order_id, :status)
@@ -155,6 +157,22 @@ public class JdbcInventoryRepository implements InventoryRepository {
                                 rs.getString("status")
                         )
                 )
+                .stream()
+                .findFirst();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<Reservation> findReservationByOrderId(String orderId) {
+        return jdbc.query(
+                        SELECT_RESERVATION_BY_ORDER,
+                        new MapSqlParameterSource("order_id", orderId),
+                        (rs, rowNum) -> Reservation.restore(
+                                rs.getString("id"),
+                                rs.getString("order_id"),
+                                findLines(rs.getString("id")),
+                                rs.getString("status")
+                        ))
                 .stream()
                 .findFirst();
     }

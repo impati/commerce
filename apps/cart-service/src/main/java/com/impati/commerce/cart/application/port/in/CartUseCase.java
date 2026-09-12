@@ -8,4 +8,7 @@ public interface CartUseCase {
     CartDetails get(String memberId);
 
     CartDetails clear(String memberId);
+
+    /** 구매분을 한 번만 분리하며 같은 주문의 반복 요청에는 같은 사본을 반환한다 (PD-0018-R6). */
+    CheckoutCartDetails checkout(String memberId, String orderId, long expectedVersion);
 }

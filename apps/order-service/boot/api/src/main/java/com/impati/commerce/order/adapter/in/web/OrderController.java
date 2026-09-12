@@ -4,6 +4,7 @@ import com.impati.commerce.common.ApiContracts.CheckoutRequest;
 import com.impati.commerce.common.ApiContracts.CheckoutResponse;
 import com.impati.commerce.common.ApiContracts.OrderResponse;
 import com.impati.commerce.order.application.port.in.OrderUseCase;
+import com.impati.commerce.order.domain.IdempotencyKey;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.ResponseEntity;
 
 /**
  * 주문 API.
@@ -28,16 +30,31 @@ public class OrderController {
     }
 
     @PostMapping("/checkouts")
-    CheckoutResponse checkout(
+    ResponseEntity<CheckoutResponse> checkout(
             @RequestHeader("X-Member-Id") String memberId,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
             @RequestBody CheckoutRequest request
     ) {
-        return OrderResponseMapper.from(orderUseCase.checkout(memberId, request.paymentToken(), request.addressId()));
+        var result = orderUseCase.checkout(
+                memberId, new IdempotencyKey(idempotencyKey), request.paymentToken(), request.addressId());
+        var response = OrderResponseMapper.from(result);
+        if ("PROCESSING".equals(result.order().checkoutStatus())) {
+            return ResponseEntity.accepted().body(response);
+        }
+        return ResponseEntity.status(result.newlyAccepted() ? 201 : 200).body(response);
     }
 
     @GetMapping("/orders/{orderId}")
     OrderResponse order(@RequestHeader("X-Member-Id") String memberId, @PathVariable String orderId) {
         return OrderResponseMapper.from(orderUseCase.getOwned(memberId, orderId));
+    }
+
+    @GetMapping("/orders/{orderId}/checkout-result")
+    CheckoutResponse checkoutResult(
+            @RequestHeader("X-Member-Id") String memberId,
+            @PathVariable String orderId
+    ) {
+        return OrderResponseMapper.from(orderUseCase.getCheckoutResultOwned(memberId, orderId));
     }
 
     /** shipping 흐름에서 게이트웨이가 부르는 내부 경로. 배송 완료 처리는 회원 요청이 아니다. */

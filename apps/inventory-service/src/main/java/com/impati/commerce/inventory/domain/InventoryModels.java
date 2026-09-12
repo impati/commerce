@@ -134,11 +134,17 @@ public final class InventoryModels {
         }
 
         public void commit() {
+            if (status.equals("COMMITTED")) {
+                return;
+            }
             ensureReserved();
             status = "COMMITTED";
         }
 
         public void release() {
+            if (status.equals("RELEASED")) {
+                return;
+            }
             ensureReserved();
             status = "RELEASED";
         }

@@ -28,10 +28,7 @@ import static org.mockito.Mockito.mock;
  * <p>이 응집 단위가 깨지면 결제된 주문에 알릴 의도가 없거나, 일어나지 않은 일이 소비자에게
  * 간다. 둘 다 예외 없이 조용히 일어난다.
  */
-@SpringBootTest(properties = {
-        "orders.event-publish-interval=3600000",
-        "orders.payment-reconcile-interval=3600000"
-})
+@SpringBootTest(properties = "orders.event-publish-interval=3600000")
 @RequiresDatabase
 class OrderChangesTest {
 

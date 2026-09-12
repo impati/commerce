@@ -47,6 +47,34 @@ class InventoryExecutorTest {
         assertThat(stockOf(skuId).reserved()).isZero();
     }
 
+    @Test
+    void repeatingAReservationAndItsCommitDoesNotChangeStockTwice() {
+        var skuId = "sku_idem_reservation";
+        inventoryUseCase.addStock(skuId, 10);
+
+        var first = inventoryUseCase.reserve("ord_idem_reservation", List.of(new StockLine(skuId, 2)));
+        var second = inventoryUseCase.reserve("ord_idem_reservation", List.of(new StockLine(skuId, 2)));
+        inventoryUseCase.commit(first.id());
+        inventoryUseCase.commit(first.id());
+
+        assertThat(second.id()).isEqualTo(first.id());
+        assertThat(stockOf(skuId).onHand()).isEqualTo(8);
+        assertThat(stockOf(skuId).reserved()).isZero();
+    }
+
+    @Test
+    void repeatingAReservationWithDifferentLinesIsRejected() {
+        var skuId = "sku_changed_reservation";
+        inventoryUseCase.addStock(skuId, 10);
+        inventoryUseCase.reserve("ord_changed_reservation", List.of(new StockLine(skuId, 2)));
+
+        assertThatThrownBy(() -> inventoryUseCase.reserve(
+                "ord_changed_reservation", List.of(new StockLine(skuId, 3))))
+                .isInstanceOfSatisfying(DomainException.class,
+                        failure -> assertThat(failure.code()).isEqualTo("conflict"));
+        assertThat(stockOf(skuId).reserved()).isEqualTo(2);
+    }
+
     /** [PD-0005-R2] 가용 수량을 넘는 예약이 거절되는 것을 잡는다. 여러 줄 중 하나만 모자란 경우는 보지 않는다. */
     @Test
     void rejectsReservationBeyondAvailableStock() {

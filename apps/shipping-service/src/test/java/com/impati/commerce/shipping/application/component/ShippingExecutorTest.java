@@ -35,6 +35,25 @@ class ShippingExecutorTest {
         assertThat(shipment.trackingNumber()).isNotBlank();
     }
 
+    @Test
+    void creatingTheSameOrderTwiceReturnsTheSameShipment() {
+        var first = create("ord_idem_create");
+        var second = create("ord_idem_create");
+
+        assertThat(second).isEqualTo(first);
+    }
+
+    @Test
+    void creatingTheSameOrderWithAnotherAddressIsRejected() {
+        create("ord_changed_create");
+
+        assertThatThrownBy(() -> shippingUseCase.create(
+                "ord_changed_create", "mem_demo",
+                new ShipmentAddress("adr_2", "office", "받는이", "010", "다른 주소", "서울", "01234", false)))
+                .isInstanceOfSatisfying(DomainException.class,
+                        failure -> assertThat(failure.code()).isEqualTo("conflict"));
+    }
+
     /** PD-0013-R5: 준비 상태의 배송은 취소할 수 있다. */
     @Test
     void readyShipmentCanBeCancelled() {

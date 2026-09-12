@@ -19,6 +19,9 @@ public record OrderDetails(
         OrderAddress shippingAddress,
         String paymentId,
         String shipmentId,
-        String inventoryReservationId
+        String inventoryReservationId,
+        String checkoutStatus,
+        String paymentCleanupStatus,
+        String failureCode
 ) {
 }

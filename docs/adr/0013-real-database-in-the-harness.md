@@ -49,7 +49,7 @@ MySQL 기본값(REPEATABLE READ)에서 `for update` 범위 읽기는 갭 락까�
 
 전역으로 낮추면 **애그리거트를 여러 테이블에서 읽는 조회들이 스냅샷 일관성을 잃는다.** 주문 조회가 `orders`와 `order_lines`를 한 트랜잭션의 두 문장으로 읽고, member·catalog·inventory·cart도 같은 모양이다. 지금은 자식 행이 같은 내용으로 다시 쓰이므로 무해하지만 그것은 현재 사실이지 구조가 보장하는 것이 아니다.
 
-조건부 UPDATE로 점유하는 나머지 둘(`claimForPaymentReconciliation`, member의 발송 점유)은 기본 키 조회라 갭 락이 생기지 않으므로 손대지 않는다.
+조건부 UPDATE로 점유하는 나머지 둘(체크아웃 진행 상태의 `claim`, member의 발송 점유)은 기본 키 조회라 갭 락이 생기지 않으므로 손대지 않는다.
 
 ### 연결 시간대를 UTC로 고정한다
 

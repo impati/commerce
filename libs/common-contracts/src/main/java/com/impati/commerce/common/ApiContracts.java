@@ -111,7 +111,17 @@ public final class ApiContracts {
     public record CartLineResponse(String skuId, int quantity) {
     }
 
-    public record CartResponse(String memberId, List<CartLineResponse> lines) {
+    public record CartResponse(String memberId, List<CartLineResponse> lines, long version) {
+        public CartResponse(String memberId, List<CartLineResponse> lines) {
+            this(memberId, lines, 0);
+        }
+    }
+
+    /** order-service가 구매분을 현재 장바구니에서 원자적으로 분리한다 (PD-0018-R6). */
+    public record CheckoutCartRequest(String orderId, long expectedVersion) {
+    }
+
+    public record CheckoutCartResponse(String orderId, String memberId, List<CartLineResponse> lines) {
     }
 
     /** order-service의 checkout saga → payment-service의 승인. 매입과 취소는 결제 식별자만 쓴다. */
@@ -167,8 +177,25 @@ public final class ApiContracts {
             AddressResponse shippingAddress,
             String paymentId,
             String shipmentId,
-            String inventoryReservationId
+            String inventoryReservationId,
+            String checkoutStatus,
+            String paymentCleanupStatus,
+            String failureCode
     ) {
+        public OrderResponse(
+                String id,
+                String memberId,
+                String status,
+                List<OrderLineResponse> lines,
+                Money total,
+                AddressResponse shippingAddress,
+                String paymentId,
+                String shipmentId,
+                String inventoryReservationId
+        ) {
+            this(id, memberId, status, lines, total, shippingAddress, paymentId, shipmentId,
+                    inventoryReservationId, null, null, null);
+        }
     }
 
     /** 회원 신원은 X-Member-Id 헤더로 전달된다. 본문에 memberId를 두지 않는다. */
@@ -278,4 +305,3 @@ public final class ApiContracts {
     ) {
     }
 }
-

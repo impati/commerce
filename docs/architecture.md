@@ -36,9 +36,9 @@ flowchart LR
 
 ## Checkout Saga
 
-매입이 배송 생성 뒤에 있는 것이 이 순서의 핵심이다. 매입 전의 실패는 배송 취소·승인 취소·예약 해제로 흔적 없이 정리되고, 매입 후에는 되돌리지 않는다 (PD-0012, [ADR-0004](adr/0004-split-authorization-and-capture.md)).
+API가 정상 체크아웃을 실행하고 각 외부 호출 사이의 진행 단계를 주문 DB에 저장한다. API가 끝까지 가지 못하면 `PROCESSING`과 주문 식별자를 반환하고, order-worker가 같은 진행 레코드를 점유해 중단된 단계부터 이어간다. 점유 세대가 지난 실행자의 늦은 저장을 막는다 ([PD-0017](policy/pd-0017-checkout-execution-and-recovery.md), [ADR-0018](adr/0018-durable-checkout-recovery.md)).
 
-세 번째 갈래가 있다. **매입 요청의 응답을 받지 못하면 실패가 아니라 결과 불명이다.** 매입은 멱등하므로 한 번 더 부르면 대개 확정되고, 두 번 모두 받지 못하면 되돌리되 주문에 결제 미확인 표시를 남긴다. 그 주문은 나중에 결제에 매입 여부를 물어 환불로 정리한다 (PD-0012-R12·R13).
+외부 생성 요청은 주문 식별자에 대해 멱등하다. 응답을 받지 못하면 같은 요청을 즉시 한 번 반복한다. 매입 전 실패는 배송 취소·승인 취소·예약 해제로 정리하고, 매입이 확인된 뒤에는 주문과 재고 확정을 앞으로 진행한다. 매입 결과가 계속 불명이면 결제 상태를 조회해 승인 취소나 환불을 결정한다.
 
 ```mermaid
 sequenceDiagram
@@ -51,33 +51,41 @@ sequenceDiagram
     participant Inv as Inventory
     participant Pay as Payment
     participant Ship as Shipping
-    participant N as Notification
+    participant W as Order Worker
 
-    C->>G: POST /checkout
-    G->>O: POST /checkouts
+    C->>G: POST /checkout + Idempotency-Key
+    G->>O: POST /checkouts + Idempotency-Key
     O->>M: GET /internal/members/{memberId}
     O->>Cart: GET /carts
     O->>Cat: GET /internal/skus/{skuId}
     O->>Cat: GET /products/{productId}
-    O->>O: Create Order
+    O->>O: 주문 + 진행 상태 커밋
+    O->>Cart: POST /internal/carts/checkout
     O->>Inv: POST /internal/reservations
     O->>Pay: POST /internal/payments/authorize
     O->>Ship: POST /internal/shipments
     O->>Pay: POST /internal/payments/{id}/capture
     alt 매입 성공
+        O->>O: 주문 결제·배송 확정
         O->>Inv: POST /internal/reservations/{id}/commit
-        O->>Cart: POST /internal/carts/clear
-        O->>O: 사건을 아웃박스에 커밋
-        O-->>G: CheckoutResponse
-        G-->>C: Order + Payment + Shipment
+        O->>O: COMPLETED + 사건 커밋
+        O-->>G: SUCCEEDED
     else 매입 전 실패
         O->>Ship: POST /internal/shipments/{id}/cancel
         O->>Pay: POST /internal/payments/{id}/cancel
         O->>Inv: POST /internal/reservations/{id}/release
-        O->>O: Cancel Order (사건을 아웃박스에 커밋)
-        O-->>G: 402 payment_declined 또는 409 conflict
-        G-->>C: error
+        O->>O: FAILED + 취소 사건 커밋
+        O-->>G: FAILED
+    else 일시 장애 또는 프로세스 종료
+        O-->>G: PROCESSING + orderId
+        W->>O: 진행 상태 점유
+        W->>Inv: 저장된 단계부터 재개
+        C->>G: GET /orders/{orderId}/checkout-result
+        G->>O: GET /orders/{orderId}/checkout-result
+        O-->>G: 주문 + 결제 + 배송 결과
+        G-->>C: 주문 + 결제 + 배송 결과
     end
+    G-->>C: Order + checkoutStatus
 ```
 
 알림은 이 흐름 안에 없다. 주문은 사건을 아웃박스에 커밋하고 끝나며, 그 뒤는 비동기다

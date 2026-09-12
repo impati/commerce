@@ -37,10 +37,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 주문의 두 사건을 다른 인스턴스가 나눠 갖고, 그러면 <b>둘 다 성공해도</b> 끝나는 순서가 발행
  * 순서가 된다. 실패가 없어도 깨지므로 단일 인스턴스 테스트로는 절대 드러나지 않는다.
  */
-@SpringBootTest(properties = {
-        "orders.event-publish-interval=3600000",
-        "orders.payment-reconcile-interval=3600000"
-})
+@SpringBootTest(properties = "orders.event-publish-interval=3600000")
 @RequiresDatabase
 class OrderEventClaimExclusivityTest {
 

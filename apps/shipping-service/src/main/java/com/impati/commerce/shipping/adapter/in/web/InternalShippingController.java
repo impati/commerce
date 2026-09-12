@@ -37,6 +37,11 @@ public class InternalShippingController {
         return ShipmentResponseMapper.from(shippingUseCase.get(shipmentId));
     }
 
+    @GetMapping("/orders/{orderId}")
+    ShipmentResponse getForOrder(@PathVariable String orderId) {
+        return ShipmentResponseMapper.from(shippingUseCase.getForOrder(orderId));
+    }
+
     @PostMapping("/{shipmentId}/cancel")
     ShipmentResponse cancel(@PathVariable String shipmentId) {
         return ShipmentResponseMapper.from(shippingUseCase.cancel(shipmentId));

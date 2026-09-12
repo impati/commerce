@@ -1,13 +1,13 @@
 # ADR-0009: 결제 미확인 주문을 점유 임차로 정리한다
 
-- **상태:** 승인됨
+- **상태:** 대체됨 ([ADR-0018](0018-durable-checkout-recovery.md))
 - **날짜:** 2026-08-24
 - **해결한 백로그:** BL-0039 결제 미확인으로 표시된 주문을 정리하는 주체가 없다
-- **관련:** [PD-0015](../policy/pd-0015-unconfirmed-payment-reconciliation.md), [PD-0012](../policy/pd-0012-checkout-and-compensation.md), [PD-0011](../policy/pd-0011-payment-authorization-and-capture.md)
+- **관련:** [PD-0017](../policy/pd-0017-checkout-execution-and-recovery.md), [PD-0011](../policy/pd-0011-payment-authorization-and-capture.md)
 
 ## 맥락과 의도
 
-[PD-0015](../policy/pd-0015-unconfirmed-payment-reconciliation.md)가 무엇이 참이어야 하는지를 정했다 — 표시된 주문은 사람의 개입 없이 정리되고(R1), 한 주문은 같은 시각에 한 번만 정리되며(R7), 실패한 주문은 최소 간격이 지나기 전에 다시 시도되지 않는다(R8). 이 문서는 그것을 어떤 방식으로 구현할지 정한다.
+당시의 PD-0015가 무엇이 참이어야 하는지를 정했다 — 표시된 주문은 사람의 개입 없이 정리되고(R1), 한 주문은 같은 시각에 한 번만 정리되며(R7), 실패한 주문은 최소 간격이 지나기 전에 다시 시도되지 않는다(R8). 해당 정책은 PD-0017로 대체됐으며 이전 내용은 Git 이력에 남아 있다.
 
 세 요구가 서로 얽혀 있다. **인스턴스는 여러 개로 뜬다고 전제한다.** 그러면 배타성이 필요하고, 배타성 없이 백오프만 두면 인스턴스 수만큼 요청이 곱해진다. 반대로 배타성만 두고 백오프가 없으면 결제 서비스 장애 중에 밀린 건수에 비례한 부하가 그 서비스로 간다.
 
@@ -87,4 +87,4 @@ update orders
 - 표시된 주문이 쌓인 것을 알아채지 못한 사례가 생길 때. 관측 수단을 붙여야 한다.
 - 같은 성격의 운영 컬럼이 주문 테이블에 추가될 때. 별도 테이블로 빼는 선택지가 다시 열린다.
 - [common-http](../../libs/common-http)에 서킷 브레이커가 들어올 때. 최소 간격의 값이 달라질 수 있다.
-- 정리 대상이 결제 외로 넓어질 때 ([PD-0015-R10](../policy/pd-0015-unconfirmed-payment-reconciliation.md)).
+- 정리 대상이 결제 외로 넓어질 때. 이 조건으로 ADR-0018에서 실제 재검토했다.

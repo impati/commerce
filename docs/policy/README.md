@@ -29,11 +29,10 @@
 | [0001](pd-0001-signup-and-email-verification.md) | 가입과 이메일 소유 확인 |
 | [0003](pd-0003-order-lifecycle-and-cancellation.md) | 주문 생애주기와 취소 |
 | [0005](pd-0005-inventory-reservation.md) | 재고 예약과 가용 수량 |
-| [0006](pd-0006-cart-composition.md) | 장바구니 구성 |
 | [0007](pd-0007-product-exposure-and-search.md) | 상품 노출과 검색 |
 | [0011](pd-0011-payment-authorization-and-capture.md) | 결제 승인과 매입 |
-| [0012](pd-0012-checkout-and-compensation.md) | 체크아웃 성립과 실패 보상 |
 | [0013](pd-0013-shipment-progress-and-cancellation.md) | 배송 진행과 취소 |
 | [0014](pd-0014-login-rejection-and-session-lifetime.md) | 로그인 거절과 세션 수명 |
-| [0015](pd-0015-unconfirmed-payment-reconciliation.md) | 결제 미확인 주문의 정리 |
 | [0016](pd-0016-notification-delivery.md) | 알림 기록과 발송 |
+| [0017](pd-0017-checkout-execution-and-recovery.md) | 체크아웃 실행과 복구 |
+| [0018](pd-0018-cart-checkout-snapshot.md) | 장바구니와 구매 스냅샷 |

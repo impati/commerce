@@ -55,6 +55,16 @@ class PaymentExecutorTest {
         assertThat(second.transactionId()).isEqualTo(first.transactionId());
     }
 
+    @Test
+    void authorizingTheSameOrderWithAnotherAmountIsRejected() {
+        payments.authorize("ord_changed_amount", "mem_a", AMOUNT, OK_TOKEN);
+
+        assertThatThrownBy(() -> payments.authorize(
+                "ord_changed_amount", "mem_a", Money.krw(1_000), OK_TOKEN))
+                .isInstanceOfSatisfying(DomainException.class,
+                        failure -> assertThat(failure.code()).isEqualTo("conflict"));
+    }
+
     /**
      * PD-0011-R2: 이미 매입된 주문에 승인을 다시 요청해도 새 결제가 생기지 않는다.
      *
@@ -212,6 +222,17 @@ class PaymentExecutorTest {
         payments.capture(authorized.id());
 
         assertThat(payments.get(authorized.id()).status()).isEqualTo("CAPTURED");
+        assertThat(payments.getForOrder("ord_lookup").id()).isEqualTo(authorized.id());
+    }
+
+    /** 주문에 결제가 없다는 조회 결과는 복구 로직이 미생성 상태로 판별할 수 있어야 한다. */
+    @Test
+    void missingPaymentForOrderIsNotFound() {
+        assertThatThrownBy(() -> payments.getForOrder("ord_without_payment"))
+                .isInstanceOfSatisfying(DomainException.class, failure -> {
+                    assertThat(failure.code()).isEqualTo("not_found");
+                    assertThat(failure.status()).isEqualTo(404);
+                });
     }
 
     /** PD-0011-R5: 결제 수단은 카드로 고정한다. */

@@ -12,7 +12,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-import java.time.Duration;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -95,122 +94,6 @@ class JdbcOrderRepositoryTest {
         assertThat(orderRepository.findById("ord_never_saved")).isEmpty();
     }
 
-    /** PD-0012-R12: 매입 결과를 확인하지 못한 주문은 표시가 남고 다시 찾힌다. */
-    @Test
-    void keepsAndFindsTheUnknownPaymentOutcomeMark() {
-        var order = newOrder();
-        order.attachPayment("pay_unknown");
-        order.cancel("test");
-        order.markPaymentOutcomeUnknown();
-        orderChanges.commit(order);
-
-        assertThat(orderRepository.findById(order.id()).orElseThrow().paymentOutcomeUnknown()).isTrue();
-        assertThat(flagColumn(order.id(), "payment_outcome_unknown")).isTrue();
-        assertThat(orderRepository.findPaymentReconciliationCandidates(100)).contains(order.id());
-    }
-
-    /** 정리가 끝난 주문은 다시 조회 대상이 되지 않는다. 아니면 목록이 영원히 줄지 않는다. */
-    @Test
-    void resolvedOrderLeavesTheUnknownPaymentOutcomeList() {
-        var order = newOrder();
-        order.attachPayment("pay_resolved");
-        order.cancel("test");
-        order.markPaymentOutcomeUnknown();
-        orderChanges.commit(order);
-
-        order.resolvePaymentOutcome();
-        orderChanges.commit(order);
-
-        assertThat(flagColumn(order.id(), "payment_outcome_unknown")).isFalse();
-        assertThat(orderRepository.findPaymentReconciliationCandidates(100)).doesNotContain(order.id());
-    }
-
-    /** 평범한 주문에는 표시가 붙지 않는다. 기본값이 반대면 모든 주문이 정리 대상이 된다. */
-    @Test
-    void ordinaryOrderIsNotMarked() {
-        var order = newOrder();
-        orderChanges.commit(order);
-
-        assertThat(flagColumn(order.id(), "payment_outcome_unknown")).isFalse();
-        assertThat(orderRepository.findPaymentReconciliationCandidates(100)).doesNotContain(order.id());
-    }
-
-    /**
-     * [PD-0015-R7] 같은 주문을 두 번 점유할 수 없다.
-     *
-     * <p>정리하는 인스턴스가 여러 개인 것을 전제하므로 이것이 유일한 배타성 수단이다. 깨지면
-     * 장애 중인 결제 서비스에 인스턴스 수만큼 요청이 곱해진다.
-     */
-    @Test
-    void claimSucceedsOnlyOnce() {
-        var order = markedOrder("pay_claim_once");
-
-        var first = orderRepository.claimForPaymentReconciliation(order.id(), Duration.ofMinutes(1));
-        var second = orderRepository.claimForPaymentReconciliation(order.id(), Duration.ofMinutes(1));
-
-        assertThat(first).isPresent();
-        assertThat(second).isEmpty();
-    }
-
-    /** [PD-0015-R8] 점유가 다음 시도 시각을 미래로 밀어 후보에서 빠진다. 이것이 실패 백오프다. */
-    @Test
-    void claimPushesTheOrderOutOfTheCandidateList() {
-        var order = markedOrder("pay_claim_backoff");
-        assertThat(orderRepository.findPaymentReconciliationCandidates(100)).contains(order.id());
-
-        orderRepository.claimForPaymentReconciliation(order.id(), Duration.ofMinutes(1));
-
-        assertThat(column(order.id(), "payment_reconcile_after")).isNotNull();
-        assertThat(orderRepository.findPaymentReconciliationCandidates(100)).doesNotContain(order.id());
-    }
-
-    /** 표시되지 않은 주문은 점유되지 않는다. 정리가 이미 끝난 주문을 다시 집으면 안 된다. */
-    @Test
-    void unmarkedOrderCannotBeClaimed() {
-        var order = newOrder();
-        orderChanges.commit(order);
-
-        assertThat(orderRepository.claimForPaymentReconciliation(order.id(), Duration.ofMinutes(1))).isEmpty();
-    }
-
-    /**
-     * 애그리거트 저장이 점유를 지우지 않는다.
-     *
-     * <p>{@code save}는 행 전체를 덮어쓰는데 점유 컬럼은 도메인에 없다. 그대로 쓰면 정리 중의
-     * 어떤 저장이든 점유를 날려 다른 인스턴스가 같은 주문을 집는다.
-     */
-    @Test
-    void savingAMarkedOrderKeepsTheClaim() {
-        var order = markedOrder("pay_claim_kept");
-        orderRepository.claimForPaymentReconciliation(order.id(), Duration.ofMinutes(1));
-        var claimedAt = column(order.id(), "payment_reconcile_after");
-
-        orderChanges.commit(order);
-
-        assertThat(column(order.id(), "payment_reconcile_after")).isEqualTo(claimedAt);
-    }
-
-    /** 표시가 해제되면 점유도 함께 비워진다. 남겨두면 다시 표시될 때 그 값이 되살아난다. */
-    @Test
-    void resolvingTheMarkClearsTheClaim() {
-        var order = markedOrder("pay_claim_cleared");
-        orderRepository.claimForPaymentReconciliation(order.id(), Duration.ofMinutes(1));
-
-        order.resolvePaymentOutcome();
-        orderChanges.commit(order);
-
-        assertThat(column(order.id(), "payment_reconcile_after")).isNull();
-    }
-
-    private Order markedOrder(String paymentId) {
-        var order = newOrder();
-        order.attachPayment(paymentId);
-        order.cancel("test");
-        order.markPaymentOutcomeUnknown();
-        orderChanges.commit(order);
-        return order;
-    }
-
     /**
      * 각 값이 자기 컬럼에 들어갔는지 직접 확인한다.
      *
@@ -255,15 +138,6 @@ class JdbcOrderRepositoryTest {
         assertThat(first.get("quantity")).isEqualTo(2);
         assertThat(first.get("unit_amount")).isEqualTo(29_000L);
         assertThat(first.get("unit_currency")).isEqualTo("KRW");
-    }
-
-    /** boolean 컬럼은 String으로 읽으면 "TRUE"/"FALSE"가 되므로 타입을 명시해 읽는다. */
-    private boolean flagColumn(String orderId, String columnName) {
-        return Boolean.TRUE.equals(jdbc.queryForObject(
-                "select " + columnName + " from orders where id = ?",
-                Boolean.class,
-                orderId
-        ));
     }
 
     private String column(String orderId, String columnName) {

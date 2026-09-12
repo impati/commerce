@@ -29,13 +29,16 @@
 | [0006](0006-verification-token-in-url-fragment.md) | 이메일 확인 토큰을 URL 프래그먼트로 옮긴다 | 승인됨 |
 | [0007](0007-hybrid-session-tokens.md) | 세션을 단명 서명 토큰과 장수명 세션으로 나눈다 | 승인됨 |
 | [0008](0008-outage-tolerant-identity.md) | 장애로 판정되는 동안 만료된 접근 토큰을 받는다 | 승인됨 |
-| [0009](0009-reconcile-unconfirmed-payments.md) | 결제 미확인 주문을 점유 임차로 정리한다 | 승인됨 |
+| [0009](0009-reconcile-unconfirmed-payments.md) | 결제 미확인 주문을 점유 임차로 정리한다 | 대체됨 ([0018](0018-durable-checkout-recovery.md)) |
 | [0010](0010-verification-mail-outbox.md) | 인증 메일 발송을 아웃박스로 분리한다 | 승인됨 |
 | [0011](0011-deliver-verification-mail-once.md) | 인증 메일을 한 번만 보낸다 | 승인됨 |
 | [0012](0012-order-events-as-outbox.md) | 주문 상태 전이를 사건으로 커밋하고 발행한다 | 승인됨 |
 | [0013](0013-real-database-in-the-harness.md) | 실제 DB 위에서 검증한다 | 승인됨 |
 | [0014](0014-split-api-and-worker-modules.md) | 실행 단위를 API와 워커로 나눈다 | 승인됨 |
 | [0015](0015-outbound-adapters-per-collaborator.md) | 나가는 어댑터를 협력자별 모듈로 나눈다 | 승인됨 |
+| [0016](0016-publish-order-events-to-kafka.md) | 주문 사건을 카프카로 발행한다 | 승인됨 |
+| [0017](0017-publish-timeout-and-relay-isolation.md) | 발행 제한시간과 릴레이 실행 격리를 둔다 | 승인됨 |
+| [0018](0018-durable-checkout-recovery.md) | 체크아웃 진행 상태를 저장하고 API 실행을 워커가 복구한다 | 승인됨 |
 
 ## ADR이 없는 합의
 

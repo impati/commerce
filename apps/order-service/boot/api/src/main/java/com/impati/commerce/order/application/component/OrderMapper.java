@@ -7,6 +7,7 @@ import com.impati.commerce.order.application.port.in.OrderLineDetails;
 import com.impati.commerce.order.domain.OrderModels.Address;
 import com.impati.commerce.order.domain.OrderModels.Order;
 import com.impati.commerce.order.domain.OrderModels.OrderLine;
+import com.impati.commerce.order.domain.CheckoutProgress;
 
 /**
  * 도메인 모델을 유스케이스 결과로 옮긴다. 도메인은 결과 타입을 모른다.
@@ -48,6 +49,10 @@ final class OrderMapper {
     }
 
     static OrderDetails toDetails(Order order) {
+        return toDetails(order, null);
+    }
+
+    static OrderDetails toDetails(Order order, CheckoutProgress progress) {
         var address = order.shippingAddress();
         return new OrderDetails(
                 order.id(),
@@ -67,7 +72,10 @@ final class OrderMapper {
                 ),
                 order.paymentId(),
                 order.shipmentId(),
-                order.inventoryReservationId()
+                order.inventoryReservationId(),
+                progress == null ? null : progress.outcome().name(),
+                progress == null ? null : progress.paymentCleanupStatus(),
+                progress == null ? null : progress.failureCode()
         );
     }
 

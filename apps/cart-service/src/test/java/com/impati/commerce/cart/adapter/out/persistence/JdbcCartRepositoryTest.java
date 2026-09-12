@@ -3,6 +3,7 @@ package com.impati.commerce.cart.adapter.out.persistence;
 import com.impati.commerce.cart.application.port.out.CartRepository;
 import com.impati.commerce.cart.domain.CartModels.Cart;
 import com.impati.commerce.cart.domain.CartModels.CartLine;
+import com.impati.commerce.common.DomainException;
 import com.impati.commerce.test.RequiresDatabase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,6 +11,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest
 @RequiresDatabase
@@ -51,7 +53,7 @@ class JdbcCartRepositoryTest {
         assertThat(loaded.lines().getFirst().quantity()).isEqualTo(9);
     }
 
-    /** [PD-0006-R7] 빈 장바구니와 없는 장바구니는 다르다. clear 후에는 행이 남아 있어야 한다. */
+    /** [PD-0018-R8] 빈 장바구니와 없는 장바구니는 다르다. clear 후에는 행이 남아 있어야 한다. */
     @Test
     void distinguishesEmptyCartFromMissingCart() {
         var cart = new Cart("mem_empty");
@@ -78,5 +80,45 @@ class JdbcCartRepositoryTest {
         assertThat(second.get("sku_id")).isEqualTo("sku_second");
         assertThat(second.get("line_no")).isEqualTo(1);
         assertThat(second.get("quantity")).isEqualTo(7);
+    }
+
+    @Test
+    void checkoutDetachesOneSnapshotAndARepeatDoesNotRemoveNewItems() {
+        var cart = new Cart("mem_checkout_snapshot");
+        cart.add("sku_a", 1);
+        cart.add("sku_b", 2);
+        cartRepository.save(cart);
+
+        var first = cartRepository.checkout("mem_checkout_snapshot", "ord_snapshot", cart.version());
+        var afterDetach = cartRepository.findByMemberId("mem_checkout_snapshot").orElseThrow();
+        afterDetach.add("sku_new", 3);
+        cartRepository.save(afterDetach);
+
+        var repeated = cartRepository.checkout("mem_checkout_snapshot", "ord_snapshot", cart.version());
+
+        assertThat(first.lines()).extracting(CartLine::skuId).containsExactly("sku_a", "sku_b");
+        assertThat(repeated.lines()).extracting(CartLine::skuId).containsExactly("sku_a", "sku_b");
+        assertThat(cartRepository.findByMemberId("mem_checkout_snapshot").orElseThrow().lines())
+                .extracting(CartLine::skuId)
+                .containsExactly("sku_new");
+    }
+
+    @Test
+    void checkoutRejectsAChangedCartWithoutRemovingItsLines() {
+        var cart = new Cart("mem_checkout_changed");
+        cart.add("sku_a", 1);
+        cartRepository.save(cart);
+        var staleVersion = cart.version();
+
+        cart.add("sku_b", 2);
+        cartRepository.save(cart);
+
+        assertThatThrownBy(() -> cartRepository.checkout(
+                "mem_checkout_changed", "ord_changed", staleVersion))
+                .isInstanceOfSatisfying(DomainException.class,
+                        failure -> assertThat(failure.code()).isEqualTo("cart_changed"));
+        assertThat(cartRepository.findByMemberId("mem_checkout_changed").orElseThrow().lines())
+                .extracting(CartLine::skuId)
+                .containsExactly("sku_a", "sku_b");
     }
 }

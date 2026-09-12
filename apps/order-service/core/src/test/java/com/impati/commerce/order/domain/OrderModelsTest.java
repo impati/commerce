@@ -1,7 +1,6 @@
 package com.impati.commerce.order.domain;
 
 import com.impati.commerce.common.ApiContracts.Money;
-import com.impati.commerce.common.DomainException;
 import com.impati.commerce.order.domain.OrderModels.Address;
 import com.impati.commerce.order.domain.OrderModels.Order;
 import com.impati.commerce.order.domain.OrderModels.OrderEvent;
@@ -56,35 +55,6 @@ class OrderModelsTest {
         assertThat(order.status()).isEqualTo("DELIVERED");
         assertThat(order.inventoryReservationId()).isEqualTo("rsv_demo");
         assertThat(order.shippingAddress().recipient()).isEqualTo("Demo Customer");
-    }
-
-    /**
-     * [PD-0015-R2] 결제가 없는 주문은 결제 미확인으로 표시되지 않는다.
-     *
-     * <p>표시의 뜻은 "이 결제가 매입됐는지 모른다"이므로 물어볼 대상이 없으면 성립하지 않는다.
-     * 그런 주문이 표시되면 정리가 무엇을 물어야 할지 알 수 없어 표시가 영영 남는다.
-     */
-    @Test
-    void orderWithoutPaymentCannotBeMarkedUnknown() {
-        var order = newOrder();
-        order.cancel("test");
-
-        assertThatThrownBy(order::markPaymentOutcomeUnknown)
-                .isInstanceOf(DomainException.class);
-    }
-
-    /** [PD-0015-R4][PD-0015-R5] 표시를 해제해도 주문은 취소로 남는다. */
-    @Test
-    void resolvingTheMarkLeavesTheOrderCancelled() {
-        var order = newOrder();
-        order.attachPayment("pay_resolve");
-        order.cancel("test");
-        order.markPaymentOutcomeUnknown();
-
-        order.resolvePaymentOutcome();
-
-        assertThat(order.paymentOutcomeUnknown()).isFalse();
-        assertThat(order.status()).isEqualTo("CANCELLED");
     }
 
     /**

@@ -1,5 +1,8 @@
 const SESSION_KEY = 'impati.session';
 const ACCESS_KEY = 'impati.access';
+const CHECKOUT_KEY = 'impati.checkout.';
+
+export type PendingCheckout = { idempotencyKey: string; orderId?: string };
 
 /**
  * 세션 토큰과 접근 토큰 보관.
@@ -27,5 +30,21 @@ export const session = {
   clear() {
     localStorage.removeItem(SESSION_KEY);
     localStorage.removeItem(ACCESS_KEY);
+  },
+  readPendingCheckout(memberId: string): PendingCheckout | null {
+    const value = localStorage.getItem(CHECKOUT_KEY + memberId);
+    if (!value) return null;
+    try {
+      return JSON.parse(value) as PendingCheckout;
+    } catch {
+      localStorage.removeItem(CHECKOUT_KEY + memberId);
+      return null;
+    }
+  },
+  writePendingCheckout(memberId: string, pending: PendingCheckout) {
+    localStorage.setItem(CHECKOUT_KEY + memberId, JSON.stringify(pending));
+  },
+  clearPendingCheckout(memberId: string) {
+    localStorage.removeItem(CHECKOUT_KEY + memberId);
   }
 };

@@ -9,5 +9,10 @@ import com.impati.commerce.common.ApiContracts.ShipmentResponse;
  * <p>결제와 배송은 다른 서비스가 소유한 개념이라 그쪽 계약을 그대로 담는다. 이 서비스가
  * 만들어내는 것은 주문뿐이고, 그것만 자기 타입으로 표현한다.
  */
-public record CheckoutResult(OrderDetails order, PaymentResponse payment, ShipmentResponse shipment) {
+public record CheckoutResult(
+        OrderDetails order,
+        PaymentResponse payment,
+        ShipmentResponse shipment,
+        boolean newlyAccepted
+) {
 }

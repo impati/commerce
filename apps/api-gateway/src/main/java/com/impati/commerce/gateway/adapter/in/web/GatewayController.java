@@ -27,6 +27,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.ResponseEntity;
 
 import java.util.List;
 import java.util.Map;
@@ -145,11 +146,12 @@ public class GatewayController {
     }
 
     @PostMapping("/checkout")
-    CheckoutResponse checkout(
+    ResponseEntity<CheckoutResponse> checkout(
             @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
             @RequestBody CheckoutRequest request
     ) {
-        return clients.checkout(identity.require(authorization), request);
+        return clients.checkout(identity.require(authorization), idempotencyKey, request);
     }
 
     @GetMapping("/orders/{orderId}")
@@ -158,6 +160,14 @@ public class GatewayController {
             @PathVariable String orderId
     ) {
         return clients.order(identity.require(authorization), orderId);
+    }
+
+    @GetMapping("/orders/{orderId}/checkout-result")
+    CheckoutResponse checkoutResult(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @PathVariable String orderId
+    ) {
+        return clients.checkoutResult(identity.require(authorization), orderId);
     }
 
     @GetMapping("/notifications")

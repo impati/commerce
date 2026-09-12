@@ -40,7 +40,11 @@ public class PaymentExecutor implements PaymentUseCase {
     public AuthorizedPayment authorize(String orderId, String memberId, Money amount, String paymentToken) {
         Optional<Payment> existing = paymentRepository.findByOrderId(orderId);
         if (existing.isPresent()) {
-            return PaymentMapper.toAuthorized(existing.get());
+            var payment = existing.get();
+            if (!payment.memberId().equals(memberId) || !payment.amount().equals(amount)) {
+                throw DomainException.conflict("order already has a different payment");
+            }
+            return PaymentMapper.toAuthorized(payment);
         }
 
         var authorization = paymentGateway.authorize(orderId, amount, paymentToken);
@@ -50,7 +54,9 @@ public class PaymentExecutor implements PaymentUseCase {
 
         Payment payment = new Payment(orderId, memberId, amount, authorization.transactionId(), authorization.method());
         if (!paymentRepository.insertIfAbsent(payment)) {
-            return PaymentMapper.toAuthorized(requireByOrder(orderId));
+            return PaymentMapper.toAuthorized(paymentRepository.findByOrderId(orderId)
+                    .orElseThrow(() -> DomainException.conflict(
+                            "payment for order disappeared after concurrent creation: " + orderId)));
         }
         return PaymentMapper.toAuthorized(payment);
     }
@@ -94,6 +100,12 @@ public class PaymentExecutor implements PaymentUseCase {
         return PaymentMapper.toDetails(require(paymentId));
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public PaymentDetails getForOrder(String orderId) {
+        return PaymentMapper.toDetails(requireByOrder(orderId));
+    }
+
     private Payment require(String paymentId) {
         return paymentRepository.findById(paymentId)
                 .orElseThrow(() -> DomainException.notFound("payment not found"));
@@ -101,6 +113,6 @@ public class PaymentExecutor implements PaymentUseCase {
 
     private Payment requireByOrder(String orderId) {
         return paymentRepository.findByOrderId(orderId)
-                .orElseThrow(() -> DomainException.conflict("payment for order disappeared: " + orderId));
+                .orElseThrow(() -> DomainException.notFound("payment not found for order: " + orderId));
     }
 }

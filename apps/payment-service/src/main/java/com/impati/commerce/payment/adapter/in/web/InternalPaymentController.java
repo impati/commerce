@@ -52,4 +52,9 @@ public class InternalPaymentController {
     PaymentResponse get(@PathVariable String paymentId) {
         return PaymentResponseMapper.from(paymentUseCase.get(paymentId));
     }
+
+    @GetMapping("/orders/{orderId}")
+    PaymentResponse getForOrder(@PathVariable String orderId) {
+        return PaymentResponseMapper.from(paymentUseCase.getForOrder(orderId));
+    }
 }

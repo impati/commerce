@@ -18,7 +18,7 @@ try {
 
 삼키는 자리가 **어댑터**인 것이 문제다. 응용 계층은 실패했다는 사실 자체를 알 수 없으므로 재시도할 수도, 기록할 수도, 판단할 수도 없다. 프로토콜 오류를 도메인 언어로 옮기는 것이 어댑터의 일인데 여기서는 오류를 옮기는 대신 없앤다.
 
-삼키기로 한 이유 자체는 타당하다. `OrderExecutor`의 알림 호출 네 곳 중 셋은 매입이 끝난 뒤이고([PD-0012-R8](../../policy/pd-0012-checkout-and-compensation.md)), 결제까지 끝난 주문을 알림 실패로 되돌릴 수는 없다. 그러나 "되돌리지 않는다"와 "없던 일로 한다"는 다르다. 지금은 `OrderPaid` · `ShipmentCreated` · `OrderCancelled` · `OrderDelivered` 네 종류가 조용히 사라지고, 사라진 건수를 세는 수단이 없다.
+삼키기로 한 이유 자체는 타당하다. `OrderExecutor`의 알림 호출 네 곳 중 셋은 매입이 끝난 뒤이고, 결제까지 끝난 주문을 알림 실패로 되돌릴 수는 없다. 그러나 "되돌리지 않는다"와 "없던 일로 한다"는 다르다. 지금은 `OrderPaid` · `ShipmentCreated` · `OrderCancelled` · `OrderDelivered` 네 종류가 조용히 사라지고, 사라진 건수를 세는 수단이 없다.
 
 **들어오는 쪽은 같은 요청이 두 건이 된다.** [InternalNotificationController](../../../apps/notification-service/boot/api/src/main/java/com/impati/commerce/notification/adapter/in/web/InternalNotificationController.java)의 `/internal/notifications/events`에는 멱등 키가 없다. `NotificationEventRequest`가 키를 싣지 않고, 받은 요청마다 알림 행을 새로 만든다. 기록만 남기는 알림은 현재 외부로 나가지 않으므로(`Channel.NONE`) 중복의 대가가 메일 두 통은 아니지만, 알림 목록에 같은 사건이 두 줄로 보이고 이 경로에 발송이 붙는 순간 대가가 커진다.
 
