@@ -4,7 +4,6 @@ import com.impati.commerce.common.ApiContracts.Money;
 import com.impati.commerce.common.ApiContracts.PaymentResponse;
 import com.impati.commerce.common.DomainException;
 import com.impati.commerce.order.application.port.out.CartClient;
-import com.impati.commerce.order.application.port.out.CheckoutProgressRepository;
 import com.impati.commerce.order.application.port.out.InventoryClient;
 import com.impati.commerce.order.application.port.out.OperationalAttention;
 import com.impati.commerce.order.application.port.out.OrderRepository;
@@ -50,7 +49,6 @@ class CheckoutExecutionTest {
                 OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(1), 1);
 
         var orders = mock(OrderRepository.class);
-        var progressRepository = mock(CheckoutProgressRepository.class);
         var changes = mock(CheckoutChanges.class);
         var carts = mock(CartClient.class);
         var inventory = mock(InventoryClient.class);
@@ -62,7 +60,7 @@ class CheckoutExecutionTest {
                 .when(inventory).commitReservation("rsv_demo");
 
         new CheckoutExecution(
-                orders, progressRepository, changes, carts, inventory, payments, shipping, attention,
+                orders, changes, carts, inventory, payments, shipping, attention,
                 Clock.systemUTC()).run(progress);
 
         verify(inventory, times(2)).commitReservation("rsv_demo");
@@ -89,7 +87,6 @@ class CheckoutExecutionTest {
                 OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(1), 1);
 
         var orders = mock(OrderRepository.class);
-        var progressRepository = mock(CheckoutProgressRepository.class);
         var changes = mock(CheckoutChanges.class);
         var carts = mock(CartClient.class);
         var inventory = mock(InventoryClient.class);
@@ -103,7 +100,7 @@ class CheckoutExecutionTest {
                 .when(changes).commit(progress, 1);
 
         new CheckoutExecution(
-                orders, progressRepository, changes, carts, inventory, payments, shipping, attention,
+                orders, changes, carts, inventory, payments, shipping, attention,
                 Clock.systemUTC()).run(progress);
 
         verify(payments).capturePayment("pay_demo");

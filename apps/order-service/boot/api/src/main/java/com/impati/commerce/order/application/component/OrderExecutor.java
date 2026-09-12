@@ -15,15 +15,13 @@ import com.impati.commerce.order.application.port.out.MemberClient;
 import com.impati.commerce.order.application.port.out.OrderRepository;
 import com.impati.commerce.order.application.port.out.PaymentClient;
 import com.impati.commerce.order.application.port.out.ShippingClient;
+import com.impati.commerce.order.domain.CheckoutRequestFingerprint;
 import com.impati.commerce.order.domain.CheckoutProgress;
+import com.impati.commerce.order.domain.IdempotencyKey;
 import com.impati.commerce.order.domain.OrderModels.Order;
 import com.impati.commerce.order.domain.OrderModels.OrderLine;
 import org.springframework.stereotype.Component;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.HexFormat;
 import java.util.List;
 
 /** 체크아웃 접수와 주문 조회를 제공한다. 단계 실행은 API와 워커가 공유하는 {@link CheckoutExecution}이 맡는다. */
@@ -67,12 +65,12 @@ public class OrderExecutor implements OrderUseCase {
     @Override
     public CheckoutResult checkout(
             String memberId,
-            String idempotencyKey,
+            IdempotencyKey idempotencyKey,
             String paymentToken,
             String addressId
     ) {
-        validateKey(idempotencyKey);
-        var fingerprint = fingerprint(paymentToken, addressId);
+        validatePaymentToken(paymentToken);
+        var fingerprint = CheckoutRequestFingerprint.from(paymentToken, addressId);
         var existing = progressRepository.findByMemberAndKey(memberId, idempotencyKey);
         if (existing.isPresent()) {
             ensureSameRequest(existing.get(), fingerprint);
@@ -91,8 +89,7 @@ public class OrderExecutor implements OrderUseCase {
         }).toList();
         var orderId = Ids.newId("ord");
         var order = Order.create(orderId, memberId, orderLines, address);
-        var progress = new CheckoutProgress(
-                orderId, memberId, idempotencyKey, fingerprint, paymentToken, cart.version());
+        var progress = new CheckoutProgress(orderId, memberId, idempotencyKey, fingerprint, paymentToken, cart.version());
 
         if (!checkoutChanges.create(order, progress)) {
             var raced = progressRepository.findByMemberAndKey(memberId, idempotencyKey)
@@ -101,13 +98,15 @@ public class OrderExecutor implements OrderUseCase {
             return result(raced, false);
         }
 
-        progressRepository.claim(orderId, CheckoutRecoveryExecutor.LEASE_DURATION)
-                .ifPresent(checkoutExecution::run);
+        progressRepository.claim(orderId, CheckoutRecoveryExecutor.LEASE_DURATION).ifPresent(checkoutExecution::run);
         return result(progressRepository.findByOrderId(orderId).orElseThrow(), true);
     }
 
     private CheckoutResult result(CheckoutProgress progress, boolean newlyAccepted) {
-        var order = order(progress.orderId());
+        return result(order(progress.orderId()), progress, newlyAccepted);
+    }
+
+    private CheckoutResult result(Order order, CheckoutProgress progress, boolean newlyAccepted) {
         PaymentResponse payment = null;
         ShipmentResponse shipment = null;
         if (progress.outcome() == CheckoutProgress.Outcome.SUCCEEDED) {
@@ -126,6 +125,21 @@ public class OrderExecutor implements OrderUseCase {
         var order = order(orderId);
         if (!order.memberId().equals(memberId)) throw DomainException.notFound("order not found");
         return OrderMapper.toDetails(order, progressRepository.findByOrderId(orderId).orElse(null));
+    }
+
+    @Override
+    public CheckoutResult getCheckoutResultOwned(String memberId, String orderId) {
+        var order = order(orderId);
+        if (!order.memberId().equals(memberId)) throw DomainException.notFound("order not found");
+        var progress = progressRepository.findByOrderId(orderId)
+                .orElseThrow(() -> DomainException.notFound("checkout result not found"));
+        if (progress.outcome() == CheckoutProgress.Outcome.SUCCEEDED) {
+            var payment = progress.paymentId() == null ? null : paymentClient.payment(progress.paymentId());
+            var shipment = shippingClient.shipmentForOrder(progress.orderId()).orElseThrow(() ->
+                    DomainException.unavailable("completed checkout shipment is temporarily unavailable"));
+            return new CheckoutResult(OrderMapper.toDetails(order, progress), payment, shipment, false);
+        }
+        return result(order, progress, false);
     }
 
     @Override
@@ -150,25 +164,15 @@ public class OrderExecutor implements OrderUseCase {
                 .orElseThrow(() -> DomainException.notFound("order not found"));
     }
 
-    private static void validateKey(String key) {
-        if (key == null || key.isBlank() || key.length() > 128) {
-            throw DomainException.validation("Idempotency-Key is required and must be at most 128 characters");
+    private static void validatePaymentToken(String paymentToken) {
+        if (paymentToken == null || paymentToken.isBlank() || paymentToken.length() > 255) {
+            throw DomainException.validation("payment token is required and must be at most 255 characters");
         }
     }
 
-    private static void ensureSameRequest(CheckoutProgress existing, String fingerprint) {
+    private static void ensureSameRequest(CheckoutProgress existing, CheckoutRequestFingerprint fingerprint) {
         if (!existing.requestFingerprint().equals(fingerprint)) {
             throw DomainException.conflict("idempotency key was already used for a different checkout request");
-        }
-    }
-
-    private static String fingerprint(String paymentToken, String addressId) {
-        try {
-            var digest = MessageDigest.getInstance("SHA-256");
-            var source = String.valueOf(paymentToken) + "\u0000" + String.valueOf(addressId);
-            return HexFormat.of().formatHex(digest.digest(source.getBytes(StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException impossible) {
-            throw new IllegalStateException(impossible);
         }
     }
 }

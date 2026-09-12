@@ -4,7 +4,9 @@ import com.impati.commerce.common.ApiContracts.Money;
 import com.impati.commerce.order.application.component.OrderChanges;
 import com.impati.commerce.order.application.port.out.CheckoutProgressRepository;
 import com.impati.commerce.order.domain.CheckoutProgress;
+import com.impati.commerce.order.domain.CheckoutRequestFingerprint;
 import com.impati.commerce.order.domain.CheckoutProgress.Stage;
+import com.impati.commerce.order.domain.IdempotencyKey;
 import com.impati.commerce.order.domain.OrderModels.Address;
 import com.impati.commerce.order.domain.OrderModels.Order;
 import com.impati.commerce.order.domain.OrderModels.OrderLine;
@@ -52,10 +54,12 @@ class JdbcCheckoutProgressRepositoryTest {
         var first = savedProgress("mem_key", "same_key");
         var secondOrder = saveOrder("mem_key");
         var second = new CheckoutProgress(
-                secondOrder.id(), "mem_key", "same_key", "b".repeat(64), "card", 1);
+                secondOrder.id(), "mem_key", new IdempotencyKey("same_key"),
+                new CheckoutRequestFingerprint("b".repeat(64)), "card", 1);
 
         assertThat(repository.insertIfAbsent(second)).isFalse();
-        assertThat(repository.findByMemberAndKey("mem_key", "same_key").orElseThrow().orderId())
+        assertThat(repository.findByMemberAndKey("mem_key", new IdempotencyKey("same_key"))
+                .orElseThrow().orderId())
                 .isEqualTo(first.orderId());
     }
 
@@ -74,9 +78,27 @@ class JdbcCheckoutProgressRepositoryTest {
         assertThat(requeued.resumeStage()).isNull();
     }
 
+    @Test
+    void keepsThePaymentTokenUntilAuthorizationAndRemovesItWithTheRecordedPayment() {
+        var progress = savedProgress("mem_token", "key_token");
+        var claimed = repository.claim(progress.orderId(), Duration.ofMinutes(1)).orElseThrow();
+
+        assertThat(repository.findByOrderId(progress.orderId()).orElseThrow().paymentToken()).isEqualTo("card");
+
+        claimed.payment("pay_token");
+        claimed.advance(Stage.PAYMENT_AUTHORIZED);
+        assertThat(repository.save(claimed, claimed.leaseGeneration())).isTrue();
+
+        var saved = repository.findByOrderId(progress.orderId()).orElseThrow();
+        assertThat(saved.paymentId()).isEqualTo("pay_token");
+        assertThat(saved.paymentToken()).isNull();
+    }
+
     private CheckoutProgress savedProgress(String memberId, String key) {
         var order = saveOrder(memberId);
-        var progress = new CheckoutProgress(order.id(), memberId, key, "a".repeat(64), "card", 1);
+        var progress = new CheckoutProgress(
+                order.id(), memberId, new IdempotencyKey(key),
+                new CheckoutRequestFingerprint("a".repeat(64)), "card", 1);
         assertThat(repository.insertIfAbsent(progress)).isTrue();
         return progress;
     }

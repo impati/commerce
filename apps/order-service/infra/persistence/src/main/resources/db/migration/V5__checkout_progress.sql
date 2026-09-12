@@ -3,7 +3,7 @@ create table checkout_progress (
     member_id              varchar(64)  not null,
     idempotency_key        varchar(128) not null,
     request_fingerprint    varchar(64)  not null,
-    payment_token          varchar(255) not null,
+    payment_token          varchar(255),
     expected_cart_version  bigint       not null,
     stage                  varchar(32)  not null,
     outcome                varchar(32)  not null,

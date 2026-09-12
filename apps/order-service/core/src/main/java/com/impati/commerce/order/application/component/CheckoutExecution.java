@@ -36,7 +36,6 @@ public class CheckoutExecution {
     private static final Duration RETRY_DELAY = Duration.ofSeconds(30);
 
     private final OrderRepository orderRepository;
-    private final CheckoutProgressRepository progressRepository;
     private final CheckoutChanges checkoutChanges;
     private final CartClient cartClient;
     private final InventoryClient inventoryClient;
@@ -47,7 +46,6 @@ public class CheckoutExecution {
 
     public CheckoutExecution(
             OrderRepository orderRepository,
-            CheckoutProgressRepository progressRepository,
             CheckoutChanges checkoutChanges,
             CartClient cartClient,
             InventoryClient inventoryClient,
@@ -57,7 +55,6 @@ public class CheckoutExecution {
             Clock clock
     ) {
         this.orderRepository = orderRepository;
-        this.progressRepository = progressRepository;
         this.checkoutChanges = checkoutChanges;
         this.cartClient = cartClient;
         this.inventoryClient = inventoryClient;
@@ -90,8 +87,7 @@ public class CheckoutExecution {
         while (true) {
             switch (progress.stage()) {
                 case ACCEPTED -> {
-                    retryOnce(() -> cartClient.checkout(
-                            progress.memberId(), progress.orderId(), progress.expectedCartVersion()));
+                    retryOnce(() -> cartClient.checkout(progress.memberId(), progress.orderId(), progress.expectedCartVersion()));
                     progress.advance(Stage.CART_DETACHED);
                     checkoutChanges.commit(progress, progress.leaseGeneration());
                 }
@@ -185,6 +181,9 @@ public class CheckoutExecution {
     }
 
     private void compensate(CheckoutProgress progress) {
+        // 진행 단계보다 외부 효과가 앞서 있을 수 있으므로 주문에 연결된 모든 자원을 확인한다.
+        // 조회와 종단 명령은 멱등하며, 일시 실패는 진행 상태에 남겨 전체 정리를 다시 시도한다.
+        progress.discardPaymentToken();
         var failures = new ArrayList<RuntimeException>();
         var shipment = attempt(() -> shippingClient.shipmentForOrder(progress.orderId()).orElse(null), failures);
         if (shipment != null && !shipment.status().equals("CANCELLED")) {

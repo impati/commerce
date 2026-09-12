@@ -1,6 +1,7 @@
 package com.impati.commerce.order.application.port.out;
 
 import com.impati.commerce.order.domain.CheckoutProgress;
+import com.impati.commerce.order.domain.IdempotencyKey;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -10,7 +11,7 @@ import java.util.Optional;
 public interface CheckoutProgressRepository {
     Optional<CheckoutProgress> findByOrderId(String orderId);
 
-    Optional<CheckoutProgress> findByMemberAndKey(String memberId, String idempotencyKey);
+    Optional<CheckoutProgress> findByMemberAndKey(String memberId, IdempotencyKey idempotencyKey);
 
     boolean insertIfAbsent(CheckoutProgress progress);
 

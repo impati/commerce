@@ -121,7 +121,7 @@ class CheckoutSagaTest {
         stubShipmentCreation();
         stubCapture();
         stubCommitReservation();
-        stubSuccessDecoration(2);
+        stubSuccessDecoration(3);
 
         var first = mockMvc.perform(checkout("checkout-key", "card_success"))
                 .andExpect(status().isCreated())
@@ -137,12 +137,27 @@ class CheckoutSagaTest {
                 .andExpect(jsonPath("$.order.id").value(acceptedOrderId))
                 .andExpect(jsonPath("$.order.checkoutStatus").value("SUCCEEDED"));
 
+        mockMvc.perform(get("/orders/{orderId}/checkout-result", acceptedOrderId)
+                        .header("X-Member-Id", MEMBER_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.order.id").value(acceptedOrderId))
+                .andExpect(jsonPath("$.shipment.id").value(SHIPMENT_ID));
+
+        mockMvc.perform(get("/orders/{orderId}/checkout-result", acceptedOrderId)
+                        .header("X-Member-Id", "mem_other"))
+                .andExpect(status().isNotFound());
+
         mockMvc.perform(checkout("checkout-key", "another_card"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("conflict"));
 
         assertThat(eventTypes(acceptedOrderId))
                 .containsExactly("ORDER_CREATED", "ORDER_PAID", "SHIPMENT_CREATED");
+        assertThat(jdbc.queryForObject(
+                "select payment_token from checkout_progress where order_id = ?",
+                String.class,
+                acceptedOrderId
+        )).isNull();
     }
 
     @Test
@@ -189,6 +204,7 @@ class CheckoutSagaTest {
         stubShipmentCreation();
         stubCapture();
         stubCommitReservation();
+        stubSuccessDecoration(1);
 
         mockMvc.perform(checkout("recover-key", "card_success"))
                 .andExpect(status().isAccepted())
@@ -197,10 +213,12 @@ class CheckoutSagaTest {
         releaseForRecovery(orderId.get());
 
         assertThat(recovery.recover(10)).isEqualTo(1);
-        mockMvc.perform(get("/orders/{orderId}", orderId.get()).header("X-Member-Id", MEMBER_ID))
+        mockMvc.perform(get("/orders/{orderId}/checkout-result", orderId.get())
+                        .header("X-Member-Id", MEMBER_ID))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.checkoutStatus").value("SUCCEEDED"))
-                .andExpect(jsonPath("$.status").value("FULFILLING"));
+                .andExpect(jsonPath("$.order.checkoutStatus").value("SUCCEEDED"))
+                .andExpect(jsonPath("$.order.status").value("FULFILLING"))
+                .andExpect(jsonPath("$.shipment.id").value(SHIPMENT_ID));
     }
 
     @Test

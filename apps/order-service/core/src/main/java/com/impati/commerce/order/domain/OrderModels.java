@@ -266,7 +266,8 @@ public final class OrderModels {
         private void recordCreated() {
             record(OrderEventType.ORDER_CREATED, Map.of(
                     "totalAmount", String.valueOf(total().amount()),
-                    "totalCurrency", total().currency()));
+                    "totalCurrency", total().currency()
+            ));
         }
 
         private Order(String id, String memberId, List<OrderLine> lines, Address shippingAddress) {

@@ -209,6 +209,14 @@ public class GatewayClients {
                 .body(OrderResponse.class);
     }
 
+    public CheckoutResponse checkoutResult(String memberId, String orderId) {
+        return orders.get()
+                .uri("/orders/{orderId}/checkout-result", orderId)
+                .header(MEMBER_ID_HEADER, memberId)
+                .retrieve()
+                .body(CheckoutResponse.class);
+    }
+
     public OrderResponse markDelivered(String orderId) {
         return orders.post().uri("/orders/{orderId}/delivered", orderId).retrieve().body(OrderResponse.class);
     }

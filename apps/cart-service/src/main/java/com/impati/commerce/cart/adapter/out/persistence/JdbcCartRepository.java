@@ -107,8 +107,7 @@ public class JdbcCartRepository implements CartRepository {
     @Transactional
     public Cart checkout(String memberId, String orderId, long expectedVersion) {
         var memberParams = new MapSqlParameterSource("member_id", memberId);
-        var locked = jdbc.query(LOCK_CART, memberParams,
-                (rs, rowNum) -> Cart.restore(rs.getString("member_id"), rs.getLong("version")));
+        var locked = jdbc.query(LOCK_CART, memberParams, (rs, rowNum) -> Cart.restore(rs.getString("member_id"), rs.getLong("version")));
         if (locked.isEmpty()) {
             throw DomainException.cartEmpty("cart is empty");
         }
@@ -132,8 +131,7 @@ public class JdbcCartRepository implements CartRepository {
         if (cart.version() != expectedVersion) {
             throw DomainException.cartChanged("cart changed after checkout started");
         }
-        jdbc.query(SELECT_LINES, memberParams,
-                        (rs, rowNum) -> Map.entry(rs.getString("sku_id"), rs.getInt("quantity")))
+        jdbc.query(SELECT_LINES, memberParams, (rs, rowNum) -> Map.entry(rs.getString("sku_id"), rs.getInt("quantity")))
                 .forEach(line -> cart.restoreLine(line.getKey(), line.getValue()));
         if (cart.lines().isEmpty()) {
             throw DomainException.cartEmpty("cart is empty");

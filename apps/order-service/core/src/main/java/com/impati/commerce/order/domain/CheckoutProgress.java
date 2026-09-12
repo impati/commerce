@@ -24,9 +24,9 @@ public final class CheckoutProgress {
 
     private final String orderId;
     private final String memberId;
-    private final String idempotencyKey;
-    private final String requestFingerprint;
-    private final String paymentToken;
+    private final IdempotencyKey idempotencyKey;
+    private final CheckoutRequestFingerprint requestFingerprint;
+    private String paymentToken;
     private final long expectedCartVersion;
     private Stage stage;
     private Outcome outcome;
@@ -45,8 +45,8 @@ public final class CheckoutProgress {
     public CheckoutProgress(
             String orderId,
             String memberId,
-            String idempotencyKey,
-            String requestFingerprint,
+            IdempotencyKey idempotencyKey,
+            CheckoutRequestFingerprint requestFingerprint,
             String paymentToken,
             long expectedCartVersion
     ) {
@@ -56,7 +56,8 @@ public final class CheckoutProgress {
     }
 
     private CheckoutProgress(
-            String orderId, String memberId, String idempotencyKey, String requestFingerprint,
+            String orderId, String memberId, IdempotencyKey idempotencyKey,
+            CheckoutRequestFingerprint requestFingerprint,
             String paymentToken, long expectedCartVersion, Stage stage, Outcome outcome,
             String failureCode, String paymentCleanupStatus, String lastError,
             String reservationId, String paymentId, String shipmentId, String trackingNumber,
@@ -90,7 +91,8 @@ public final class CheckoutProgress {
             String reservationId, String paymentId, String shipmentId, String trackingNumber,
             OffsetDateTime nextAttemptAt, OffsetDateTime leaseUntil, long leaseGeneration
     ) {
-        return new CheckoutProgress(orderId, memberId, idempotencyKey, requestFingerprint,
+        return new CheckoutProgress(orderId, memberId, new IdempotencyKey(idempotencyKey),
+                new CheckoutRequestFingerprint(requestFingerprint),
                 paymentToken, expectedCartVersion, Stage.valueOf(stage), Outcome.valueOf(outcome),
                 failureCode, paymentCleanupStatus, lastError, reservationId, paymentId, shipmentId,
                 trackingNumber, null, nextAttemptAt, leaseUntil, leaseGeneration);
@@ -103,7 +105,8 @@ public final class CheckoutProgress {
             String reservationId, String paymentId, String shipmentId, String trackingNumber,
             String resumeStage, OffsetDateTime nextAttemptAt, OffsetDateTime leaseUntil, long leaseGeneration
     ) {
-        return new CheckoutProgress(orderId, memberId, idempotencyKey, requestFingerprint,
+        return new CheckoutProgress(orderId, memberId, new IdempotencyKey(idempotencyKey),
+                new CheckoutRequestFingerprint(requestFingerprint),
                 paymentToken, expectedCartVersion, Stage.valueOf(stage), Outcome.valueOf(outcome),
                 failureCode, paymentCleanupStatus, lastError, reservationId, paymentId, shipmentId,
                 trackingNumber, resumeStage == null ? null : Stage.valueOf(resumeStage),
@@ -112,8 +115,8 @@ public final class CheckoutProgress {
 
     public String orderId() { return orderId; }
     public String memberId() { return memberId; }
-    public String idempotencyKey() { return idempotencyKey; }
-    public String requestFingerprint() { return requestFingerprint; }
+    public IdempotencyKey idempotencyKey() { return idempotencyKey; }
+    public CheckoutRequestFingerprint requestFingerprint() { return requestFingerprint; }
     public String paymentToken() { return paymentToken; }
     public long expectedCartVersion() { return expectedCartVersion; }
     public Stage stage() { return stage; }
@@ -142,7 +145,10 @@ public final class CheckoutProgress {
     }
 
     public void reservation(String reservationId) { this.reservationId = reservationId; }
-    public void payment(String paymentId) { this.paymentId = paymentId; }
+    public void payment(String paymentId) {
+        this.paymentId = paymentId;
+        this.paymentToken = null;
+    }
     public void shipment(String shipmentId, String trackingNumber) {
         this.shipmentId = shipmentId;
         this.trackingNumber = trackingNumber;
@@ -154,6 +160,7 @@ public final class CheckoutProgress {
     }
 
     public void compensate(String failureCode, String error, boolean paymentMayBeCaptured) {
+        this.paymentToken = null;
         this.stage = Stage.COMPENSATING;
         this.outcome = Outcome.FAILED;
         this.failureCode = failureCode;
@@ -165,6 +172,7 @@ public final class CheckoutProgress {
     public void paymentCleanup(String status) { this.paymentCleanupStatus = status; }
 
     public void fail() {
+        this.paymentToken = null;
         this.stage = Stage.FAILED;
         this.outcome = Outcome.FAILED;
         this.paymentCleanupStatus = "DONE";
@@ -174,6 +182,7 @@ public final class CheckoutProgress {
     }
 
     public void succeed() {
+        this.paymentToken = null;
         this.stage = Stage.COMPLETED;
         this.outcome = Outcome.SUCCEEDED;
         this.paymentCleanupStatus = "NONE";
@@ -188,6 +197,10 @@ public final class CheckoutProgress {
         this.lastError = truncate(error);
         this.nextAttemptAt = null;
         this.leaseUntil = null;
+    }
+
+    public void discardPaymentToken() {
+        this.paymentToken = null;
     }
 
     private static String truncate(String value) {

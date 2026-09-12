@@ -4,6 +4,7 @@ import com.impati.commerce.common.ApiContracts.CheckoutRequest;
 import com.impati.commerce.common.ApiContracts.CheckoutResponse;
 import com.impati.commerce.common.ApiContracts.OrderResponse;
 import com.impati.commerce.order.application.port.in.OrderUseCase;
+import com.impati.commerce.order.domain.IdempotencyKey;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -35,7 +36,7 @@ public class OrderController {
             @RequestBody CheckoutRequest request
     ) {
         var result = orderUseCase.checkout(
-                memberId, idempotencyKey, request.paymentToken(), request.addressId());
+                memberId, new IdempotencyKey(idempotencyKey), request.paymentToken(), request.addressId());
         var response = OrderResponseMapper.from(result);
         if ("PROCESSING".equals(result.order().checkoutStatus())) {
             return ResponseEntity.accepted().body(response);
@@ -46,6 +47,14 @@ public class OrderController {
     @GetMapping("/orders/{orderId}")
     OrderResponse order(@RequestHeader("X-Member-Id") String memberId, @PathVariable String orderId) {
         return OrderResponseMapper.from(orderUseCase.getOwned(memberId, orderId));
+    }
+
+    @GetMapping("/orders/{orderId}/checkout-result")
+    CheckoutResponse checkoutResult(
+            @RequestHeader("X-Member-Id") String memberId,
+            @PathVariable String orderId
+    ) {
+        return OrderResponseMapper.from(orderUseCase.getCheckoutResultOwned(memberId, orderId));
     }
 
     /** shipping 흐름에서 게이트웨이가 부르는 내부 경로. 배송 완료 처리는 회원 요청이 아니다. */

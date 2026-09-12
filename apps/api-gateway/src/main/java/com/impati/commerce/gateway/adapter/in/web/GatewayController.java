@@ -162,6 +162,14 @@ public class GatewayController {
         return clients.order(identity.require(authorization), orderId);
     }
 
+    @GetMapping("/orders/{orderId}/checkout-result")
+    CheckoutResponse checkoutResult(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @PathVariable String orderId
+    ) {
+        return clients.checkoutResult(identity.require(authorization), orderId);
+    }
+
     @GetMapping("/notifications")
     List<NotificationResponse> notifications(
             @RequestHeader(value = "Authorization", required = false) String authorization

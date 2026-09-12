@@ -2,6 +2,7 @@ package com.impati.commerce.order.adapter.out.persistence;
 
 import com.impati.commerce.order.application.port.out.CheckoutProgressRepository;
 import com.impati.commerce.order.domain.CheckoutProgress;
+import com.impati.commerce.order.domain.IdempotencyKey;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -45,6 +46,7 @@ public class JdbcCheckoutProgressRepository implements CheckoutProgressRepositor
             update checkout_progress
                set stage = :stage,
                    outcome = :outcome,
+                   payment_token = :payment_token,
                    failure_code = :failure_code,
                    payment_cleanup_status = :payment_cleanup_status,
                    last_error = :last_error,
@@ -117,10 +119,10 @@ public class JdbcCheckoutProgressRepository implements CheckoutProgressRepositor
 
     @Override
     @Transactional(readOnly = true)
-    public Optional<CheckoutProgress> findByMemberAndKey(String memberId, String idempotencyKey) {
+    public Optional<CheckoutProgress> findByMemberAndKey(String memberId, IdempotencyKey idempotencyKey) {
         return jdbc.query(SELECT_BY_KEY, new MapSqlParameterSource()
                         .addValue("member_id", memberId)
-                        .addValue("idempotency_key", idempotencyKey), ROW_MAPPER)
+                        .addValue("idempotency_key", idempotencyKey.value()), ROW_MAPPER)
                 .stream().findFirst();
     }
 
@@ -174,8 +176,8 @@ public class JdbcCheckoutProgressRepository implements CheckoutProgressRepositor
         return new MapSqlParameterSource()
                 .addValue("order_id", progress.orderId())
                 .addValue("member_id", progress.memberId())
-                .addValue("idempotency_key", progress.idempotencyKey())
-                .addValue("request_fingerprint", progress.requestFingerprint())
+                .addValue("idempotency_key", progress.idempotencyKey().value())
+                .addValue("request_fingerprint", progress.requestFingerprint().value())
                 .addValue("payment_token", progress.paymentToken())
                 .addValue("expected_cart_version", progress.expectedCartVersion())
                 .addValue("stage", progress.stage().name())
