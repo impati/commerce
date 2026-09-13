@@ -4,21 +4,21 @@ import com.impati.commerce.inventory.application.port.out.InventoryRepository;
 import com.impati.commerce.inventory.domain.InventoryModels.Reservation;
 import com.impati.commerce.inventory.domain.InventoryModels.ReservedLine;
 import com.impati.commerce.inventory.domain.InventoryModels.StockItem;
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.Optional;
-
 /**
  * 이름 바인딩만 쓴다. 위치 기반 {@code ?}는 타입이 같은 인접 컬럼의 값이 뒤바뀌어도 잡히지 않는다.
  */
 @Repository
 public class JdbcInventoryRepository implements InventoryRepository {
+
     private static final String SELECT_STOCK =
             "select sku_id, on_hand, reserved from stock_items where sku_id = :sku_id";
     private static final String SELECT_ALL_STOCK =
@@ -46,7 +46,7 @@ public class JdbcInventoryRepository implements InventoryRepository {
             """;
 
     private static final String SELECT_RESERVATION =
-            "select id, order_id, status from reservations where id = :id";
+            "select id, order_id, status from reservations where id = :id for update";
     private static final String SELECT_RESERVATION_BY_ORDER =
             "select id, order_id, status from reservations where order_id = :order_id";
     private static final String INSERT_RESERVATION = """
@@ -145,8 +145,8 @@ public class JdbcInventoryRepository implements InventoryRepository {
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public Optional<Reservation> findReservation(String reservationId) {
+    @Transactional
+    public Optional<Reservation> findReservationForUpdate(String reservationId) {
         return jdbc.query(
                         SELECT_RESERVATION,
                         new MapSqlParameterSource("id", reservationId),

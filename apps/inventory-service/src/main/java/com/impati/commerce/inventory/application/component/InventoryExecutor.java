@@ -9,12 +9,11 @@ import com.impati.commerce.inventory.application.port.out.InventoryRepository;
 import com.impati.commerce.inventory.domain.InventoryModels.Reservation;
 import com.impati.commerce.inventory.domain.InventoryModels.ReservedLine;
 import com.impati.commerce.inventory.domain.InventoryModels.StockItem;
-import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 재고 변경은 모두 트랜잭션 안에서 대상 행을 잠근 뒤 수행한다.
@@ -24,6 +23,7 @@ import java.util.Map;
  */
 @Component
 public class InventoryExecutor implements InventoryUseCase {
+
     private final InventoryRepository inventoryRepository;
 
     public InventoryExecutor(InventoryRepository inventoryRepository) {
@@ -78,7 +78,8 @@ public class InventoryExecutor implements InventoryUseCase {
     @Transactional
     @Override
     public ReservationDetails commit(String reservationId) {
-        var reservation = getReservation(reservationId);
+        var reservation = inventoryRepository.findReservationForUpdate(reservationId)
+                .orElseThrow(() -> DomainException.notFound("reservation not found"));
         if (reservation.status().equals("COMMITTED")) {
             return InventoryMapper.toDetails(reservation);
         }
@@ -99,7 +100,8 @@ public class InventoryExecutor implements InventoryUseCase {
     @Transactional
     @Override
     public ReservationDetails release(String reservationId) {
-        var reservation = getReservation(reservationId);
+        var reservation = inventoryRepository.findReservationForUpdate(reservationId)
+                .orElseThrow(() -> DomainException.notFound("reservation not found"));
         if (reservation.status().equals("RELEASED")) {
             return InventoryMapper.toDetails(reservation);
         }
@@ -137,7 +139,9 @@ public class InventoryExecutor implements InventoryUseCase {
         return InventoryMapper.toDetails(existing);
     }
 
-    /** 시드가 이미 들어가 있는지 확인한다. 파일 DB에서는 재시작마다 시드를 넣으면 재고가 늘어난다. */
+    /**
+     * 시드가 이미 들어가 있는지 확인한다. 파일 DB에서는 재시작마다 시드를 넣으면 재고가 늘어난다.
+     */
     @Transactional(readOnly = true)
     @Override
     public boolean isEmpty() {
@@ -157,10 +161,5 @@ public class InventoryExecutor implements InventoryUseCase {
             throw DomainException.notFound("stock not found for " + skuId);
         }
         return stock;
-    }
-
-    private Reservation getReservation(String reservationId) {
-        return inventoryRepository.findReservation(reservationId)
-                .orElseThrow(() -> DomainException.notFound("reservation not found"));
     }
 }

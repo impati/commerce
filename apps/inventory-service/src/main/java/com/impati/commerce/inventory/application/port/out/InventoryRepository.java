@@ -32,7 +32,7 @@ public interface InventoryRepository {
 
     void saveReservation(Reservation reservation);
 
-    Optional<Reservation> findReservation(String reservationId);
+    Optional<Reservation> findReservationForUpdate(String reservationId);
 
     Optional<Reservation> findReservationByOrderId(String orderId);
 }
