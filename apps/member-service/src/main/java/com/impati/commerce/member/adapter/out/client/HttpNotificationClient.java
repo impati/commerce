@@ -2,6 +2,7 @@ package com.impati.commerce.member.adapter.out.client;
 
 import com.impati.commerce.common.ApiContracts.EmailVerificationMailRequest;
 import com.impati.commerce.member.application.port.out.NotificationClient;
+import com.impati.commerce.http.RestClientFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -11,10 +12,10 @@ public class HttpNotificationClient implements NotificationClient {
     private final RestClient restClient;
 
     public HttpNotificationClient(
-            RestClient.Builder builder,
+            RestClientFactory restClients,
             @Value("${clients.notification.url}") String baseUrl
     ) {
-        this.restClient = builder.baseUrl(baseUrl).build();
+        this.restClient = restClients.forBaseUrl(baseUrl);
     }
 
     @Override

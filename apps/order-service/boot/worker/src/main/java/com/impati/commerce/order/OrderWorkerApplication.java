@@ -2,6 +2,7 @@ package com.impati.commerce.order;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.web.client.RestClientAutoConfiguration;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
@@ -14,7 +15,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  * <p>인스턴스를 몇 개 띄우든 같은 작업을 두 번 하지 않는다. 그 성질은 저장소의 점유가 만들고
  * 실행 단위 구성과 무관하다 (ADR-0011, ADR-0012).
  */
-@SpringBootApplication
+@SpringBootApplication(exclude = RestClientAutoConfiguration.class)
 @EnableScheduling
 public class OrderWorkerApplication {
     public static void main(String[] args) {

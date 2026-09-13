@@ -115,7 +115,12 @@ configure([project(':apps:member-service'), project(':apps:api-gateway')]) {
 }
 
 configure([
-        project(':apps:order-service:infra:client:core'),
+        project(':apps:order-service:infra:client:member'),
+        project(':apps:order-service:infra:client:cart'),
+        project(':apps:order-service:infra:client:catalog'),
+        project(':apps:order-service:infra:client:inventory'),
+        project(':apps:order-service:infra:client:payment'),
+        project(':apps:order-service:infra:client:shipping'),
         project(':apps:api-gateway'),
         project(':apps:display-service'),
         project(':apps:cart-service'),
@@ -176,19 +181,6 @@ project(':apps:order-service:infra:publisher:kafka') {
         implementation 'org.springframework.kafka:spring-kafka'
 
         testImplementation project(':libs:test-kafka')
-    }
-}
-
-// 클라이언트들이 공유하는 것은 RestClient 빌더 정책 하나다.
-configure(orderClients.collect { project(":apps:order-service:infra:client:$it") }) {
-    dependencies {
-        implementation project(':apps:order-service:infra:client:core')
-    }
-}
-
-project(':apps:order-service:infra:client:core') {
-    dependencies {
-        implementation project(':apps:order-service:core')
     }
 }
 

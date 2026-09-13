@@ -23,6 +23,8 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
 import com.impati.commerce.common.DomainException;
 import com.impati.commerce.gateway.support.MemberServiceAvailability;
+import com.impati.commerce.http.RestClientFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.client.RestClient;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.ResourceAccessException;
@@ -47,24 +49,25 @@ public class GatewayClients {
 
     public GatewayClients(
             MemberServiceAvailability memberServiceAvailability,
-            RestClient memberRestClient,
-            RestClient displayRestClient,
-            RestClient catalogRestClient,
-            RestClient inventoryRestClient,
-            RestClient cartRestClient,
-            RestClient orderRestClient,
-            RestClient shippingRestClient,
-            RestClient notificationRestClient
+            RestClientFactory restClients,
+            @Value("${clients.member.url}") String memberBaseUrl,
+            @Value("${clients.display.url}") String displayBaseUrl,
+            @Value("${clients.catalog.url}") String catalogBaseUrl,
+            @Value("${clients.inventory.url}") String inventoryBaseUrl,
+            @Value("${clients.cart.url}") String cartBaseUrl,
+            @Value("${clients.order.url}") String orderBaseUrl,
+            @Value("${clients.shipping.url}") String shippingBaseUrl,
+            @Value("${clients.notification.url}") String notificationBaseUrl
     ) {
         this.memberServiceAvailability = memberServiceAvailability;
-        this.members = memberRestClient;
-        this.display = displayRestClient;
-        this.catalog = catalogRestClient;
-        this.inventory = inventoryRestClient;
-        this.carts = cartRestClient;
-        this.orders = orderRestClient;
-        this.shipping = shippingRestClient;
-        this.notifications = notificationRestClient;
+        this.members = restClients.forBaseUrl(memberBaseUrl);
+        this.display = restClients.forBaseUrl(displayBaseUrl);
+        this.catalog = restClients.forBaseUrl(catalogBaseUrl);
+        this.inventory = restClients.forBaseUrl(inventoryBaseUrl);
+        this.carts = restClients.forBaseUrl(cartBaseUrl);
+        this.orders = restClients.forBaseUrl(orderBaseUrl);
+        this.shipping = restClients.forBaseUrl(shippingBaseUrl);
+        this.notifications = restClients.forBaseUrl(notificationBaseUrl);
     }
 
     public DisplayHomeResponse home() {
