@@ -36,8 +36,7 @@ public class InternalInventoryController {
 
     @PostMapping("/reservations")
     ReservationResponse reserve(@RequestBody ReserveInventoryRequest request) {
-        return InventoryResponseMapper.from(
-                inventoryUseCase.reserve(request.orderId(), InventoryResponseMapper.toLines(request.lines())));
+        return InventoryResponseMapper.from(inventoryUseCase.reserve(request.orderId(), InventoryResponseMapper.toLines(request.lines())));
     }
 
     @PostMapping("/reservations/{reservationId}/commit")
