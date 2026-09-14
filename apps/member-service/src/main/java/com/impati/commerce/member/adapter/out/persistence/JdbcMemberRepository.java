@@ -1,9 +1,11 @@
 package com.impati.commerce.member.adapter.out.persistence;
 
+import com.impati.commerce.common.DomainException;
 import com.impati.commerce.member.application.port.out.MemberRepository;
 import com.impati.commerce.member.domain.MemberModels.Address;
 import com.impati.commerce.member.domain.MemberModels.Member;
 import com.impati.commerce.member.domain.MemberModels.PasswordHash;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -18,6 +20,8 @@ import java.util.Optional;
  */
 @Repository
 public class JdbcMemberRepository implements MemberRepository {
+    private static final String UX_MEMBERS_EMAIL = "ux_members_email";
+
     private static final String MEMBER_COLUMNS = "id, email, name, status, password_hash";
 
     private static final String INSERT_MEMBER = """
@@ -81,7 +85,14 @@ public class JdbcMemberRepository implements MemberRepository {
                 .addValue("status", member.status())
                 .addValue("password_hash", member.passwordHash().value());
         if (jdbc.update(UPDATE_MEMBER, params) == 0) {
-            jdbc.update(INSERT_MEMBER, params);
+            try {
+                jdbc.update(INSERT_MEMBER, params);
+            } catch (DuplicateKeyException e) {
+                if (isDuplicateKeyFor(e, UX_MEMBERS_EMAIL)) {
+                    throw DomainException.conflict("member email already exists");
+                }
+                throw e;
+            }
         }
 
         jdbc.update(DELETE_ADDRESSES, new MapSqlParameterSource("member_id", member.id()));
@@ -100,6 +111,11 @@ public class JdbcMemberRepository implements MemberRepository {
                     .addValue("postal_code", address.postalCode())
                     .addValue("default_address", address.defaultAddress()));
         }
+    }
+
+    private boolean isDuplicateKeyFor(final DuplicateKeyException e, final String keyName) {
+        String message = e.getMostSpecificCause().getMessage();
+        return message != null && message.contains(keyName);
     }
 
     @Override
