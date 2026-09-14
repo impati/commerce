@@ -37,12 +37,11 @@ make todo
 
 | 순서 | 항목 | 왜 이 순서인가 |
 | --- | --- | --- |
-| 1 | [BL-0005](bl-0005-token-storage-to-cookie.md) 프론트 토큰 보관을 쿠키로 | XSS로 토큰이 읽힌다 |
-| 2 | [BL-0006](bl-0006-local-profile-smoke.md) local 프로파일 스모크 | 하네스가 못 보는 구간이다. 급하지 않다 |
-| 3 | [BL-0007](bl-0007-password-policy-to-domain.md) 비밀번호 정책을 도메인으로 | 클래스 리뷰에서 나왔다. 지금 동작에는 문제가 없다 |
-| 4 | [BL-0008](bl-0008-duplicate-signup-conflict-response.md) 동시 가입 경합 응답 | 위와 같다 |
-| 5 | [BL-0036](bl-0036-clients-leak-protocol-errors.md) + [BL-0037](bl-0037-downstream-failure-reported-as-conflict.md) 오류 변환과 상태 코드 | 원인이 하나다 — 하위 서비스 장애가 `conflict`로 옮겨져 409로 나가고, 전송 실패는 아예 변환되지 않는다. 담을 종류(`unavailable`, `outcomeUnknown`)는 [BL-0034](done/bl-0034-checkout-payment-integrity.md)와 [BL-0039](done/bl-0039-resolve-unknown-payment-outcome.md)에서 이미 생겼으므로 남은 것은 클라이언트 다섯에 적용하는 일이다. **한 작업으로 묶어 새 번호를 딴다** |
-| 6 | [BL-0030](bl-0030-policy-verification-gaps.md) 정책 규칙 검증 공백 | 상품 노출 전체와 체크아웃 R1~R4. 크지만 기계적이라 앞의 것들이 끝난 뒤가 낫다 |
+| 1 | [BL-0006](bl-0006-local-profile-smoke.md) local 프로파일 스모크 | 하네스가 못 보는 구간이다. 급하지 않다 |
+| 2 | [BL-0007](bl-0007-password-policy-to-domain.md) 비밀번호 정책을 도메인으로 | 클래스 리뷰에서 나왔다. 지금 동작에는 문제가 없다 |
+| 3 | [BL-0008](bl-0008-duplicate-signup-conflict-response.md) 동시 가입 경합 응답 | 위와 같다 |
+| 4 | [BL-0036](bl-0036-clients-leak-protocol-errors.md) + [BL-0037](bl-0037-downstream-failure-reported-as-conflict.md) 오류 변환과 상태 코드 | 원인이 하나다 — 하위 서비스 장애가 `conflict`로 옮겨져 409로 나가고, 전송 실패는 아예 변환되지 않는다. 담을 종류(`unavailable`, `outcomeUnknown`)는 [BL-0034](done/bl-0034-checkout-payment-integrity.md)와 [BL-0039](done/bl-0039-resolve-unknown-payment-outcome.md)에서 이미 생겼으므로 남은 것은 클라이언트 다섯에 적용하는 일이다. **한 작업으로 묶어 새 번호를 딴다** |
+| 5 | [BL-0030](bl-0030-policy-verification-gaps.md) 정책 규칙 검증 공백 | 상품 노출 전체와 체크아웃 R1~R4. 크지만 기계적이라 앞의 것들이 끝난 뒤가 낫다 |
 
 ## 순서를 정하지 않은 항목
 
