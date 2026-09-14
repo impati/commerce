@@ -15,7 +15,6 @@ import type {
   Member,
   Notification,
   Product,
-  Session,
   Shipment,
   Stock
 } from './types';
@@ -45,6 +44,7 @@ async function send(path: string, init?: RequestInit): Promise<Response> {
   const token = session.readAccess();
   return fetch(`${apiBase}${path}`, {
     ...init,
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -64,13 +64,9 @@ let refreshing: Promise<boolean> | null = null;
 function refreshAccessToken(): Promise<boolean> {
   if (!refreshing) {
     refreshing = (async () => {
-      const sessionToken = session.read();
-      if (!sessionToken) {
-        return false;
-      }
       const response = await fetch(`${apiBase}/sessions/refresh`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${sessionToken}` }
+        credentials: 'include'
       });
       if (!response.ok) {
         return false;
@@ -142,28 +138,17 @@ export const api = {
     });
   },
 
-  login(email: string, password: string): Promise<Session> {
-    return request<Session>('/login', {
+  login(email: string, password: string): Promise<IssuedAccessToken> {
+    return request<IssuedAccessToken>('/login', {
       method: 'POST',
       body: JSON.stringify({ email, password })
     });
   },
 
-  /**
-   * 로그아웃.
-   *
-   * 접근 토큰이 아니라 세션 토큰을 보낸다 — 폐기 대상이 세션이기 때문이다. 접근 토큰을 보내면
-   * 그 해시와 일치하는 세션이 없어 아무것도 폐기되지 않고, 폐기 요청은 멱등이라(PD-0014-R6)
-   * 성공으로 돌아온다. 조용히 실패하는 모양이 된다.
-   */
   async logout(): Promise<void> {
-    const sessionToken = session.read();
-    if (!sessionToken) {
-      return;
-    }
     await fetch(`${apiBase}/logout`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${sessionToken}` }
+      credentials: 'include'
     });
   },
 

@@ -79,7 +79,7 @@ POST /members/verifications      이메일 소유 확인
 POST /login
 ```
 
-`POST /login`은 접근 토큰과 세션 토큰을 함께 돌려준다. **요청에 붙이는 것은 접근 토큰**이고, 5분 뒤 만료되면 세션 토큰으로 `POST /sessions/refresh`를 불러 새로 받는다. 게이트웨이는 접근 토큰을 공개키로 직접 검증하므로 요청마다 member-service를 부르지 않는다 ([ADR-0007](docs/adr/0007-hybrid-session-tokens.md)).
+`POST /login`은 접근 토큰을 본문으로 돌려주고, 14일 세션 토큰은 `HttpOnly` 쿠키로 설정한다. **일반 요청에 붙이는 것은 접근 토큰**이고, 5분 뒤 만료되면 브라우저가 세션 쿠키와 함께 `POST /sessions/refresh`를 불러 새로 받는다. 접근 토큰은 프론트 메모리에만 두므로 페이지를 새로 열 때도 같은 방식으로 다시 발급한다. 게이트웨이는 접근 토큰을 공개키로 직접 검증하므로 요청마다 member-service를 부르지 않는다 ([ADR-0007](docs/adr/0007-hybrid-session-tokens.md), [ADR-0020](docs/adr/0020-browser-session-cookie.md)).
 
 접근 토큰이 필요한 경로 (`Authorization: Bearer <accessToken>`):
 
@@ -95,7 +95,7 @@ POST /shipments/{shipmentId}/ship
 POST /shipments/{shipmentId}/deliver
 ```
 
-세션 토큰이 필요한 경로 (`Authorization: Bearer <sessionToken>`):
+세션 쿠키가 필요한 경로:
 
 ```http
 POST /sessions/refresh           접근 토큰 재발급
@@ -117,7 +117,7 @@ POST /logout                     세션 폐기
 ```bash
 TOKEN=$(curl -sS -X POST http://localhost:8080/login \
   -H 'Content-Type: application/json' \
-  -d '{"email":"demo@impati.test","password":"demo-password"}' | jq -r .token)
+  -d '{"email":"demo@impati.test","password":"demo-password"}' | jq -r .accessToken)
 
 curl -X POST http://localhost:8080/cart/items \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \

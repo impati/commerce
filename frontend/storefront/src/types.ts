@@ -149,13 +149,6 @@ export type Member = {
   }[];
 };
 
-export type Session = {
-  sessionToken: string;
-  sessionExpiresAt: string;
-  accessToken: string;
-  accessTokenExpiresAt: string;
-};
-
 export type IssuedAccessToken = {
   accessToken: string;
   accessTokenExpiresAt: string;

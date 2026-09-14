@@ -1,12 +1,14 @@
 package com.impati.commerce.gateway;
 
 import com.impati.commerce.gateway.adapter.in.scheduler.MemberServiceProbe;
+import com.impati.commerce.gateway.adapter.in.web.BrowserSession;
 import com.impati.commerce.gateway.support.MemberServiceAvailability;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.ECDSASigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -137,7 +139,7 @@ class OutageToleranceTest {
             restClientCustomizer.getServer()
                     .expect(requestTo(REFRESH))
                     .andRespond(withStatus(HttpStatus.NOT_FOUND));
-            mockMvc.perform(post("/sessions/refresh").header("Authorization", "Bearer tok_revoked"))
+            mockMvc.perform(post("/sessions/refresh").cookie(sessionCookie("tok_revoked")))
                     .andExpect(status().isUnauthorized());
             restClientCustomizer.getServer().reset();
         }
@@ -157,7 +159,7 @@ class OutageToleranceTest {
                 .expect(requestTo(REFRESH))
                 .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
 
-        mockMvc.perform(post("/sessions/refresh").header("Authorization", "Bearer tok_any"))
+        mockMvc.perform(post("/sessions/refresh").cookie(sessionCookie("tok_any")))
                 .andExpect(status().isServiceUnavailable());
     }
 
@@ -178,7 +180,7 @@ class OutageToleranceTest {
                 .expect(requestTo(REFRESH))
                 .andRespond(withSuccess("{\"accessToken\":\"a\",\"accessTokenExpiresAt\":\"2026-01-01T00:00:00Z\"}",
                         MediaType.APPLICATION_JSON));
-        mockMvc.perform(post("/sessions/refresh").header("Authorization", "Bearer tok_ok"))
+        mockMvc.perform(post("/sessions/refresh").cookie(sessionCookie("tok_ok")))
                 .andExpect(status().isOk());
 
         assertThat(availability.isUnavailable()).isFalse();
@@ -256,13 +258,17 @@ class OutageToleranceTest {
                 .andRespond(request -> {
                     throw new IOException("connection refused");
                 });
-        mockMvc.perform(post("/sessions/refresh").header("Authorization", "Bearer tok_any"))
+        mockMvc.perform(post("/sessions/refresh").cookie(sessionCookie("tok_any")))
                 .andExpect(status().isServiceUnavailable());
         restClientCustomizer.getServer().reset();
     }
 
     private static String bearer(String token) {
         return "Bearer " + token;
+    }
+
+    private static Cookie sessionCookie(String token) {
+        return new Cookie(BrowserSession.COOKIE_NAME, token);
     }
 
     /** 이미 만료된 토큰. 만료된 지 {@code past}만큼 지났다. */

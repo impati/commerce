@@ -1,35 +1,26 @@
-const SESSION_KEY = 'impati.session';
-const ACCESS_KEY = 'impati.access';
 const CHECKOUT_KEY = 'impati.checkout.';
+let accessToken: string | null = null;
 
 export type PendingCheckout = { idempotencyKey: string; orderId?: string };
 
 /**
- * 세션 토큰과 접근 토큰 보관.
+ * 접근 토큰은 페이지 메모리에만 둔다. 장기 세션 토큰은 HttpOnly 쿠키라 JavaScript가 읽지 않는다.
  *
- * 요청에는 접근 토큰을 붙이고, 그것이 만료되면 세션 토큰으로 새로 받는다 (ADR-0007).
- * 세션 토큰은 갱신에만 쓰이며 수명이 14일이라 접근 토큰보다 탈취 피해가 크다.
- *
- * TODO localStorage는 XSS로 읽힌다. 특히 세션 토큰이 그렇다. 운영에서는 HttpOnly 쿠키가 맞고,
- * 그러려면 게이트웨이가 쿠키를 세팅하고 CSRF 대응이 따라온다. BL-0005.
+ * 이전 버전이 localStorage에 남긴 토큰은 마이그레이션 때 한 번 지운다. 체크아웃 복구 정보는
+ * 인증 수단이 아니므로 그대로 보관한다 (ADR-0020).
  */
+localStorage.removeItem('impati.session');
+localStorage.removeItem('impati.access');
+
 export const session = {
-  read(): string | null {
-    return localStorage.getItem(SESSION_KEY);
-  },
   readAccess(): string | null {
-    return localStorage.getItem(ACCESS_KEY);
+    return accessToken;
   },
-  write(sessionToken: string, accessToken: string) {
-    localStorage.setItem(SESSION_KEY, sessionToken);
-    localStorage.setItem(ACCESS_KEY, accessToken);
-  },
-  writeAccess(accessToken: string) {
-    localStorage.setItem(ACCESS_KEY, accessToken);
+  writeAccess(token: string) {
+    accessToken = token;
   },
   clear() {
-    localStorage.removeItem(SESSION_KEY);
-    localStorage.removeItem(ACCESS_KEY);
+    accessToken = null;
   },
   readPendingCheckout(memberId: string): PendingCheckout | null {
     const value = localStorage.getItem(CHECKOUT_KEY + memberId);

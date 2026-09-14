@@ -9,7 +9,6 @@ import com.impati.commerce.common.ApiContracts.CheckoutRequest;
 import com.impati.commerce.common.ApiContracts.CheckoutResponse;
 import com.impati.commerce.common.ApiContracts.DisplayHomeResponse;
 import com.impati.commerce.common.ApiContracts.LoginRequest;
-import com.impati.commerce.common.ApiContracts.LoginResponse;
 import com.impati.commerce.common.ApiContracts.MemberResponse;
 import com.impati.commerce.common.ApiContracts.NotificationResponse;
 import com.impati.commerce.common.ApiContracts.OrderResponse;
@@ -20,6 +19,8 @@ import com.impati.commerce.common.ApiContracts.StockResponse;
 import com.impati.commerce.common.ApiContracts.VerifyEmailRequest;
 import com.impati.commerce.gateway.adapter.out.client.GatewayClients;
 import com.impati.commerce.gateway.support.MemberIdentity;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -45,10 +46,12 @@ import java.util.Map;
 public class GatewayController {
     private final GatewayClients clients;
     private final MemberIdentity identity;
+    private final BrowserSession browserSession;
 
-    public GatewayController(GatewayClients clients, MemberIdentity identity) {
+    public GatewayController(GatewayClients clients, MemberIdentity identity, BrowserSession browserSession) {
         this.clients = clients;
         this.identity = identity;
+        this.browserSession = browserSession;
     }
 
     @GetMapping("/health")
@@ -92,8 +95,15 @@ public class GatewayController {
     }
 
     @PostMapping("/login")
-    LoginResponse login(@RequestBody LoginRequest request) {
-        return clients.login(request);
+    AccessTokenResponse login(
+            @RequestHeader(value = "Origin", required = false) String origin,
+            @RequestBody LoginRequest request,
+            HttpServletResponse response
+    ) {
+        browserSession.requireTrustedOrigin(origin);
+        var issued = clients.login(request);
+        browserSession.start(issued, response);
+        return new AccessTokenResponse(issued.accessToken(), issued.accessTokenExpiresAt());
     }
 
     /**
@@ -103,15 +113,28 @@ public class GatewayController {
      * 만료된 접근 토큰으로 401을 받은 클라이언트가 이 경로로 온다.
      */
     @PostMapping("/sessions/refresh")
-    AccessTokenResponse refresh(@RequestHeader(value = "Authorization", required = false) String authorization) {
-        return clients.refresh(identity.bearerToken(authorization));
+    AccessTokenResponse refresh(
+            @RequestHeader(value = "Origin", required = false) String origin,
+            @CookieValue(value = BrowserSession.COOKIE_NAME, required = false) String sessionCookie
+    ) {
+        browserSession.requireTrustedOrigin(origin);
+        return clients.refresh(browserSession.requireToken(sessionCookie));
     }
 
     // --- 세션이 필요한 경로 ---
 
     @PostMapping("/logout")
-    void logout(@RequestHeader(value = "Authorization", required = false) String authorization) {
-        clients.logout(identity.bearerToken(authorization));
+    void logout(
+            @RequestHeader(value = "Origin", required = false) String origin,
+            @CookieValue(value = BrowserSession.COOKIE_NAME, required = false) String sessionCookie,
+            HttpServletResponse response
+    ) {
+        browserSession.requireTrustedOrigin(origin);
+        try {
+            clients.logout(browserSession.requireToken(sessionCookie));
+        } finally {
+            browserSession.clear(response);
+        }
     }
 
     @GetMapping("/me")

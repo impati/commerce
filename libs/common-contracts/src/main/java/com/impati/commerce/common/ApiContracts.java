@@ -251,12 +251,12 @@ public final class ApiContracts {
     public record SessionTokenRequest(String token) {
     }
 
-    /** POST /login */
+    /** POST /members/login — member-service가 게이트웨이에 발급 결과 전체를 돌려준다. */
     public record LoginRequest(String email, String password) {
     }
 
     /**
-     * POST /login 응답.
+     * POST /members/login 응답.
      *
      * <p>{@code sessionToken}은 불투명 문자열이며 서버가 해시만 보관한다. 갱신에만 쓰인다.
      * {@code accessToken}은 서명된 단명 토큰이라 게이트웨이가 조회 없이 검증하며, 담긴 값은
@@ -270,7 +270,7 @@ public final class ApiContracts {
     ) {
     }
 
-    /** POST /internal/members/sessions/refresh 응답. 세션 토큰을 새 접근 토큰으로 바꾼다. */
+    /** POST /login, POST /internal/members/sessions/refresh 응답. */
     public record AccessTokenResponse(String accessToken, String accessTokenExpiresAt) {
     }
 
