@@ -27,7 +27,6 @@ include 'apps:cart-service'
 // 세 갈래다 — core는 바깥을 모르고, infra는 바깥과 말하고, boot은 실행된다 (ADR-0015).
 include 'apps:order-service:core'
 include 'apps:order-service:infra:persistence'
-include 'apps:order-service:infra:client:core'
 include 'apps:order-service:infra:client:member'
 include 'apps:order-service:infra:client:cart'
 include 'apps:order-service:infra:client:catalog'
@@ -46,4 +45,3 @@ include 'apps:notification-service:infra:mail'
 include 'apps:notification-service:boot:api'
 include 'apps:notification-service:boot:worker'
 include 'apps:notification-service:boot:consumer'
-

@@ -2,10 +2,12 @@ package com.impati.commerce.http;
 
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.client.ClientHttpRequestFactories;
 import org.springframework.boot.web.client.ClientHttpRequestFactorySettings;
 import org.springframework.boot.web.client.RestClientCustomizer;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -23,6 +25,12 @@ import org.springframework.web.client.RestClient;
 @ConditionalOnClass(RestClient.class)
 @EnableConfigurationProperties(HttpClientTimeoutProperties.class)
 public class HttpClientTimeoutAutoConfiguration {
+    @Bean
+    @ConditionalOnMissingBean
+    RestClientFactory restClientFactory(ObjectProvider<RestClientCustomizer> customizers) {
+        return new RestClientFactory(customizers);
+    }
+
     @Bean
     @Order(Ordered.HIGHEST_PRECEDENCE)
     RestClientCustomizer httpClientTimeoutCustomizer(HttpClientTimeoutProperties properties) {

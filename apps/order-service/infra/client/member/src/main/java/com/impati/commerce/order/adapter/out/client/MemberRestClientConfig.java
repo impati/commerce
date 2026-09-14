@@ -1,5 +1,6 @@
 package com.impati.commerce.order.adapter.out.client;
 
+import com.impati.commerce.http.RestClientFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,7 +15,7 @@ import org.springframework.web.client.RestClient;
 @Configuration
 class MemberRestClientConfig {
     @Bean
-    RestClient memberRestClient(CommerceRestClients restClients, @Value("${clients.member.url}") String baseUrl) {
+    RestClient memberRestClient(RestClientFactory restClients, @Value("${clients.member.url}") String baseUrl) {
         return restClients.forBaseUrl(baseUrl);
     }
 }
