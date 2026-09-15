@@ -37,9 +37,27 @@ make todo
 
 | 순서 | 항목 | 왜 이 순서인가 |
 | --- | --- | --- |
-| 1 | [BL-0006](bl-0006-local-profile-smoke.md) local 프로파일 스모크 | 하네스가 못 보는 구간이다. 급하지 않다 |
-| 2 | [BL-0007](bl-0007-password-policy-to-domain.md) 비밀번호 정책을 도메인으로 | 클래스 리뷰에서 나왔다. 지금 동작에는 문제가 없다 |
-| 3 | [BL-0030](bl-0030-policy-verification-gaps.md) 정책 규칙 검증 공백 | 상품 노출 전체와 체크아웃 R1~R4. 크지만 기계적이라 앞의 것들이 끝난 뒤가 낫다 |
+| 1 | [BL-0068](bl-0068-member-order-history.md) 회원 주문 내역과 진행 이력 | 구매 이후 고객 여정의 진입점이다 |
+| 2 | [BL-0069](bl-0069-cart-line-management.md) 장바구니 줄 관리 | 구매 전 기본 조작이 추가만 가능한 상태다 |
+| 3 | [BL-0070](bl-0070-shipping-address-management.md) 배송지 관리와 선택 | 주문에 사용할 주소를 고객이 완전하게 관리하지 못한다 |
+| 4 | [BL-0071](bl-0071-order-price-breakdown.md) 주문 금액 구성과 배송비 | 최종 청구 금액의 구성이 먼저 확정돼야 한다 |
+| 5 | [BL-0016](bl-0016-display-card-price-mismatch.md) 지면 카드 가격 | 탐색 단계의 가격과 실제 구매 가격이 어긋날 수 있다 |
+| 6 | [BL-0025](bl-0025-inventory-reservation-never-expires.md) 재고 예약 만료 | 방치된 예약이 실제 판매 가능 재고를 무기한 막는다 |
+| 7 | [BL-0029](bl-0029-order-and-shipment-status-diverge.md) 주문·배송 상태 정본 | 취소와 배송 자동화를 붙이기 전에 진행의 진실을 정해야 한다 |
+| 8 | [BL-0058](bl-0058-delivered-endpoint-is-not-classified-internal.md) 배송 완료 경로 등급 | 고객이 바꾸면 안 되는 배송 전이의 경계를 먼저 닫는다 |
+| 9 | [BL-0072](bl-0072-customer-order-cancellation.md) 출고 전 주문 취소 | 성립한 구매를 고객이 안전하게 되돌릴 수 있어야 한다 |
+| 10 | [BL-0073](bl-0073-inventory-movement-history.md) 재고 이동 이력 | 취소와 반품이 되돌리는 재고를 설명할 근거가 필요하다 |
+| 11 | [BL-0074](bl-0074-carrier-driven-shipment-progress.md) 배송사 기반 배송 진행 | 데모 버튼을 실제 이행 흐름으로 바꾼다 |
+| 12 | [BL-0075](bl-0075-return-and-refund.md) 반품과 환불 | 배송 이후 고객 여정을 닫는다 |
+| 13 | [BL-0076](bl-0076-payment-attempt-and-retry.md) 결제 시도와 재시도 | 거절된 결제를 구매 내용 손실 없이 다시 시도할 수 있어야 한다 |
+| 14 | [BL-0077](bl-0077-real-payment-gateway-integration.md) 실제 PG 연동 | 로컬 대역을 실제 외부 결제 흐름으로 연결한다 |
+| 15 | [BL-0078](bl-0078-payment-transaction-history.md) 결제 거래 이력 | 고객 청구와 환불을 설명하고 대사할 근거다 |
+| 16 | [BL-0079](bl-0079-payment-reconciliation.md) PG 거래 대사 | 내부 결제와 외부 거래의 불일치를 발견한다 |
+| 17 | [BL-0080](bl-0080-payment-payout-settlement.md) PG 입금 정산 | 예상 금액과 실제 입금액까지 재무 흐름을 닫는다 |
+| 18 | [BL-0081](bl-0081-commerce-operations-backoffice.md) 커머스 운영 백오피스 | 기능을 DB 직접 조작 없이 운영할 수 있게 한다 |
+| 19 | [BL-0006](bl-0006-local-profile-smoke.md) local 프로파일 스모크 | 하네스가 못 보는 구간이다. 급하지 않다 |
+| 20 | [BL-0007](bl-0007-password-policy-to-domain.md) 비밀번호 정책을 도메인으로 | 클래스 리뷰에서 나왔다. 지금 동작에는 문제가 없다 |
+| 21 | [BL-0030](bl-0030-policy-verification-gaps.md) 정책 규칙 검증 공백 | 상품 노출 전체와 체크아웃 R1~R4. 크지만 기계적이라 앞의 것들이 끝난 뒤가 낫다 |
 
 ## 순서를 정하지 않은 항목
 
@@ -52,20 +70,16 @@ make todo
 | [BL-0011](bl-0011-flow-encapsulation-direction.md) 흐름 캡슐화 방향 | 설계 방향 결정. ADR 대상 |
 | [BL-0013](bl-0013-test-isolation-strategy.md) 테스트 격리 방식 | 지금은 작성자 규율에 의존 |
 | [BL-0015](bl-0015-pre-commit-scans-working-tree.md) pre-commit이 working tree를 본다 | 알려진 한계였다 |
-| [BL-0016](bl-0016-display-card-price-mismatch.md) 지면 카드 가격 | 알려진 한계였다 |
 | [BL-0018](bl-0018-normalize-email-case.md) 이메일 대소문자 정규화 | 기존 결정을 뒤집는 교환. 관측치가 필요하다 ([PD-0001](../policy/pd-0001-signup-and-email-verification.md)) |
 | [BL-0019](bl-0019-invalidate-previous-verification-token.md) 재발송 시 이전 토큰 무효화 | 유효한 확인 토큰이 여러 개 존재한다 |
 | [BL-0020](bl-0020-password-length-upper-bound.md) 비밀번호 길이 상한 | BCrypt가 72바이트 초과분을 조용히 버린다 |
 | [BL-0021](bl-0021-pd-0001-verification-gaps.md) PD-0001 검증 공백 | 규칙 10개 중 5개를 아무것도 고정하지 않는다 |
 | [BL-0022](bl-0022-unverified-login-leaks-account-existence.md) 미인증 로그인 응답의 계정 열거 | 한 문서 안에서 R1과 R2가 어긋난다 ([PD-0014](../policy/pd-0014-login-rejection-and-session-lifetime.md)) |
 | [BL-0023](bl-0023-pd-0014-verification-gaps.md) PD-0014 검증 공백 | R3·R6·R7을 아무것도 고정하지 않는다 |
-| [BL-0025](bl-0025-inventory-reservation-never-expires.md) 재고 예약 만료 부재 | 방치된 예약이 재고를 무기한 묶는다 |
 | [BL-0026](bl-0026-unpublished-sku-is-readable.md) 발행 전 판매 단위 노출 | 상품은 숨기는데 하위 단위가 샌다 |
 | [BL-0028](bl-0028-order-total-forces-krw.md) 주문 총액 통화 고정 | 지금 맞는 이유가 계산이 옳아서가 아니다 |
-| [BL-0029](bl-0029-order-and-shipment-status-diverge.md) 주문·배송 상태 불일치 | 어느 쪽이 진실인지 정해져 있지 않다 |
 | [BL-0031](bl-0031-check-policy-rule-coverage.md) 규칙·테스트 대응 검사 | 규율에 의존하는 것은 반드시 샌다 |
 | [BL-0044](bl-0044-session-resolve-ignores-member-status.md) 세션 확인이 회원 상태를 무시 | 차단·탈퇴를 붙이는 순간 조용히 성립한다 |
 | [BL-0049](bl-0049-scheduler-test-isolation-is-opt-out.md) 테스트의 스케줄러 격리가 규율에 달려 있다 | 이미 네 곳에서 샜다. 하네스 자신의 신뢰성 문제다 |
 | [BL-0056](bl-0056-commit-unit-for-other-services.md) 나머지 서비스의 커밋 단위 | 지금 맞는 이유가 우연이다 ([ADR-0012](../adr/0012-order-events-as-outbox.md)) |
-| [BL-0058](bl-0058-delivered-endpoint-is-not-classified-internal.md) 배송 완료 경로의 등급 | 주석이 등급을 선언한다 ([ADR-0003](../adr/0003-internal-path-prefix.md)) |
 | [BL-0059](bl-0059-errors-are-strings-not-types.md) 실패를 문자열로 다룬다 | 자르기로 막은 것은 증상이다. 완료된 [BL-0067](done/bl-0067-preserve-downstream-failure-semantics.md)과 맞닿아 있다 |
