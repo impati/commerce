@@ -39,8 +39,7 @@ make todo
 | --- | --- | --- |
 | 1 | [BL-0006](bl-0006-local-profile-smoke.md) local 프로파일 스모크 | 하네스가 못 보는 구간이다. 급하지 않다 |
 | 2 | [BL-0007](bl-0007-password-policy-to-domain.md) 비밀번호 정책을 도메인으로 | 클래스 리뷰에서 나왔다. 지금 동작에는 문제가 없다 |
-| 3 | [BL-0067](bl-0067-preserve-downstream-failure-semantics.md) 서비스 간 호출 실패의 의미 | 하위 장애와 요청 충돌을 구분하고 프로토콜 예외가 응용 계층으로 새지 않게 한다 |
-| 4 | [BL-0030](bl-0030-policy-verification-gaps.md) 정책 규칙 검증 공백 | 상품 노출 전체와 체크아웃 R1~R4. 크지만 기계적이라 앞의 것들이 끝난 뒤가 낫다 |
+| 3 | [BL-0030](bl-0030-policy-verification-gaps.md) 정책 규칙 검증 공백 | 상품 노출 전체와 체크아웃 R1~R4. 크지만 기계적이라 앞의 것들이 끝난 뒤가 낫다 |
 
 ## 순서를 정하지 않은 항목
 
@@ -69,4 +68,4 @@ make todo
 | [BL-0049](bl-0049-scheduler-test-isolation-is-opt-out.md) 테스트의 스케줄러 격리가 규율에 달려 있다 | 이미 네 곳에서 샜다. 하네스 자신의 신뢰성 문제다 |
 | [BL-0056](bl-0056-commit-unit-for-other-services.md) 나머지 서비스의 커밋 단위 | 지금 맞는 이유가 우연이다 ([ADR-0012](../adr/0012-order-events-as-outbox.md)) |
 | [BL-0058](bl-0058-delivered-endpoint-is-not-classified-internal.md) 배송 완료 경로의 등급 | 주석이 등급을 선언한다 ([ADR-0003](../adr/0003-internal-path-prefix.md)) |
-| [BL-0059](bl-0059-errors-are-strings-not-types.md) 실패를 문자열로 다룬다 | 자르기로 막은 것은 증상이다. [BL-0036](bl-0036-clients-leak-protocol-errors.md)과 맞닿아 있다 |
+| [BL-0059](bl-0059-errors-are-strings-not-types.md) 실패를 문자열로 다룬다 | 자르기로 막은 것은 증상이다. 완료된 [BL-0067](done/bl-0067-preserve-downstream-failure-semantics.md)과 맞닿아 있다 |
