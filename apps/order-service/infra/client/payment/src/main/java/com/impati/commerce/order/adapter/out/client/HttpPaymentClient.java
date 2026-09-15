@@ -3,19 +3,20 @@ package com.impati.commerce.order.adapter.out.client;
 import com.impati.commerce.common.ApiContracts.AuthorizePaymentRequest;
 import com.impati.commerce.common.ApiContracts.PaymentResponse;
 import com.impati.commerce.common.DomainException;
+import com.impati.commerce.http.ServiceCallExecutor;
 import com.impati.commerce.order.application.port.out.PaymentClient;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientResponseException;
 import java.util.Optional;
 
 @Component
 public class HttpPaymentClient implements PaymentClient {
     private final RestClient restClient;
+    private final ServiceCallExecutor calls;
 
-    public HttpPaymentClient(RestClient paymentRestClient) {
+    public HttpPaymentClient(RestClient paymentRestClient, ServiceCallExecutor calls) {
         this.restClient = paymentRestClient;
+        this.calls = calls;
     }
 
     /**
@@ -27,23 +28,18 @@ public class HttpPaymentClient implements PaymentClient {
      */
     @Override
     public PaymentResponse authorizePayment(AuthorizePaymentRequest request) {
-        try {
-            return restClient.post()
+        return calls.command("payment authorization", () -> restClient.post()
                     .uri("/internal/payments/authorize")
                     .body(request)
                     .retrieve()
-                    .body(PaymentResponse.class);
-        } catch (RestClientResponseException exception) {
-            if (exception.getStatusCode().value() == 402) {
+                    .body(PaymentResponse.class), error -> {
+            if (error.hasCode("payment_declined")) {
                 throw DomainException.paymentDeclined("payment was declined by issuer");
             }
-            if (exception.getStatusCode().value() == 409) {
+            if (error.hasCode("conflict")) {
                 throw DomainException.conflict("payment request conflicts with the existing payment");
             }
-            throw DomainException.unavailable("payment service error: " + exception.getStatusText());
-        } catch (ResourceAccessException exception) {
-            throw DomainException.outcomeUnknown("payment authorization outcome unknown: " + exception.getMessage());
-        }
+        });
     }
 
     @Override
@@ -67,33 +63,22 @@ public class HttpPaymentClient implements PaymentClient {
      */
     @Override
     public PaymentResponse payment(String paymentId) {
-        try {
-            return restClient.get()
+        return calls.query("payment lookup", () -> restClient.get()
                     .uri("/internal/payments/{paymentId}", paymentId)
                     .retrieve()
-                    .body(PaymentResponse.class);
-        } catch (RestClientResponseException exception) {
-            if (exception.getStatusCode().value() == 404) {
+                    .body(PaymentResponse.class), error -> {
+            if (error.hasCode("not_found")) {
                 throw DomainException.notFound("payment not found: " + paymentId);
             }
-            throw DomainException.unavailable("payment service error: " + exception.getStatusText());
-        } catch (ResourceAccessException exception) {
-            throw DomainException.unavailable("payment lookup failed: " + exception.getMessage());
-        }
+        });
     }
 
     @Override
     public Optional<PaymentResponse> paymentForOrder(String orderId) {
-        try {
-            return Optional.ofNullable(restClient.get()
-                    .uri("/internal/payments/orders/{orderId}", orderId)
-                    .retrieve().body(PaymentResponse.class));
-        } catch (RestClientResponseException exception) {
-            if (exception.getStatusCode().value() == 404) return Optional.empty();
-            throw DomainException.unavailable("payment service error: " + exception.getStatusText());
-        } catch (ResourceAccessException exception) {
-            throw DomainException.unavailable("payment lookup failed: " + exception.getMessage());
-        }
+        return calls.optionalQuery("order payment lookup", () -> restClient.get()
+                .uri("/internal/payments/orders/{orderId}", orderId)
+                .retrieve()
+                .body(PaymentResponse.class));
     }
 
     /**
@@ -101,18 +86,13 @@ public class HttpPaymentClient implements PaymentClient {
      * 판단하지 않는다. 실패는 전부 결제 시스템 오류다.
      */
     private PaymentResponse post(String paymentId, String action) {
-        try {
-            return restClient.post()
+        return calls.command("payment " + action, () -> restClient.post()
                     .uri("/internal/payments/{paymentId}/{action}", paymentId, action)
                     .retrieve()
-                    .body(PaymentResponse.class);
-        } catch (RestClientResponseException exception) {
-            if (exception.getStatusCode().value() == 409) {
+                    .body(PaymentResponse.class), error -> {
+            if (error.hasCode("conflict")) {
                 throw DomainException.conflict("payment transition conflicts with its current state");
             }
-            throw DomainException.unavailable("payment service error: " + exception.getStatusText());
-        } catch (ResourceAccessException exception) {
-            throw DomainException.outcomeUnknown("payment " + action + " outcome unknown: " + exception.getMessage());
-        }
+        });
     }
 }

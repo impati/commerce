@@ -3,69 +3,51 @@ package com.impati.commerce.order.adapter.out.client;
 import com.impati.commerce.common.ApiContracts.CreateShipmentRequest;
 import com.impati.commerce.common.ApiContracts.ShipmentResponse;
 import com.impati.commerce.common.DomainException;
+import com.impati.commerce.http.DownstreamError;
+import com.impati.commerce.http.ServiceCallExecutor;
 import com.impati.commerce.order.application.port.out.ShippingClient;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientResponseException;
 import java.util.Optional;
 
 @Component
 public class HttpShippingClient implements ShippingClient {
     private final RestClient restClient;
+    private final ServiceCallExecutor calls;
 
-    public HttpShippingClient(RestClient shippingRestClient) {
+    public HttpShippingClient(RestClient shippingRestClient, ServiceCallExecutor calls) {
         this.restClient = shippingRestClient;
+        this.calls = calls;
     }
 
     @Override
     public ShipmentResponse createShipment(CreateShipmentRequest request) {
-        try {
-            return restClient.post()
+        return calls.command("shipment creation", () -> restClient.post()
                     .uri("/internal/shipments")
                     .body(request)
                     .retrieve()
-                    .body(ShipmentResponse.class);
-        } catch (RestClientResponseException exception) {
-            throw shippingError(exception);
-        } catch (ResourceAccessException exception) {
-            throw DomainException.outcomeUnknown("shipment creation outcome unknown: " + exception.getMessage());
-        }
+                    .body(ShipmentResponse.class), HttpShippingClient::translateConflict);
     }
 
     @Override
     public ShipmentResponse cancelShipment(String shipmentId) {
-        try {
-            return restClient.post()
+        return calls.command("shipment cancellation", () -> restClient.post()
                     .uri("/internal/shipments/{shipmentId}/cancel", shipmentId)
                     .retrieve()
-                    .body(ShipmentResponse.class);
-        } catch (RestClientResponseException exception) {
-            throw shippingError(exception);
-        } catch (ResourceAccessException exception) {
-            throw DomainException.outcomeUnknown("shipment cancellation outcome unknown: " + exception.getMessage());
-        }
+                    .body(ShipmentResponse.class), HttpShippingClient::translateConflict);
     }
 
     @Override
     public Optional<ShipmentResponse> shipmentForOrder(String orderId) {
-        try {
-            return Optional.ofNullable(restClient.get()
-                    .uri("/internal/shipments/orders/{orderId}", orderId)
-                    .retrieve().body(ShipmentResponse.class));
-        } catch (RestClientResponseException exception) {
-            if (exception.getStatusCode().value() == 404) return Optional.empty();
-            throw shippingError(exception);
-        } catch (ResourceAccessException exception) {
-            throw DomainException.unavailable("shipment lookup failed: " + exception.getMessage());
-        }
+        return calls.optionalQuery("order shipment lookup", () -> restClient.get()
+                .uri("/internal/shipments/orders/{orderId}", orderId)
+                .retrieve()
+                .body(ShipmentResponse.class));
     }
 
-    /** HTTP 상태를 도메인 언어로 옮긴다. 이걸 하지 않으면 프로토콜 예외가 응용 계층까지 올라간다. */
-    private static DomainException shippingError(RestClientResponseException exception) {
-        if (exception.getStatusCode().value() == 409) {
-            return DomainException.conflict("shipment request conflicts with the existing shipment");
+    private static void translateConflict(DownstreamError error) {
+        if (error.hasCode("conflict")) {
+            throw DomainException.conflict("shipment request conflicts with the existing shipment");
         }
-        return DomainException.unavailable("shipping service error: " + exception.getStatusText());
     }
 }
