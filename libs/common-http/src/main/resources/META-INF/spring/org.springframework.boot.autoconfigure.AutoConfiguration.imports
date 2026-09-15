@@ -1,1 +1,2 @@
 com.impati.commerce.http.HttpClientTimeoutAutoConfiguration
+com.impati.commerce.http.ServiceCallAutoConfiguration
