@@ -36,3 +36,4 @@
 | [0016](pd-0016-notification-delivery.md) | 알림 기록과 발송 |
 | [0017](pd-0017-checkout-execution-and-recovery.md) | 체크아웃 실행과 복구 |
 | [0018](pd-0018-cart-checkout-snapshot.md) | 장바구니와 구매 스냅샷 |
+| [0019](pd-0019-order-history-visibility.md) | 주문 내역 노출과 진행 이력 |
