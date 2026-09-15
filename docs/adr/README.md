@@ -39,6 +39,9 @@
 | [0016](0016-publish-order-events-to-kafka.md) | 주문 사건을 카프카로 발행한다 | 승인됨 |
 | [0017](0017-publish-timeout-and-relay-isolation.md) | 발행 제한시간과 릴레이 실행 격리를 둔다 | 승인됨 |
 | [0018](0018-durable-checkout-recovery.md) | 체크아웃 진행 상태를 저장하고 API 실행을 워커가 복구한다 | 승인됨 |
+| [0019](0019-single-rest-client-factory.md) | 공용 팩토리가 서비스 간 HTTP 클라이언트를 만든다 | 승인됨 |
+| [0020](0020-browser-session-cookie.md) | 브라우저 세션을 HttpOnly 쿠키로 운반한다 | 승인됨 |
+| [0021](0021-translate-service-call-failures.md) | 서비스 간 호출 실패를 호출자 문맥으로 번역한다 | 승인됨 |
 
 ## ADR이 없는 합의
 

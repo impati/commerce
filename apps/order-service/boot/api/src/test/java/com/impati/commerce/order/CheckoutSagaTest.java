@@ -193,7 +193,7 @@ class CheckoutSagaTest {
     }
 
     @Test
-    void workerResumesTheRecordedStageAfterATransientFailure() throws Exception {
+    void workerResumesCompensationAfterATransientLookupFailure() throws Exception {
         stubCheckoutInputs();
         stubCartDetach();
         stubReservation();
@@ -201,14 +201,22 @@ class CheckoutSagaTest {
         server.expect(times(2), requestTo(SHIPPING_URL + "/internal/shipments"))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
-        stubShipmentCreation();
-        stubCapture();
-        stubCommitReservation();
-        stubSuccessDecoration(1);
+        server.expect(times(2), request -> assertThat(request.getURI().toString())
+                        .isEqualTo(SHIPPING_URL + "/internal/shipments/orders/" + orderId.get()))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
+        stubPaymentLookup("AUTHORIZED");
+        stubCancelPayment();
+        stubReservationLookup("RESERVED");
+        stubReleaseReservation();
+        stubMissingShipmentForOrder();
+        stubPaymentLookup("CANCELLED");
+        stubReservationLookup("RELEASED");
 
         mockMvc.perform(checkout("recover-key", "card_success"))
-                .andExpect(status().isAccepted())
-                .andExpect(jsonPath("$.order.checkoutStatus").value("PROCESSING"));
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.order.checkoutStatus").value("FAILED"))
+                .andExpect(jsonPath("$.order.paymentCleanupStatus").value("CANCELLING"));
 
         releaseForRecovery(orderId.get());
 
@@ -216,9 +224,8 @@ class CheckoutSagaTest {
         mockMvc.perform(get("/orders/{orderId}/checkout-result", orderId.get())
                         .header("X-Member-Id", MEMBER_ID))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.order.checkoutStatus").value("SUCCEEDED"))
-                .andExpect(jsonPath("$.order.status").value("FULFILLING"))
-                .andExpect(jsonPath("$.shipment.id").value(SHIPMENT_ID));
+                .andExpect(jsonPath("$.order.checkoutStatus").value("FAILED"))
+                .andExpect(jsonPath("$.order.status").value("CANCELLED"));
     }
 
     @Test
@@ -355,14 +362,30 @@ class CheckoutSagaTest {
         server.expect(times(1), request -> assertThat(request.getURI().toString())
                         .isEqualTo(SHIPPING_URL + "/internal/shipments/orders/" + orderId.get()))
                 .andExpect(method(HttpMethod.GET))
-                .andRespond(withStatus(HttpStatus.NOT_FOUND));
+                .andRespond(withStatus(HttpStatus.NOT_FOUND)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(json(new ErrorResponse("not_found", "shipment not found"))));
     }
 
     private void stubMissingPaymentForOrder() {
         server.expect(times(1), request -> assertThat(request.getURI().toString())
                         .isEqualTo(PAYMENT_URL + "/internal/payments/orders/" + orderId.get()))
                 .andExpect(method(HttpMethod.GET))
-                .andRespond(withStatus(HttpStatus.NOT_FOUND));
+                .andRespond(withStatus(HttpStatus.NOT_FOUND)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(json(new ErrorResponse("not_found", "payment not found"))));
+    }
+
+    private void stubPaymentLookup(String paymentStatus) {
+        server.expect(times(1), requestTo(PAYMENT_URL + "/internal/payments/" + PAYMENT_ID))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess(json(payment(paymentStatus)), MediaType.APPLICATION_JSON));
+    }
+
+    private void stubCancelPayment() {
+        server.expect(times(1), requestTo(PAYMENT_URL + "/internal/payments/" + PAYMENT_ID + "/cancel"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess(json(payment("CANCELLED")), MediaType.APPLICATION_JSON));
     }
 
     private void stubShipmentLookup(String shipmentStatus) {

@@ -57,6 +57,16 @@ public class DomainException extends RuntimeException {
     }
 
     /**
+     * 협력자가 호출자의 계약으로 해석할 수 없는 응답을 보냈다.
+     *
+     * <p>사용자가 고칠 수 있는 요청 오류가 아니라 서비스 사이의 계약 불일치다. 다운스트림이
+     * 보낸 4xx라도 호출자가 공개 계약으로 인정하지 않았다면 이 오류로 감싼다.
+     */
+    public static DomainException downstreamError(String message) {
+        return new DomainException("downstream_error", message, 502);
+    }
+
+    /**
      * 의존하는 것이 지금 응답하지 못한다. <b>요청의 문제가 아니라 우리 쪽의 문제</b>다.
      *
      * <p>{@link #outcomeUnknown}과 다르다. 저쪽은 부수효과가 일어났는지 모르는 상태이고
