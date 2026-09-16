@@ -1,7 +1,8 @@
 package com.impati.commerce.order.application.port.out;
 
 import com.impati.commerce.order.domain.OrderModels.Order;
-
+import com.impati.commerce.order.application.port.in.OrderCursor;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -15,5 +16,10 @@ import java.util.Optional;
  * {@code OrderChanges}에 명시적으로 넘긴다.
  */
 public interface OrderRepository {
+
     Optional<Order> findById(String orderId);
+
+    Optional<Order> findByIdAndMemberId(String orderId, String memberId);
+
+    List<Order> findBy(String memberId, OrderCursor cursor, int size);
 }

@@ -12,6 +12,8 @@ import com.impati.commerce.common.ApiContracts.LoginRequest;
 import com.impati.commerce.common.ApiContracts.MemberResponse;
 import com.impati.commerce.common.ApiContracts.NotificationResponse;
 import com.impati.commerce.common.ApiContracts.OrderResponse;
+import com.impati.commerce.common.ApiContracts.OrderDetailResponse;
+import com.impati.commerce.common.ApiContracts.OrderPageResponse;
 import com.impati.commerce.common.ApiContracts.ProductResponse;
 import com.impati.commerce.common.ApiContracts.RegisterMemberRequest;
 import com.impati.commerce.common.ApiContracts.ShipmentResponse;
@@ -178,11 +180,19 @@ public class GatewayController {
     }
 
     @GetMapping("/orders/{orderId}")
-    OrderResponse order(
+    OrderDetailResponse order(
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @PathVariable String orderId
     ) {
         return clients.order(identity.require(authorization), orderId);
+    }
+
+    @GetMapping("/orders")
+    OrderPageResponse orders(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(defaultValue = "20") int size) {
+        return clients.orders(identity.require(authorization), cursor, size);
     }
 
     @GetMapping("/orders/{orderId}/checkout-result")

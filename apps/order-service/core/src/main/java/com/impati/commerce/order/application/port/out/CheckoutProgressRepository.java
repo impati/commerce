@@ -11,6 +11,8 @@ import java.util.Optional;
 public interface CheckoutProgressRepository {
     Optional<CheckoutProgress> findByOrderId(String orderId);
 
+    List<CheckoutProgress> findByOrderIds(String memberId, List<String> orderIds);
+
     Optional<CheckoutProgress> findByMemberAndKey(String memberId, IdempotencyKey idempotencyKey);
 
     boolean insertIfAbsent(CheckoutProgress progress);

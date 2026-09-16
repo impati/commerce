@@ -4,19 +4,18 @@ import com.impati.commerce.order.application.port.out.OrderEventRepository;
 import com.impati.commerce.order.domain.OrderModels.OrderEvent;
 import com.impati.commerce.order.domain.OrderModels.OrderEventType;
 import com.impati.commerce.order.domain.OrderModels.PublishStatus;
-import org.springframework.jdbc.core.RowMapper;
-import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
-import org.springframework.stereotype.Repository;
-import org.springframework.transaction.annotation.Isolation;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Set;
+import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 이름 바인딩만 쓴다. 위치 기반 {@code ?}는 타입이 같은 인접 컬럼의 값이 뒤바뀌어도 컴파일러도
@@ -26,15 +25,16 @@ import java.util.Set;
  */
 @Repository
 public class JdbcOrderEventRepository implements OrderEventRepository {
+
     private static final String COLUMNS = """
-            id, type, order_id, member_id, payload, publish_status, attempts, last_error
+            id, type, order_id, member_id, payload, publish_status, attempts, last_error, occurred_at
             """;
 
     private static final String INSERT = """
             insert into order_events (
-                id, type, order_id, member_id, payload, publish_status, attempts, last_error
+                id, type, order_id, member_id, payload, publish_status, attempts, last_error, occurred_at
             ) values (
-                :id, :type, :order_id, :member_id, :payload, :publish_status, :attempts, :last_error
+                :id, :type, :order_id, :member_id, :payload, :publish_status, :attempts, :last_error, :occurred_at
             )
             """;
 
@@ -151,6 +151,14 @@ public class JdbcOrderEventRepository implements OrderEventRepository {
         }
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<OrderEvent> findByOrderIdAndMemberId(String orderId, String memberId) {
+        return jdbc.query("select " + COLUMNS
+                        + " from order_events where order_id = :order_id and member_id = :member_id order by seq",
+                new MapSqlParameterSource("order_id", orderId).addValue("member_id", memberId), rowMapper());
+    }
+
     /**
      * 격리 수준을 낮춘다.
      *
@@ -208,7 +216,8 @@ public class JdbcOrderEventRepository implements OrderEventRepository {
                 payloadCodec.decode(rs.getString("payload")),
                 PublishStatus.valueOf(rs.getString("publish_status")),
                 rs.getInt("attempts"),
-                rs.getString("last_error")
+                rs.getString("last_error"),
+                rs.getObject("occurred_at", java.time.LocalDateTime.class)
         );
     }
 
@@ -221,7 +230,8 @@ public class JdbcOrderEventRepository implements OrderEventRepository {
                 .addValue("payload", payloadCodec.encode(event.payload()))
                 .addValue("publish_status", event.publishStatus().name())
                 .addValue("attempts", event.attempts())
-                .addValue("last_error", event.lastError());
+                .addValue("last_error", event.lastError())
+                .addValue("occurred_at", event.occurredAt());
     }
 
     private OffsetDateTime now() {

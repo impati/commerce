@@ -13,13 +13,13 @@ import com.impati.commerce.order.domain.CheckoutProgress;
 import com.impati.commerce.order.domain.OrderModels.Address;
 import com.impati.commerce.order.domain.OrderModels.Order;
 import com.impati.commerce.order.domain.OrderModels.OrderLine;
-import org.junit.jupiter.api.Test;
-
 import java.time.Clock;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
+import org.junit.jupiter.api.Test;
 
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -29,6 +29,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class CheckoutExecutionTest {
+
     @Test
     void unknownInventoryCommitAfterCaptureIsRetriedForwardWithoutRefunding() {
         var orderId = "ord_commit_unknown";
@@ -36,7 +37,7 @@ class CheckoutExecutionTest {
                 orderId,
                 "mem_demo",
                 List.of(new OrderLine("sku", "product", "Product", "SKU", 1, Money.krw(1_000))),
-                new Address("addr", "home", "Customer", "010", "1 Main", "Seoul", "04524", true));
+                new Address("addr", "home", "Customer", "010", "1 Main", "Seoul", "04524", true), LocalDateTime.now());
         order.attachReservation("rsv_demo");
         order.attachPayment("pay_demo");
         order.markPaid();
@@ -77,7 +78,7 @@ class CheckoutExecutionTest {
                 orderId,
                 "mem_demo",
                 List.of(new OrderLine("sku", "product", "Product", "SKU", 1, Money.krw(1_000))),
-                new Address("addr", "home", "Customer", "010", "1 Main", "Seoul", "04524", true));
+                new Address("addr", "home", "Customer", "010", "1 Main", "Seoul", "04524", true), LocalDateTime.now());
         order.attachReservation("rsv_demo");
         order.attachPayment("pay_demo");
         var progress = CheckoutProgress.restore(

@@ -2,6 +2,7 @@ package com.impati.commerce.common;
 
 import java.util.List;
 import java.util.Map;
+import java.time.OffsetDateTime;
 
 public final class ApiContracts {
     private ApiContracts() {
@@ -204,6 +205,26 @@ public final class ApiContracts {
 
     public record CheckoutResponse(OrderResponse order, PaymentResponse payment, ShipmentResponse shipment) {
     }
+
+    /** GET /orders — 고객용 주문 목록 요약. 체크아웃 내부 식별자와 복구 정보는 포함하지 않는다. */
+    public record OrderSummaryResponse(String id, OffsetDateTime orderedAt, String representativeProductName,
+            String representativeSkuName, int additionalProductCount, int totalQuantity, Money total,
+            String checkoutResult, String orderStatus) { }
+
+    /** GET /orders — nextCursor가 null이면 마지막 페이지다. */
+    public record OrderPageResponse(List<OrderSummaryResponse> items, String nextCursor) { }
+
+    /** GET /orders/{orderId} — 주문 시점의 배송 대상. 회원 주소록 식별자는 노출하지 않는다. */
+    public record OrderShippingAddressResponse(String recipient, String phone, String line1, String city,
+            String postalCode) { }
+
+    /** GET /orders/{orderId} — 고객 관련 사실만 담고 payload와 발행 정보는 제외한다. */
+    public record OrderTimelineResponse(String type, OffsetDateTime occurredAt) { }
+
+    /** GET /orders/{orderId} — 기존 체크아웃 응답과 별개인 고객용 주문 상세. */
+    public record OrderDetailResponse(String id, OffsetDateTime orderedAt, String checkoutResult, String orderStatus,
+            List<OrderLineResponse> lines, Money total, OrderShippingAddressResponse shippingAddress,
+            String trackingNumber, List<OrderTimelineResponse> timeline) { }
 
     /**
      * 주문 사건 토픽의 메시지. order-service가 발행하고 소비자들이 받는다 (ADR-0016).

@@ -15,18 +15,21 @@ import com.impati.commerce.order.application.port.out.MemberClient;
 import com.impati.commerce.order.application.port.out.OrderRepository;
 import com.impati.commerce.order.application.port.out.PaymentClient;
 import com.impati.commerce.order.application.port.out.ShippingClient;
-import com.impati.commerce.order.domain.CheckoutRequestFingerprint;
 import com.impati.commerce.order.domain.CheckoutProgress;
+import com.impati.commerce.order.domain.CheckoutRequestFingerprint;
 import com.impati.commerce.order.domain.IdempotencyKey;
 import com.impati.commerce.order.domain.OrderModels.Order;
 import com.impati.commerce.order.domain.OrderModels.OrderLine;
+import java.time.Clock;
+import java.util.List;
 import org.springframework.stereotype.Component;
 
-import java.util.List;
-
-/** 체크아웃 접수와 주문 조회를 제공한다. 단계 실행은 API와 워커가 공유하는 {@link CheckoutExecution}이 맡는다. */
+/**
+ * 체크아웃 접수와 주문 조회를 제공한다. 단계 실행은 API와 워커가 공유하는 {@link CheckoutExecution}이 맡는다.
+ */
 @Component
 public class OrderExecutor implements OrderUseCase {
+
     private final OrderRepository orderRepository;
     private final CheckoutProgressRepository progressRepository;
     private final CheckoutChanges checkoutChanges;
@@ -37,6 +40,7 @@ public class OrderExecutor implements OrderUseCase {
     private final CatalogClient catalogClient;
     private final PaymentClient paymentClient;
     private final ShippingClient shippingClient;
+    private final Clock clock;
 
     public OrderExecutor(
             OrderRepository orderRepository,
@@ -48,7 +52,8 @@ public class OrderExecutor implements OrderUseCase {
             CartClient cartClient,
             CatalogClient catalogClient,
             PaymentClient paymentClient,
-            ShippingClient shippingClient
+            ShippingClient shippingClient,
+            Clock clock
     ) {
         this.orderRepository = orderRepository;
         this.progressRepository = progressRepository;
@@ -60,6 +65,7 @@ public class OrderExecutor implements OrderUseCase {
         this.catalogClient = catalogClient;
         this.paymentClient = paymentClient;
         this.shippingClient = shippingClient;
+        this.clock = clock;
     }
 
     @Override
@@ -80,7 +86,9 @@ public class OrderExecutor implements OrderUseCase {
         var member = memberClient.member(memberId);
         var address = OrderMapper.toAddress(selectAddress(member.addresses(), addressId));
         var cart = cartClient.cart(memberId);
-        if (cart.lines().isEmpty()) throw DomainException.cartEmpty("cart is empty");
+        if (cart.lines().isEmpty()) {
+            throw DomainException.cartEmpty("cart is empty");
+        }
 
         var orderLines = cart.lines().stream().map(line -> {
             var sku = catalogClient.sku(line.skuId());
@@ -88,7 +96,7 @@ public class OrderExecutor implements OrderUseCase {
             return new OrderLine(sku.id(), product.id(), product.name(), sku.name(), line.quantity(), sku.price());
         }).toList();
         var orderId = Ids.newId("ord");
-        var order = Order.create(orderId, memberId, orderLines, address);
+        var order = Order.create(orderId, memberId, orderLines, address, clock);
         var progress = new CheckoutProgress(orderId, memberId, idempotencyKey, fingerprint, paymentToken, cart.version());
 
         if (!checkoutChanges.create(order, progress)) {
@@ -111,7 +119,9 @@ public class OrderExecutor implements OrderUseCase {
         ShipmentResponse shipment = null;
         if (progress.outcome() == CheckoutProgress.Outcome.SUCCEEDED) {
             try {
-                if (progress.paymentId() != null) payment = paymentClient.payment(progress.paymentId());
+                if (progress.paymentId() != null) {
+                    payment = paymentClient.payment(progress.paymentId());
+                }
                 shipment = shippingClient.shipmentForOrder(progress.orderId()).orElse(null);
             } catch (RuntimeException ignored) {
                 // 구매 결과는 주문 DB에 확정돼 있다. 응답 장식 조회 실패가 성공을 뒤집지 않는다.
@@ -123,14 +133,18 @@ public class OrderExecutor implements OrderUseCase {
     @Override
     public OrderDetails getOwned(String memberId, String orderId) {
         var order = order(orderId);
-        if (!order.memberId().equals(memberId)) throw DomainException.notFound("order not found");
+        if (!order.memberId().equals(memberId)) {
+            throw DomainException.notFound("order not found");
+        }
         return OrderMapper.toDetails(order, progressRepository.findByOrderId(orderId).orElse(null));
     }
 
     @Override
     public CheckoutResult getCheckoutResultOwned(String memberId, String orderId) {
         var order = order(orderId);
-        if (!order.memberId().equals(memberId)) throw DomainException.notFound("order not found");
+        if (!order.memberId().equals(memberId)) {
+            throw DomainException.notFound("order not found");
+        }
         var progress = progressRepository.findByOrderId(orderId)
                 .orElseThrow(() -> DomainException.notFound("checkout result not found"));
         if (progress.outcome() == CheckoutProgress.Outcome.SUCCEEDED) {
@@ -151,7 +165,9 @@ public class OrderExecutor implements OrderUseCase {
     }
 
     private AddressResponse selectAddress(List<AddressResponse> addresses, String addressId) {
-        if (addresses.isEmpty()) throw DomainException.validation("member has no delivery address");
+        if (addresses.isEmpty()) {
+            throw DomainException.validation("member has no delivery address");
+        }
         if (addressId == null || addressId.isBlank()) {
             return addresses.stream().filter(AddressResponse::defaultAddress).findFirst().orElse(addresses.getFirst());
         }

@@ -12,6 +12,9 @@ import java.util.List;
  * 상태이고 이쪽은 일어난 사실의 기록이다. 수명도 다르다. 사건은 발행되면 더 이상 바뀌지 않는다.
  */
 public interface OrderEventRepository {
+    /** 발행 상태와 무관하게 해당 회원 주문의 사실을 seq 순서로 읽는다. */
+    List<OrderEvent> findByOrderIdAndMemberId(String orderId, String memberId);
+
     /**
      * 사건을 기록한다.
      *

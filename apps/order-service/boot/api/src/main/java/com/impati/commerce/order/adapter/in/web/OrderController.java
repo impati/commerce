@@ -3,16 +3,21 @@ package com.impati.commerce.order.adapter.in.web;
 import com.impati.commerce.common.ApiContracts.CheckoutRequest;
 import com.impati.commerce.common.ApiContracts.CheckoutResponse;
 import com.impati.commerce.common.ApiContracts.OrderResponse;
+import com.impati.commerce.common.ApiContracts.OrderDetailResponse;
+import com.impati.commerce.common.ApiContracts.OrderPageResponse;
+import com.impati.commerce.order.application.port.in.OrderHistoryUseCase;
+import com.impati.commerce.order.application.port.in.OrderQueryKey;
 import com.impati.commerce.order.application.port.in.OrderUseCase;
 import com.impati.commerce.order.domain.IdempotencyKey;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.http.ResponseEntity;
 
 /**
  * 주문 API.
@@ -23,10 +28,13 @@ import org.springframework.http.ResponseEntity;
 @RestController
 @RequestMapping
 public class OrderController {
-    private final OrderUseCase orderUseCase;
 
-    public OrderController(OrderUseCase orderUseCase) {
+    private final OrderUseCase orderUseCase;
+    private final OrderHistoryUseCase orderHistoryUseCase;
+
+    public OrderController(OrderUseCase orderUseCase, OrderHistoryUseCase orderHistoryUseCase) {
         this.orderUseCase = orderUseCase;
+        this.orderHistoryUseCase = orderHistoryUseCase;
     }
 
     @PostMapping("/checkouts")
@@ -45,8 +53,16 @@ public class OrderController {
     }
 
     @GetMapping("/orders/{orderId}")
-    OrderResponse order(@RequestHeader("X-Member-Id") String memberId, @PathVariable String orderId) {
-        return OrderResponseMapper.from(orderUseCase.getOwned(memberId, orderId));
+    OrderDetailResponse order(@RequestHeader("X-Member-Id") String memberId, @PathVariable String orderId) {
+        return OrderHistoryResponseMapper.from(orderHistoryUseCase.getOwned(memberId, orderId));
+    }
+
+    @GetMapping("/orders")
+    OrderPageResponse orders(@RequestHeader("X-Member-Id") String memberId,
+                               @RequestParam(required = false) String cursor,
+                               @RequestParam(defaultValue = "20") int size
+    ) {
+        return OrderHistoryResponseMapper.from(orderHistoryUseCase.getOrders(OrderQueryKey.of(memberId, cursor, size)));
     }
 
     @GetMapping("/orders/{orderId}/checkout-result")
@@ -57,7 +73,9 @@ public class OrderController {
         return OrderResponseMapper.from(orderUseCase.getCheckoutResultOwned(memberId, orderId));
     }
 
-    /** shipping 흐름에서 게이트웨이가 부르는 내부 경로. 배송 완료 처리는 회원 요청이 아니다. */
+    /**
+     * shipping 흐름에서 게이트웨이가 부르는 내부 경로. 배송 완료 처리는 회원 요청이 아니다.
+     */
     @PostMapping("/orders/{orderId}/delivered")
     OrderResponse delivered(@PathVariable String orderId) {
         return OrderResponseMapper.from(orderUseCase.markDelivered(orderId));

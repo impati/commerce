@@ -119,6 +119,15 @@ public class JdbcCheckoutProgressRepository implements CheckoutProgressRepositor
 
     @Override
     @Transactional(readOnly = true)
+    public List<CheckoutProgress> findByOrderIds(String memberId, List<String> orderIds) {
+        if (orderIds.isEmpty()) return List.of();
+        return jdbc.query("select " + COLUMNS
+                        + " from checkout_progress where member_id = :member_id and order_id in (:order_ids)",
+                new MapSqlParameterSource("member_id", memberId).addValue("order_ids", orderIds), ROW_MAPPER);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Optional<CheckoutProgress> findByMemberAndKey(String memberId, IdempotencyKey idempotencyKey) {
         return jdbc.query(SELECT_BY_KEY, new MapSqlParameterSource()
                         .addValue("member_id", memberId)

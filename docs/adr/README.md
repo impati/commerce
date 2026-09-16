@@ -42,6 +42,7 @@
 | [0019](0019-single-rest-client-factory.md) | 공용 팩토리가 서비스 간 HTTP 클라이언트를 만든다 | 승인됨 |
 | [0020](0020-browser-session-cookie.md) | 브라우저 세션을 HttpOnly 쿠키로 운반한다 | 승인됨 |
 | [0021](0021-translate-service-call-failures.md) | 서비스 간 호출 실패를 호출자 문맥으로 번역한다 | 승인됨 |
+| [0022](0022-member-order-history.md) | 회원 주문 내역을 복합 커서와 고객용 조회 모델로 제공한다 | 승인됨 |
 
 ## ADR이 없는 합의
 

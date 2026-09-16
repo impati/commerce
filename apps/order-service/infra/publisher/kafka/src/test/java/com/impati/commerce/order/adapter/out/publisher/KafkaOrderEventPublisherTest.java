@@ -7,6 +7,12 @@ import com.impati.commerce.order.domain.OrderModels.OrderEventType;
 import com.impati.commerce.order.domain.OrderModels.PublishStatus;
 import com.impati.commerce.test.RequiresKafka;
 import com.impati.commerce.test.TestKafka;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -17,12 +23,6 @@ import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
 import org.springframework.kafka.support.serializer.JsonSerializer;
-
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -64,7 +64,9 @@ class KafkaOrderEventPublisherTest {
                 config, new org.apache.kafka.common.serialization.StringSerializer(), new JsonSerializer<>()));
     }
 
-    /** 도메인 사건이 계약 타입으로 옮겨진다. 문구는 담기지 않는다 — 그것은 소비자의 일이다. */
+    /**
+     * 도메인 사건이 계약 타입으로 옮겨진다. 문구는 담기지 않는다 — 그것은 소비자의 일이다.
+     */
     @Test
     void publishesTheFactNotTheWording() {
         var event = event(OrderEventType.ORDER_PAID, "ord_pub_1", "mem_pub_1", Map.of());
@@ -80,7 +82,9 @@ class KafkaOrderEventPublisherTest {
         });
     }
 
-    /** 사건별 사실이 그대로 실린다. 소비자가 문구를 만들 때 쓰는 값이다. */
+    /**
+     * 사건별 사실이 그대로 실린다. 소비자가 문구를 만들 때 쓰는 값이다.
+     */
     @Test
     void carriesThePayload() {
         orderEventPublisher.publish(event(
@@ -117,10 +121,12 @@ class KafkaOrderEventPublisherTest {
     private OrderEvent event(OrderEventType type, String orderId, String memberId, Map<String, String> payload) {
         return OrderEvent.restore(
                 "evt_" + type.name().toLowerCase() + "_" + orderId,
-                type, orderId, memberId, payload, PublishStatus.PENDING, 0, null);
+                type, orderId, memberId, payload, PublishStatus.PENDING, 0, null, LocalDateTime.now());
     }
 
-    /** 토픽이 이 컨텍스트 전용이므로 처음부터 읽어 원하는 수만큼 모은다. */
+    /**
+     * 토픽이 이 컨텍스트 전용이므로 처음부터 읽어 원하는 수만큼 모은다.
+     */
     private List<ConsumerRecord<String, OrderEventMessage>> drain(int expected) {
         try (var consumer = consumer()) {
             consumer.subscribe(List.of(topic));

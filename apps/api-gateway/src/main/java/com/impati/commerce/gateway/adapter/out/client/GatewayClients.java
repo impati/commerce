@@ -13,6 +13,8 @@ import com.impati.commerce.common.ApiContracts.LoginResponse;
 import com.impati.commerce.common.ApiContracts.MemberResponse;
 import com.impati.commerce.common.ApiContracts.NotificationResponse;
 import com.impati.commerce.common.ApiContracts.OrderResponse;
+import com.impati.commerce.common.ApiContracts.OrderDetailResponse;
+import com.impati.commerce.common.ApiContracts.OrderPageResponse;
 import com.impati.commerce.common.ApiContracts.ProductResponse;
 import com.impati.commerce.common.ApiContracts.RegisterMemberRequest;
 import com.impati.commerce.common.ApiContracts.ShipmentResponse;
@@ -204,12 +206,21 @@ public class GatewayClients {
                 .toEntity(CheckoutResponse.class);
     }
 
-    public OrderResponse order(String memberId, String orderId) {
+    public OrderDetailResponse order(String memberId, String orderId) {
         return orders.get()
                 .uri("/orders/{orderId}", orderId)
                 .header(MEMBER_ID_HEADER, memberId)
                 .retrieve()
-                .body(OrderResponse.class);
+                .body(OrderDetailResponse.class);
+    }
+
+    public OrderPageResponse orders(String memberId, String cursor, int size) {
+        return orders.get()
+                .uri(builder -> builder.path("/orders")
+                        .queryParamIfPresent("cursor", java.util.Optional.ofNullable(cursor))
+                        .queryParam("size", size).build())
+                .header(MEMBER_ID_HEADER, memberId)
+                .retrieve().body(OrderPageResponse.class);
     }
 
     public CheckoutResponse checkoutResult(String memberId, String orderId) {

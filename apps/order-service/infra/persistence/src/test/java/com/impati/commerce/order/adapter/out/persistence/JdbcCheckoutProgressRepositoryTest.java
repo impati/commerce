@@ -4,31 +4,37 @@ import com.impati.commerce.common.ApiContracts.Money;
 import com.impati.commerce.order.application.component.OrderChanges;
 import com.impati.commerce.order.application.port.out.CheckoutProgressRepository;
 import com.impati.commerce.order.domain.CheckoutProgress;
-import com.impati.commerce.order.domain.CheckoutRequestFingerprint;
 import com.impati.commerce.order.domain.CheckoutProgress.Stage;
+import com.impati.commerce.order.domain.CheckoutRequestFingerprint;
 import com.impati.commerce.order.domain.IdempotencyKey;
 import com.impati.commerce.order.domain.OrderModels.Address;
 import com.impati.commerce.order.domain.OrderModels.Order;
 import com.impati.commerce.order.domain.OrderModels.OrderLine;
 import com.impati.commerce.test.RequiresDatabase;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-import java.time.Duration;
-import java.util.List;
-import java.util.UUID;
-
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** 재실행 안전성의 경계인 점유 세대와 멱등 키 유일성을 실제 DB에서 검증한다. */
+/**
+ * 재실행 안전성의 경계인 점유 세대와 멱등 키 유일성을 실제 DB에서 검증한다.
+ */
 @SpringBootTest
 @RequiresDatabase
 class JdbcCheckoutProgressRepositoryTest {
-    @Autowired private CheckoutProgressRepository repository;
-    @Autowired private OrderChanges orderChanges;
-    @Autowired private JdbcTemplate jdbc;
+
+    @Autowired
+    private CheckoutProgressRepository repository;
+    @Autowired
+    private OrderChanges orderChanges;
+    @Autowired
+    private JdbcTemplate jdbc;
 
     @Test
     void anExpiredLeaseCanBeReclaimedAndRejectsTheOldGeneration() {
@@ -108,7 +114,7 @@ class JdbcCheckoutProgressRepositoryTest {
                 "ord_" + UUID.randomUUID().toString().replace("-", ""),
                 memberId,
                 List.of(new OrderLine("sku", "product", "Product", "SKU", 1, Money.krw(1_000))),
-                new Address("addr", "home", "Customer", "010", "1 Main", "Seoul", "04524", true));
+                new Address("addr", "home", "Customer", "010", "1 Main", "Seoul", "04524", true), LocalDateTime.now());
         orderChanges.commit(order);
         return order;
     }

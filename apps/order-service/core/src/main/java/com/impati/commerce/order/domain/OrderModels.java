@@ -3,12 +3,16 @@ package com.impati.commerce.order.domain;
 import com.impati.commerce.common.ApiContracts.Money;
 import com.impati.commerce.common.DomainException;
 import com.impati.commerce.common.Ids;
-
+import java.time.LocalDateTime;
+import java.time.Clock;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 public final class OrderModels {
+
     private OrderModels() {
     }
 
@@ -50,6 +54,7 @@ public final class OrderModels {
      * 어떤 형식으로 저장할지는 영속화 어댑터가 정한다.
      */
     public static final class OrderEvent {
+
         /**
          * 사건에 담는 자유 문자열의 상한.
          *
@@ -75,6 +80,7 @@ public final class OrderModels {
         private PublishStatus publishStatus;
         private int attempts;
         private String lastError;
+        private final LocalDateTime occurredAt;
 
         private OrderEvent(
                 String id,
@@ -84,7 +90,8 @@ public final class OrderModels {
                 Map<String, String> payload,
                 PublishStatus publishStatus,
                 int attempts,
-                String lastError
+                String lastError,
+                LocalDateTime occurredAt
         ) {
             this.id = id;
             this.type = type;
@@ -94,15 +101,22 @@ public final class OrderModels {
             this.publishStatus = publishStatus;
             this.attempts = attempts;
             this.lastError = lastError;
+            this.occurredAt = java.util.Objects.requireNonNull(occurredAt).truncatedTo(ChronoUnit.MICROS);
         }
 
         private static OrderEvent occurred(
-                OrderEventType type, String orderId, String memberId, Map<String, String> payload) {
-            return new OrderEvent(
-                    Ids.newId("evt"), type, orderId, memberId, payload, PublishStatus.PENDING, 0, null);
+                OrderEventType type,
+                String orderId,
+                String memberId,
+                Map<String, String> payload,
+                LocalDateTime occurredAt
+        ) {
+            return new OrderEvent(Ids.newId("evt"), type, orderId, memberId, payload, PublishStatus.PENDING, 0, null, occurredAt);
         }
 
-        /** 저장된 상태에서 복원한다. 영속화 어댑터만 쓴다. */
+        /**
+         * 저장된 상태에서 복원한다. 영속화 어댑터만 쓴다.
+         */
         public static OrderEvent restore(
                 String id,
                 OrderEventType type,
@@ -111,9 +125,10 @@ public final class OrderModels {
                 Map<String, String> payload,
                 PublishStatus publishStatus,
                 int attempts,
-                String lastError
+                String lastError,
+                LocalDateTime occurredAt
         ) {
-            return new OrderEvent(id, type, orderId, memberId, payload, publishStatus, attempts, lastError);
+            return new OrderEvent(id, type, orderId, memberId, payload, publishStatus, attempts, lastError, occurredAt);
         }
 
         public String id() {
@@ -122,6 +137,10 @@ public final class OrderModels {
 
         public OrderEventType type() {
             return type;
+        }
+
+        public LocalDateTime occurredAt() {
+            return occurredAt;
         }
 
         public String orderId() {
@@ -204,6 +223,7 @@ public final class OrderModels {
             String postalCode,
             boolean defaultAddress
     ) {
+
         public Address {
             if (recipient == null || recipient.isBlank()) {
                 throw DomainException.validation("recipient is required");
@@ -222,6 +242,7 @@ public final class OrderModels {
             int quantity,
             Money unitPrice
     ) {
+
         public OrderLine {
             if (quantity <= 0) {
                 throw DomainException.validation("order quantity must be positive");
@@ -234,6 +255,7 @@ public final class OrderModels {
     }
 
     public static final class Order {
+
         private final String id;
         private final String memberId;
         private final List<OrderLine> lines;
@@ -242,6 +264,8 @@ public final class OrderModels {
         private String paymentId;
         private String shipmentId;
         private String inventoryReservationId;
+        private final LocalDateTime createdAt;
+        private final Clock clock;
 
         /**
          * 아직 저장되지 않은 사건.
@@ -251,14 +275,26 @@ public final class OrderModels {
          */
         private final List<OrderEvent> pendingEvents = new ArrayList<>();
 
-        public Order(String memberId, List<OrderLine> lines, Address shippingAddress) {
-            this(Ids.newId("ord"), memberId, lines, shippingAddress);
+        public Order(String memberId, List<OrderLine> lines, Address shippingAddress, LocalDateTime createdAt) {
+            this(Ids.newId("ord"), memberId, lines, shippingAddress, createdAt);
             recordCreated();
         }
 
-        /** 체크아웃 접수 식별자와 외부 멱등 키가 같아야 할 때 서버가 먼저 만든 ID를 사용한다. */
-        public static Order create(String id, String memberId, List<OrderLine> lines, Address shippingAddress) {
-            var order = new Order(id, memberId, lines, shippingAddress);
+        public Order(String memberId, List<OrderLine> lines, Address shippingAddress) {
+            this(memberId, lines, shippingAddress, now(Clock.systemUTC()));
+        }
+
+        public static Order create(String id, String memberId, List<OrderLine> lines, Address shippingAddress, Clock clock) {
+            var order = new Order(id, memberId, lines, shippingAddress, now(clock), clock);
+            order.recordCreated();
+            return order;
+        }
+
+        /**
+         * 체크아웃 접수 식별자와 외부 멱등 키가 같아야 할 때 서버가 먼저 만든 ID를 사용한다.
+         */
+        public static Order create(String id, String memberId, List<OrderLine> lines, Address shippingAddress, LocalDateTime createdAt) {
+            var order = new Order(id, memberId, lines, shippingAddress, createdAt);
             order.recordCreated();
             return order;
         }
@@ -270,7 +306,12 @@ public final class OrderModels {
             ));
         }
 
-        private Order(String id, String memberId, List<OrderLine> lines, Address shippingAddress) {
+        private Order(String id, String memberId, List<OrderLine> lines, Address shippingAddress, LocalDateTime createdAt) {
+            this(id, memberId, lines, shippingAddress, createdAt, Clock.systemUTC());
+        }
+
+        private Order(String id, String memberId, List<OrderLine> lines, Address shippingAddress,
+                LocalDateTime createdAt, Clock clock) {
             if (lines.isEmpty()) {
                 throw DomainException.validation("order requires at least one line");
             }
@@ -278,6 +319,8 @@ public final class OrderModels {
             this.memberId = memberId;
             this.lines = new ArrayList<>(lines);
             this.shippingAddress = shippingAddress;
+            this.createdAt = java.util.Objects.requireNonNull(createdAt).truncatedTo(ChronoUnit.MICROS);
+            this.clock = java.util.Objects.requireNonNull(clock);
         }
 
         /**
@@ -294,9 +337,17 @@ public final class OrderModels {
                 String status,
                 String paymentId,
                 String shipmentId,
-                String inventoryReservationId
+                String inventoryReservationId,
+                LocalDateTime createdAt
         ) {
-            var order = new Order(id, memberId, lines, shippingAddress);
+            return restore(id, memberId, lines, shippingAddress, status, paymentId, shipmentId,
+                    inventoryReservationId, createdAt, Clock.systemUTC());
+        }
+
+        public static Order restore(String id, String memberId, List<OrderLine> lines, Address shippingAddress,
+                String status, String paymentId, String shipmentId, String inventoryReservationId,
+                LocalDateTime createdAt, Clock clock) {
+            var order = new Order(id, memberId, lines, shippingAddress, createdAt, clock);
             order.status = status;
             order.paymentId = paymentId;
             order.shipmentId = shipmentId;
@@ -310,6 +361,10 @@ public final class OrderModels {
 
         public String memberId() {
             return memberId;
+        }
+
+        public LocalDateTime createdAt() {
+            return createdAt;
         }
 
         public String status() {
@@ -413,7 +468,12 @@ public final class OrderModels {
         }
 
         private void record(OrderEventType type, Map<String, String> payload) {
-            pendingEvents.add(OrderEvent.occurred(type, id, memberId, payload));
+            var occurredAt = type == OrderEventType.ORDER_CREATED ? createdAt : now(clock);
+            pendingEvents.add(OrderEvent.occurred(type, id, memberId, payload, occurredAt));
+        }
+
+        private static LocalDateTime now(Clock clock) {
+            return LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC).truncatedTo(ChronoUnit.MICROS);
         }
 
         /**
@@ -435,7 +495,9 @@ public final class OrderModels {
             return drained;
         }
 
-        /** 아직 넘기지 않은 사건이 있는가. 비우지 않는다. */
+        /**
+         * 아직 넘기지 않은 사건이 있는가. 비우지 않는다.
+         */
         public boolean hasPendingEvents() {
             return !pendingEvents.isEmpty();
         }

@@ -31,6 +31,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 
 /**
  * 게이트웨이가 접근 토큰을 스스로 검증하는지 본다.
@@ -67,6 +68,47 @@ class AccessTokenVerificationTest {
     @BeforeEach
     void resetStubs() {
         restClientCustomizer.getServer().reset();
+    }
+
+    /** [PD-0020-R9] 주문 URL이나 위조한 신원 헤더만으로는 주문 내역을 조회하지 못한다. */
+    @Test
+    void orderHistoryRequiresAuthentication() throws Exception {
+        mockMvc.perform(get("/orders").header("X-Member-Id", "mem_forged"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/orders/ord_known").header("X-Member-Id", "mem_forged"))
+                .andExpect(status().isUnauthorized());
+        restClientCustomizer.getServer().verify();
+    }
+
+    /** [PD-0020-R9] 페이지 위치는 전달하지만 회원은 서명 토큰의 소유자로만 전달한다. */
+    @Test
+    void forwardsOrderCursorWithAuthenticatedMemberOnly() throws Exception {
+        restClientCustomizer.getServer()
+                .expect(requestTo("http://localhost:8108/orders?cursor=opaque_cursor&size=2"))
+                .andExpect(header("X-Member-Id", "mem_local"))
+                .andRespond(withSuccess("{\"items\":[],\"nextCursor\":null}", MediaType.APPLICATION_JSON));
+        mockMvc.perform(get("/orders").param("cursor", "opaque_cursor").param("size", "2")
+                        .param("memberId", "mem_forged").header("X-Member-Id", "mem_forged")
+                        .header("Authorization", bearer(token("mem_local", Duration.ofMinutes(5)))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items").isEmpty());
+        restClientCustomizer.getServer().verify();
+    }
+
+    @Test
+    void forwardsCustomerDetailIncludingTimeline() throws Exception {
+        restClientCustomizer.getServer().expect(requestTo("http://localhost:8108/orders/ord_owned"))
+                .andExpect(header("X-Member-Id", "mem_local"))
+                .andRespond(withSuccess("""
+                        {"id":"ord_owned","orderedAt":"2026-09-16T03:00:00Z","checkoutResult":"CHECKING",
+                         "orderStatus":null,"lines":[],"total":{"amount":10000,"currency":"KRW"},
+                         "shippingAddress":{"recipient":"Owner","phone":"010","line1":"Road","city":"Seoul","postalCode":"12345"},
+                         "trackingNumber":null,"timeline":[{"type":"ORDER_CREATED","occurredAt":"2026-09-16T03:00:00Z"}]}
+                        """, MediaType.APPLICATION_JSON));
+        mockMvc.perform(get("/orders/ord_owned")
+                        .header("Authorization", bearer(token("mem_local", Duration.ofMinutes(5)))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.checkoutResult").value("CHECKING"))
+                .andExpect(jsonPath("$.timeline[0].occurredAt").value("2026-09-16T03:00:00Z"));
+        restClientCustomizer.getServer().verify();
     }
 
     /**
