@@ -66,6 +66,10 @@ make frontend-dev
 
 Storefront는 기본적으로 `http://localhost:5173`에서 열립니다.
 
+`/orders`는 회원 주문 내역, `/orders/{orderId}`는 주문 상세입니다. 직접 진입하거나 새로고침해도 세션을 확인하고, 비로그인 상태에서는 로그인 후 같은 주소의 주문을 이어서 조회합니다. 주문 데이터 조회 실패는 데모 주문으로 대체하지 않습니다. 배포 시에도 프론트 서버가 이 경로들을 `index.html`로 연결하도록 SPA fallback을 설정해야 합니다.
+
+주문 화면의 컴포넌트 테스트는 `make frontend-test`, 타입 검사와 프로덕션 빌드는 `make frontend-build`로 확인합니다.
+
 ## 주요 API
 
 인증이 필요 없는 경로:
@@ -89,11 +93,17 @@ POST /me/addresses
 GET  /cart
 POST /cart/items
 POST /checkout
+GET  /orders?cursor={cursor}&size=20
 GET  /orders/{orderId}
+GET  /orders/{orderId}/checkout-result
 GET  /notifications
 POST /shipments/{shipmentId}/ship
 POST /shipments/{shipmentId}/deliver
 ```
+
+주문 목록은 `{ items, nextCursor }`를 응답합니다. 기본 크기는 20건이며 1~100건을 허용합니다. `nextCursor`는 마지막 주문의 UTC 생성 시각과 ID를 함께 담은 불투명한 값이며 다음 요청에 그대로 전달합니다. `null`이면 마지막 페이지입니다. 생성 시각 내림차순, 동일 시각에서는 ID 내림차순으로 조회합니다.
+
+접수된 주문은 처리 중에도 목록에 나타납니다. 고객용 `checkoutResult`는 `PROCESSING`(주문 처리 중), `CHECKING`(운영 확인 중), `SUCCEEDED`, `FAILED`이며, 성공한 주문의 `orderStatus`는 현재 주문 생애주기를 나타냅니다. 보상 중인 주문은 최종 실패로 표시하지 않습니다. 상세에는 주문 시점 상품·배송지 스냅샷, 기록된 운송장과 사건 발생 시각이 있는 타임라인을 포함하고 내부 결제·재고 식별자와 발행·오류 정보는 제외합니다. 다른 회원의 주문은 없는 주문과 같은 404 응답입니다 ([PD-0020](docs/policy/pd-0020-order-history-visibility.md), [ADR-0022](docs/adr/0022-member-order-history.md)).
 
 세션 쿠키가 필요한 경로:
 

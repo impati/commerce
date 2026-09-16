@@ -14,9 +14,11 @@ import {
   WifiOff
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { UnauthorizedError, api, fallback } from './api';
 import { session } from './session';
-import { compactStatus, formatMoney } from './format';
+import { formatMoney } from './format';
+import { orderStatusText } from './orderPresentation';
 import { productImages } from './mockData';
 import type { Cart, Checkout, DisplayHome, Member, Notification, Product, Shipment, Stock } from './types';
 
@@ -180,6 +182,8 @@ export function App() {
   }, [cart.lines, products]);
 
   const cartTotal = cartItems.reduce((sum, item) => sum + item.lineTotal, 0);
+  const checkoutState = checkout?.order.checkoutStatus === 'SUCCEEDED' ? 'SUCCEEDED'
+    : checkout?.order.checkoutStatus === 'FAILED' && checkout.order.paymentCleanupStatus === 'DONE' ? 'FAILED' : 'PROCESSING';
 
   async function refresh() {
     setBusy('load');
@@ -435,6 +439,7 @@ export function App() {
           <h1>{home.title}</h1>
         </div>
         <div className="topbar-actions">
+          <Link className="order-link" to="/orders">주문 내역</Link>
           <span className={`connection ${apiMode}`}>
             {apiMode !== 'demo' ? <Wifi size={16} /> : <WifiOff size={16} />}
             {notice}
@@ -652,20 +657,20 @@ export function App() {
             <div className="panel-head">
               <div>
                 <p className="eyebrow">Order</p>
-                <h2>{checkout ? compactStatus(checkout.order.status) : 'waiting'}</h2>
+                <h2>{checkout ? orderStatusText(checkoutState, checkout.order.status) : 'waiting'}</h2>
               </div>
               <PackageCheck size={22} />
             </div>
 
             <div className="timeline">
-              <Step active={Boolean(checkout)} done={Boolean(checkout)} label="Paid" />
+              <Step active={checkoutState === 'SUCCEEDED'} done={checkoutState === 'SUCCEEDED'} label="Paid" />
               <Step active={shipment?.status === 'IN_TRANSIT'} done={shipment?.status === 'IN_TRANSIT' || shipment?.status === 'DELIVERED'} label="Shipped" />
               <Step active={shipment?.status === 'DELIVERED'} done={shipment?.status === 'DELIVERED'} label="Delivered" />
             </div>
 
             {checkout && (
               <div className="order-meta">
-                <span>{checkout.order.id}</span>
+                <Link className="order-link" to={`/orders/${encodeURIComponent(checkout.order.id)}`}>{checkout.order.id} · 상세 보기</Link>
                 <strong>{formatMoney(checkout.order.total)}</strong>
               </div>
             )}

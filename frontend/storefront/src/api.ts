@@ -18,6 +18,7 @@ import type {
   Shipment,
   Stock
 } from './types';
+import type { OrderDetail, OrderPage } from './types';
 
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? '/api';
 
@@ -187,8 +188,14 @@ export const api = {
     });
   },
 
-  order(orderId: string): Promise<Checkout['order']> {
-    return request<Checkout['order']>(`/orders/${orderId}`);
+  orders(cursor?: string): Promise<OrderPage> {
+    const query = new URLSearchParams({ size: '20' });
+    if (cursor) query.set('cursor', cursor);
+    return request<OrderPage>(`/orders?${query}`);
+  },
+
+  order(orderId: string): Promise<OrderDetail> {
+    return request<OrderDetail>(`/orders/${encodeURIComponent(orderId)}`);
   },
 
   checkoutResult(orderId: string): Promise<Checkout> {

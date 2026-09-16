@@ -153,3 +153,31 @@ export type IssuedAccessToken = {
   accessToken: string;
   accessTokenExpiresAt: string;
 };
+
+export type OrderCustomerState = 'PROCESSING' | 'CHECKING' | 'SUCCEEDED' | 'FAILED';
+
+export type OrderSummary = {
+  id: string;
+  orderedAt: string;
+  representativeProductName: string;
+  representativeSkuName: string;
+  additionalProductCount: number;
+  totalQuantity: number;
+  total: Money;
+  checkoutResult: OrderCustomerState;
+  orderStatus: string | null;
+};
+
+export type OrderPage = { items: OrderSummary[]; nextCursor: string | null };
+
+export type OrderDetail = {
+  id: string;
+  orderedAt: string;
+  checkoutResult: OrderCustomerState;
+  orderStatus: string | null;
+  lines: OrderLine[];
+  total: Money;
+  shippingAddress: Pick<Address, 'recipient' | 'phone' | 'line1' | 'city' | 'postalCode'>;
+  trackingNumber: string | null;
+  timeline: { type: string; occurredAt: string }[];
+};

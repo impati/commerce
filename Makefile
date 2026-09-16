@@ -1,4 +1,4 @@
-.PHONY: verify todo setup-hooks build test test-fast boot-all demo stop frontend-install frontend-dev frontend-build
+.PHONY: verify todo setup-hooks build test test-fast boot-all demo stop frontend-install frontend-dev frontend-build frontend-test
 
 # 검증의 단일 진입점. 성공은 한 줄, 실패는 로그와 함께 종료코드 1.
 #
@@ -48,3 +48,6 @@ frontend-dev:
 
 frontend-build:
 	cd frontend/storefront && npm run build
+
+frontend-test:
+	cd frontend/storefront && npm test
