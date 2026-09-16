@@ -37,27 +37,26 @@ make todo
 
 | 순서 | 항목 | 왜 이 순서인가 |
 | --- | --- | --- |
-| 1 | [BL-0068](bl-0068-member-order-history.md) 회원 주문 내역과 진행 이력 | 구매 이후 고객 여정의 진입점이다 |
-| 2 | [BL-0069](bl-0069-cart-line-management.md) 장바구니 줄 관리 | 구매 전 기본 조작이 추가만 가능한 상태다 |
-| 3 | [BL-0070](bl-0070-shipping-address-management.md) 배송지 관리와 선택 | 주문에 사용할 주소를 고객이 완전하게 관리하지 못한다 |
-| 4 | [BL-0071](bl-0071-order-price-breakdown.md) 주문 금액 구성과 배송비 | 최종 청구 금액의 구성이 먼저 확정돼야 한다 |
-| 5 | [BL-0016](bl-0016-display-card-price-mismatch.md) 지면 카드 가격 | 탐색 단계의 가격과 실제 구매 가격이 어긋날 수 있다 |
-| 6 | [BL-0025](bl-0025-inventory-reservation-never-expires.md) 재고 예약 만료 | 방치된 예약이 실제 판매 가능 재고를 무기한 막는다 |
-| 7 | [BL-0029](bl-0029-order-and-shipment-status-diverge.md) 주문·배송 상태 정본 | 취소와 배송 자동화를 붙이기 전에 진행의 진실을 정해야 한다 |
-| 8 | [BL-0058](bl-0058-delivered-endpoint-is-not-classified-internal.md) 배송 완료 경로 등급 | 고객이 바꾸면 안 되는 배송 전이의 경계를 먼저 닫는다 |
-| 9 | [BL-0072](bl-0072-customer-order-cancellation.md) 출고 전 주문 취소 | 성립한 구매를 고객이 안전하게 되돌릴 수 있어야 한다 |
-| 10 | [BL-0073](bl-0073-inventory-movement-history.md) 재고 이동 이력 | 취소와 반품이 되돌리는 재고를 설명할 근거가 필요하다 |
-| 11 | [BL-0074](bl-0074-carrier-driven-shipment-progress.md) 배송사 기반 배송 진행 | 데모 버튼을 실제 이행 흐름으로 바꾼다 |
-| 12 | [BL-0075](bl-0075-return-and-refund.md) 반품과 환불 | 배송 이후 고객 여정을 닫는다 |
-| 13 | [BL-0076](bl-0076-payment-attempt-and-retry.md) 결제 시도와 재시도 | 거절된 결제를 구매 내용 손실 없이 다시 시도할 수 있어야 한다 |
-| 14 | [BL-0077](bl-0077-real-payment-gateway-integration.md) 실제 PG 연동 | 로컬 대역을 실제 외부 결제 흐름으로 연결한다 |
-| 15 | [BL-0078](bl-0078-payment-transaction-history.md) 결제 거래 이력 | 고객 청구와 환불을 설명하고 대사할 근거다 |
-| 16 | [BL-0079](bl-0079-payment-reconciliation.md) PG 거래 대사 | 내부 결제와 외부 거래의 불일치를 발견한다 |
-| 17 | [BL-0080](bl-0080-payment-payout-settlement.md) PG 입금 정산 | 예상 금액과 실제 입금액까지 재무 흐름을 닫는다 |
-| 18 | [BL-0081](bl-0081-commerce-operations-backoffice.md) 커머스 운영 백오피스 | 기능을 DB 직접 조작 없이 운영할 수 있게 한다 |
-| 19 | [BL-0006](bl-0006-local-profile-smoke.md) local 프로파일 스모크 | 하네스가 못 보는 구간이다. 급하지 않다 |
-| 20 | [BL-0007](bl-0007-password-policy-to-domain.md) 비밀번호 정책을 도메인으로 | 클래스 리뷰에서 나왔다. 지금 동작에는 문제가 없다 |
-| 21 | [BL-0030](bl-0030-policy-verification-gaps.md) 정책 규칙 검증 공백 | 상품 노출 전체와 체크아웃 R1~R4. 크지만 기계적이라 앞의 것들이 끝난 뒤가 낫다 |
+| 1 | [BL-0069](bl-0069-cart-line-management.md) 장바구니 줄 관리 | 구매 전 기본 조작이 추가만 가능한 상태다 |
+| 2 | [BL-0070](bl-0070-shipping-address-management.md) 배송지 관리와 선택 | 주문에 사용할 주소를 고객이 완전하게 관리하지 못한다 |
+| 3 | [BL-0071](bl-0071-order-price-breakdown.md) 주문 금액 구성과 배송비 | 최종 청구 금액의 구성이 먼저 확정돼야 한다 |
+| 4 | [BL-0016](bl-0016-display-card-price-mismatch.md) 지면 카드 가격 | 탐색 단계의 가격과 실제 구매 가격이 어긋날 수 있다 |
+| 5 | [BL-0025](bl-0025-inventory-reservation-never-expires.md) 재고 예약 만료 | 방치된 예약이 실제 판매 가능 재고를 무기한 막는다 |
+| 6 | [BL-0029](bl-0029-order-and-shipment-status-diverge.md) 주문·배송 상태 정본 | 취소와 배송 자동화를 붙이기 전에 진행의 진실을 정해야 한다 |
+| 7 | [BL-0058](bl-0058-delivered-endpoint-is-not-classified-internal.md) 배송 완료 경로 등급 | 고객이 바꾸면 안 되는 배송 전이의 경계를 먼저 닫는다 |
+| 8 | [BL-0072](bl-0072-customer-order-cancellation.md) 출고 전 주문 취소 | 성립한 구매를 고객이 안전하게 되돌릴 수 있어야 한다 |
+| 9 | [BL-0073](bl-0073-inventory-movement-history.md) 재고 이동 이력 | 취소와 반품이 되돌리는 재고를 설명할 근거가 필요하다 |
+| 10 | [BL-0074](bl-0074-carrier-driven-shipment-progress.md) 배송사 기반 배송 진행 | 데모 버튼을 실제 이행 흐름으로 바꾼다 |
+| 11 | [BL-0075](bl-0075-return-and-refund.md) 반품과 환불 | 배송 이후 고객 여정을 닫는다 |
+| 12 | [BL-0076](bl-0076-payment-attempt-and-retry.md) 결제 시도와 재시도 | 거절된 결제를 구매 내용 손실 없이 다시 시도할 수 있어야 한다 |
+| 13 | [BL-0077](bl-0077-real-payment-gateway-integration.md) 실제 PG 연동 | 로컬 대역을 실제 외부 결제 흐름으로 연결한다 |
+| 14 | [BL-0078](bl-0078-payment-transaction-history.md) 결제 거래 이력 | 고객 청구와 환불을 설명하고 대사할 근거다 |
+| 15 | [BL-0079](bl-0079-payment-reconciliation.md) PG 거래 대사 | 내부 결제와 외부 거래의 불일치를 발견한다 |
+| 16 | [BL-0080](bl-0080-payment-payout-settlement.md) PG 입금 정산 | 예상 금액과 실제 입금액까지 재무 흐름을 닫는다 |
+| 17 | [BL-0081](bl-0081-commerce-operations-backoffice.md) 커머스 운영 백오피스 | 기능을 DB 직접 조작 없이 운영할 수 있게 한다 |
+| 18 | [BL-0006](bl-0006-local-profile-smoke.md) local 프로파일 스모크 | 하네스가 못 보는 구간이다. 급하지 않다 |
+| 19 | [BL-0007](bl-0007-password-policy-to-domain.md) 비밀번호 정책을 도메인으로 | 클래스 리뷰에서 나왔다. 지금 동작에는 문제가 없다 |
+| 20 | [BL-0030](bl-0030-policy-verification-gaps.md) 정책 규칙 검증 공백 | 상품 노출 전체와 체크아웃 R1~R4. 크지만 기계적이라 앞의 것들이 끝난 뒤가 낫다 |
 
 ## 순서를 정하지 않은 항목
 
