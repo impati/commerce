@@ -13,30 +13,31 @@ import com.impati.commerce.common.ApiContracts.LoginRequest;
 import com.impati.commerce.common.ApiContracts.LoginResponse;
 import com.impati.commerce.common.ApiContracts.MemberResponse;
 import com.impati.commerce.common.ApiContracts.NotificationResponse;
-import com.impati.commerce.common.ApiContracts.OrderResponse;
 import com.impati.commerce.common.ApiContracts.OrderDetailResponse;
 import com.impati.commerce.common.ApiContracts.OrderPageResponse;
+import com.impati.commerce.common.ApiContracts.OrderResponse;
 import com.impati.commerce.common.ApiContracts.ProductResponse;
 import com.impati.commerce.common.ApiContracts.RegisterMemberRequest;
+import com.impati.commerce.common.ApiContracts.SessionTokenRequest;
 import com.impati.commerce.common.ApiContracts.ShipmentResponse;
 import com.impati.commerce.common.ApiContracts.StockResponse;
-import com.impati.commerce.common.ApiContracts.SessionTokenRequest;
 import com.impati.commerce.common.ApiContracts.VerifyEmailRequest;
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.stereotype.Component;
 import com.impati.commerce.common.DomainException;
 import com.impati.commerce.gateway.support.MemberServiceAvailability;
 import com.impati.commerce.http.RestClientFactory;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.web.client.RestClient;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.ResourceAccessException;
-import org.springframework.web.client.RestClientResponseException;
-
 import java.util.List;
+import java.util.Optional;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Component;
+import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 @Component
 public class GatewayClients {
+
     private static final String MEMBER_ID_HEADER = "X-Member-Id";
 
     private final MemberServiceAvailability memberServiceAvailability;
@@ -218,7 +219,7 @@ public class GatewayClients {
     public OrderPageResponse orders(String memberId, String cursor, int size) {
         return orders.get()
                 .uri(builder -> builder.path("/orders")
-                        .queryParamIfPresent("cursor", java.util.Optional.ofNullable(cursor))
+                        .queryParamIfPresent("cursor", Optional.ofNullable(cursor))
                         .queryParam("size", size).build())
                 .header(MEMBER_ID_HEADER, memberId)
                 .retrieve().body(OrderPageResponse.class);
