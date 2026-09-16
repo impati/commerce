@@ -1,5 +1,8 @@
 package com.impati.commerce.order.application.port.in;
 
+import com.impati.commerce.order.application.model.CheckoutResult;
+import com.impati.commerce.order.application.model.OrderDetails;
+
 import com.impati.commerce.order.domain.IdempotencyKey;
 
 /**

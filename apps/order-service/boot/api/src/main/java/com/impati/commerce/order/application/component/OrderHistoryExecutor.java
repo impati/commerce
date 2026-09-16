@@ -1,13 +1,13 @@
 package com.impati.commerce.order.application.component;
 
 import com.impati.commerce.common.DomainException;
-import com.impati.commerce.order.application.port.in.OrderCursor;
-import com.impati.commerce.order.application.port.in.OrderHistoryDetail;
+import com.impati.commerce.order.application.model.OrderCursor;
+import com.impati.commerce.order.application.model.OrderHistoryDetail;
 import com.impati.commerce.order.application.port.in.OrderHistoryUseCase;
-import com.impati.commerce.order.application.port.in.OrderPage;
-import com.impati.commerce.order.application.port.in.OrderQueryKey;
-import com.impati.commerce.order.application.port.in.OrderSummary;
-import com.impati.commerce.order.application.port.in.OrderTimelineEntry;
+import com.impati.commerce.order.application.model.OrderPage;
+import com.impati.commerce.order.application.model.OrderQueryKey;
+import com.impati.commerce.order.application.model.OrderSummary;
+import com.impati.commerce.order.application.model.OrderTimelineEntry;
 import com.impati.commerce.order.application.port.out.CheckoutProgressRepository;
 import com.impati.commerce.order.application.port.out.OrderEventRepository;
 import com.impati.commerce.order.application.port.out.OrderRepository;

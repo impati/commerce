@@ -6,7 +6,7 @@ import com.impati.commerce.common.ApiContracts.OrderResponse;
 import com.impati.commerce.common.ApiContracts.OrderDetailResponse;
 import com.impati.commerce.common.ApiContracts.OrderPageResponse;
 import com.impati.commerce.order.application.port.in.OrderHistoryUseCase;
-import com.impati.commerce.order.application.port.in.OrderQueryKey;
+import com.impati.commerce.order.application.model.OrderQueryKey;
 import com.impati.commerce.order.application.port.in.OrderUseCase;
 import com.impati.commerce.order.domain.IdempotencyKey;
 import org.springframework.http.ResponseEntity;

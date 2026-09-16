@@ -6,8 +6,8 @@ import com.impati.commerce.common.ApiContracts.OrderPageResponse;
 import com.impati.commerce.common.ApiContracts.OrderShippingAddressResponse;
 import com.impati.commerce.common.ApiContracts.OrderSummaryResponse;
 import com.impati.commerce.common.ApiContracts.OrderTimelineResponse;
-import com.impati.commerce.order.application.port.in.OrderHistoryDetail;
-import com.impati.commerce.order.application.port.in.OrderPage;
+import com.impati.commerce.order.application.model.OrderHistoryDetail;
+import com.impati.commerce.order.application.model.OrderPage;
 
 final class OrderHistoryResponseMapper {
     private OrderHistoryResponseMapper() { }

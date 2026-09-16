@@ -1,7 +1,7 @@
 package com.impati.commerce.order.application.port.out;
 
 import com.impati.commerce.order.domain.OrderModels.Order;
-import com.impati.commerce.order.application.port.in.OrderCursor;
+import com.impati.commerce.order.application.model.OrderCursor;
 import java.util.List;
 import java.util.Optional;
 

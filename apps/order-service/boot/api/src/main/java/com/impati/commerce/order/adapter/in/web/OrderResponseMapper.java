@@ -4,10 +4,10 @@ import com.impati.commerce.common.ApiContracts.AddressResponse;
 import com.impati.commerce.common.ApiContracts.CheckoutResponse;
 import com.impati.commerce.common.ApiContracts.OrderLineResponse;
 import com.impati.commerce.common.ApiContracts.OrderResponse;
-import com.impati.commerce.order.application.port.in.CheckoutResult;
-import com.impati.commerce.order.application.port.in.OrderAddress;
-import com.impati.commerce.order.application.port.in.OrderDetails;
-import com.impati.commerce.order.application.port.in.OrderLineDetails;
+import com.impati.commerce.order.application.model.CheckoutResult;
+import com.impati.commerce.order.application.model.OrderAddress;
+import com.impati.commerce.order.application.model.OrderDetails;
+import com.impati.commerce.order.application.model.OrderLineDetails;
 
 /**
  * 유스케이스 결과를 서비스 간 HTTP 계약으로 옮긴다.

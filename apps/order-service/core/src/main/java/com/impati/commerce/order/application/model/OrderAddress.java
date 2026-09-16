@@ -1,4 +1,4 @@
-package com.impati.commerce.order.application.port.in;
+package com.impati.commerce.order.application.model;
 
 /** 주문에 남은 배송지 사본 (PD-0003-R6). */
 public record OrderAddress(

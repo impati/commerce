@@ -1,9 +1,9 @@
 package com.impati.commerce.order.application.component;
 
 import com.impati.commerce.common.ApiContracts.AddressResponse;
-import com.impati.commerce.order.application.port.in.OrderAddress;
-import com.impati.commerce.order.application.port.in.OrderDetails;
-import com.impati.commerce.order.application.port.in.OrderLineDetails;
+import com.impati.commerce.order.application.model.OrderAddress;
+import com.impati.commerce.order.application.model.OrderDetails;
+import com.impati.commerce.order.application.model.OrderLineDetails;
 import com.impati.commerce.order.domain.OrderModels.Address;
 import com.impati.commerce.order.domain.OrderModels.Order;
 import com.impati.commerce.order.domain.OrderModels.OrderLine;

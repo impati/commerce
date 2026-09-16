@@ -1,4 +1,4 @@
-package com.impati.commerce.order.application.port.in;
+package com.impati.commerce.order.application.model;
 
 import com.impati.commerce.common.ApiContracts.Money;
 import java.time.OffsetDateTime;

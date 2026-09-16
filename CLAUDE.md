@@ -84,7 +84,7 @@ make verify
 - **게이트웨이가 노출하지 않을 경로는 `/internal` 아래에 두고 `Internal*Controller`가 담는다.** 기준은 "누가 부르는가"가 아니라 "게이트웨이가 브라우저에 노출하는가"다 — 게이트웨이도 내부 경로를 부른다. 이 프리픽스는 등급을 선언할 뿐 아무것도 막지 않으며, 막는 것은 배포 토폴로지다. 근거는 [docs/adr/0003](docs/adr/0003-internal-path-prefix.md), 경계 전체는 [docs/adr/0002](docs/adr/0002-network-segmentation-as-trust-boundary.md)에 있다.
 - 패키지 구조는 `adapter/in/web`, `adapter/out/client`, `adapter/out/publisher`, `adapter/out/persistence`, `application`, `domain`, `support`를 따른다. 새 서비스도 같은 모양으로 만든다. **나가는 어댑터는 무엇을 부르는지가 아니라 무엇으로 부르는지로 이름 짓는다** — 모듈도 패키지도 클래스도 그렇다. `HttpOrderEventPublisher`이고 `NotifyingOrderEventPublisher`가 아니다. 대상을 이름에 넣으면 전송 수단이 늘 때 형제끼리 결이 갈린다 (ADR-0015).
 - **실행 단위는 `adapter/in`의 종류로 나눈다** — 컨트롤러는 `api`, 스케줄러는 `worker`, 브로커 구독은 `consumer`, 나머지는 `core`. 그 경계는 "진입점을 `adapter/in`에 모은다"는 위 규칙이 이미 그어둔 것이다. **API의 클래스패스에 워커나 브로커 코드가 없는 것이 요점**이라 프로파일로 가르지 않는다. **진입점 종류가 늘면 단위도 는다** — 붙이면 그 프로세스가 쓰지도 않는 설정을 요구하게 된다. 지금은 order가 둘, notification이 셋이고, 근거는 [ADR-0014](docs/adr/0014-split-api-and-worker-modules.md)와 [ADR-0016](docs/adr/0016-publish-order-events-to-kafka.md).
-- **`application`은 `port/in`·`port/out`·`component` 셋으로 나눈다** — 무엇을 할 수 있나(`XxxUseCase`와 입출력 타입), 바깥에 무엇을 요구하나(`XxxRepository`/`XxxClient`/능력 이름), 그것을 실행하는 것(`XxxExecutor`, `@Component`). 매퍼는 `component`에 package-private으로 둔다. 상세는 [docs/architecture.md](docs/architecture.md)에 있다. **포트 이름에 수단을 넣지 않는다** — `PasswordHasher`이고 `BCryptHasher`가 아니다. 수단이 이름에 박히면 갈아끼울 때 호출하는 쪽이 전부 바뀐다.
+- **`application`은 포트·입출력 모델·구현의 역할을 구분한다.** 주문 서비스는 `port/in`에 `XxxUseCase` 인터페이스, `model`에 유스케이스 입출력 타입과 조회 커서, `port/out`에 외부 능력 계약, `component`에 구현과 매퍼를 둔다. 다른 서비스는 현재 `port/in`에 입출력 타입을 함께 두며 이번 변경에서 옮기지 않는다. 입출력 모델은 도메인 규칙을 책임지는 객체와 구분한다. 매퍼는 `component`에 package-private으로 둔다. 상세는 [docs/architecture.md](docs/architecture.md)에 있다. **포트 이름에 수단을 넣지 않는다** — `PasswordHasher`이고 `BCryptHasher`가 아니다. 수단이 이름에 박히면 갈아끼울 때 호출하는 쪽이 전부 바뀐다.
 - **포트 필드 이름은 타입 이름의 camelCase다** — `orderRepository`, `paymentClient`, `paymentGateway`. 호출부에서 경계가 보여야 하기 때문이다: `orderRepository.save(...)`는 넘지 않고 `paymentClient.authorize(...)`는 넘는다. 넘는 호출에는 타임아웃·부분 실패·보상이 따라붙는다. api-gateway의 원시 `RestClient`는 포트가 아니므로 대상이 아니다.
 - **유스케이스는 서비스 간 계약(`ApiContracts`)을 돌려주지 않는다.** 반환값은 서비스 사이에서 오가는 것이 아니므로 자기 입출력 타입을 갖고, 인바운드 어댑터가 각자 자기 표현으로 옮긴다. **매퍼는 자기가 변환하는 두 타입을 모두 알아도 되는 계층에 산다** — 도메인 → 입출력은 응용, 입출력 → HTTP는 어댑터. 나가는 방향의 계약은 실제로 서비스 사이에서 오가므로 그대로 쓴다.
 - **커밋 단위가 애그리거트나 유스케이스와 항상 일치하지는 않는다.** 함께 유효해야 하는 것(애그리거트가 지킨다)과 함께 내구화돼야 하는 것은 다른 단위다. 어긋나면 그 단위를 어떻게 다룰지 판단이 필요하며, **구조를 미리 정해두지 않는다** — 사례가 하나뿐이면 그 서비스의 해법이지 규약이 아니다. 어긋난 사례와 그때의 판단은 [ADR-0012](docs/adr/0012-order-events-as-outbox.md)에 있다.
@@ -167,6 +167,8 @@ git 저장소이지만 이력이 `first commit` 하나뿐이다. 되돌릴 지�
 룰을 바꿨으면 아래 이력에 한 줄 남긴다.
 
 ## 변경 이력
+
+- 2026-09-16 — 주문 서비스의 유스케이스 입출력 타입과 커서를 `application/model`로 분리했다. 계기: 조회 모델이 늘었고 커서는 입력·출력 포트가 함께 사용하므로 `port/in`에 두면 역할과 소유 범위가 어긋났다. 다른 서비스 이동은 이번 범위에서 제외한다 (BL-0068, ADR-0022).
 
 - 2026-09-11 — `docs/policy/`에는 현재 유효한 정책만 남긴다. 규칙이 바뀌면 새 ID를 발급하면서 이전 문서를 삭제하고, 삭제한 ID는 재사용하지 않는다. 계기: 대체된 정책까지 목록에 계속 두면 다음 작업에서 현재 정책을 찾는 데 소음이 생기고, 과거 결정은 이미 Git 이력에서 복원할 수 있다.
 

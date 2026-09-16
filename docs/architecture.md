@@ -118,7 +118,8 @@ apps/<service>/
   src/main/java/com/impati/commerce/<domain>/
     <Service>Application.java
     domain/                 # aggregate, entity, value object
-    application/port/in/    # 유스케이스와 그 입출력 타입
+    application/port/in/    # 유스케이스 (다른 서비스는 입출력 타입도 함께 배치)
+    application/model/      # 주문 서비스의 유스케이스 입출력 타입·조회 커서
     application/port/out/   # 저장소·클라이언트·능력 포트
     application/component/  # 유스케이스 구현과 매퍼
     adapter/in/web/         # REST controller
@@ -134,16 +135,19 @@ apps/<service>/
 
 공통 모듈은 둘입니다. `libs/common-contracts`에는 서비스 간 HTTP DTO, 공통 예외, ID 생성기만 있고 도메인 모델은 넣지 않았습니다 — 도메인 모델을 공유하면 마이크로서비스 경계가 약해집니다. `libs/common-http`에는 서비스 간 호출의 공통 정책(타임아웃)이 auto-configuration으로 들어 있습니다.
 
-### application 패키지는 셋으로 나뉜다
+### application 패키지는 역할로 나뉜다
 
-`application`은 "응용 계층"이지 "응용 서비스"가 아닙니다. 세 자리가 이름으로 갈립니다.
+`application`은 "응용 계층"이지 "응용 서비스"가 아닙니다. 주문 서비스는 포트 인터페이스, 입출력 모델, 실행 구현을 다음과 같이 구분합니다.
 
 ```text
 application/
-  port/in/     유스케이스와 그 입출력 타입   ← 무엇을 할 수 있나
+  port/in/     유스케이스 인터페이스         ← 무엇을 할 수 있나
   port/out/    저장소·클라이언트·능력 포트    ← 바깥에 무엇을 요구하나
+  model/       유스케이스 입출력·조회 커서   ← 무엇을 주고받나
   component/   구현과 매퍼                  ← 그것을 실행하는 것
 ```
+
+조회 조건·요약·상세·페이지는 애플리케이션의 입력과 결과를 표현하므로 `model`에 둡니다. 불변 객체라는 이유만으로 `domain`에 넣지는 않습니다. 도메인 규칙과 불변 조건을 책임지는 값 객체는 `domain`에 남습니다. 커서는 입력·출력 포트가 함께 사용하므로 인바운드 전용 패키지에 속하지 않습니다 ([ADR-0022](adr/0022-member-order-history.md)). 다른 서비스는 기존처럼 `port/in`에 유스케이스와 입출력 타입을 함께 두며, 이번 BL-0068에서는 이동하지 않습니다.
 
 | 자리 | 이름 규약 | 무엇인가 |
 | --- | --- | --- |
