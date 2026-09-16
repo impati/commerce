@@ -36,7 +36,7 @@ export class UnauthorizedError extends Error {
 }
 
 export class ApiError extends Error {
-  constructor(readonly status: number, message: string) {
+  constructor(readonly status: number, message: string, readonly code?: string) {
     super(message);
   }
 }
@@ -99,12 +99,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!response.ok) {
     const body = await response.text();
     let message = body;
+    let code: string | undefined;
     try {
-      message = (JSON.parse(body) as { message?: string }).message ?? body;
+      const parsed = JSON.parse(body) as { message?: string; code?: string };
+      message = parsed.message ?? body;
+      code = parsed.code;
     } catch {
       // 본문이 JSON이 아니면 그대로 쓴다
     }
-    throw new ApiError(response.status, message);
+    throw new ApiError(response.status, message, code);
   }
   if (response.status === 204 || response.headers.get('content-length') === '0') {
     return undefined as T;
@@ -180,11 +183,11 @@ export const api = {
     });
   },
 
-  checkout(idempotencyKey: string): Promise<Checkout> {
+  checkout(idempotencyKey: string, quoteId: string): Promise<Checkout> {
     return request<Checkout>('/checkout', {
       method: 'POST',
       headers: { 'Idempotency-Key': idempotencyKey },
-      body: JSON.stringify({ paymentToken: 'card_test_success' })
+      body: JSON.stringify({ paymentToken: 'card_test_success', quoteId })
     });
   },
 

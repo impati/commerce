@@ -15,7 +15,8 @@
 | 결제 | 외부 PG와 유사한 승인/매입 경계 | `Payment` |
 | 배송 | fulfillment lifecycle | `Shipment` |
 | 알림 | 고객/운영자 커뮤니케이션 | `Notification` |
-| API Gateway | 외부 API와 내부 서비스 조합 | route, downstream client |
+| API Gateway | 외부 인증 검증과 라우팅 | route, downstream client |
+| Storefront BFF | 화면 데이터 조합과 도메인 명령 위임 | 장바구니 화면 응답 |
 
 ## 선택한 분리 기준
 
@@ -56,8 +57,8 @@
 
 ## 현재 구현의 현실적인 단순화
 
-- 저장소가 있는 8개 서비스는 H2 파일 DB를 쓰고 스키마는 Flyway로 관리합니다. 운영 인스턴스는 붙이지 않았습니다.
-- 메시지 브로커 대신 주문 서비스가 notification-service에 HTTP로 이벤트를 기록합니다.
+- 저장소가 있는 8개 서비스는 MySQL을 쓰고 스키마는 Flyway로 관리합니다. 운영 인스턴스는 붙이지 않았습니다.
+- 주문 사건은 아웃박스에서 Kafka로 발행하고 notification-consumer가 구독합니다.
 - 서비스 디스커버리는 쓰지 않고 설정값의 base URL로 연결합니다.
 - 운영 환경에서는 각 서비스별 DB, broker, tracing, retry, circuit breaker를 추가하는 것이 다음 단계입니다.
 

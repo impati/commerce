@@ -29,6 +29,11 @@ public class InternalInventoryController {
         this.inventoryUseCase = inventoryUseCase;
     }
 
+    @GetMapping("/stock/{skuId}")
+    StockResponse getStock(@PathVariable String skuId) {
+        return InventoryResponseMapper.from(inventoryUseCase.getStock(skuId));
+    }
+
     @PostMapping("/stock")
     StockResponse addStock(@RequestBody StockIncreaseRequest request) {
         return InventoryResponseMapper.from(inventoryUseCase.addStock(request.skuId(), request.quantity()));

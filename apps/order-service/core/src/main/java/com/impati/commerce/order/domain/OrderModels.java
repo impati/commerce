@@ -392,8 +392,7 @@ public final class OrderModels {
         }
 
         public Money total() {
-            var amount = lines.stream().mapToLong(line -> line.lineTotal().amount()).sum();
-            return new Money(amount, "KRW");
+            return PurchasePricing.total(lines);
         }
 
         public void attachReservation(String reservationId) {

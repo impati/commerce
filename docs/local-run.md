@@ -1,139 +1,96 @@
 # 로컬 실행 가이드
 
-상품이 지면에 노출되는 것부터 checkout, 배송 완료까지 로컬에서 보는 방법. 서비스별 포트는 [README](../README.md)의 표를 본다.
+Storefront의 상품 탐색, 장바구니와 구매 흐름을 로컬에서 확인한다. 서비스별 포트는 [README](../README.md)의 표를 본다.
 
 ## 준비물
 
-| 도구 | 용도 | 확인 |
-| --- | --- | --- |
-| JDK 21 | 서비스 실행 | `java -version` |
-| Node 20+ | storefront | `node --version` |
-| jq | 데모 스크립트 | `jq --version` |
+- JDK 21, Node 20+, 실행 중인 Docker와 Docker Compose.
+- jq: 수동 API 확인과 데모 스크립트에 사용한다.
+- Gradle은 wrapper를 사용한다.
 
-Gradle은 wrapper를 쓰므로 따로 설치하지 않는다.
+## 실행
 
-## 가장 빠른 길
+저장소 루트에서:
 
 ```bash
 make boot-all
 ```
 
-10개 서비스를 bootJar로 빌드해 로컬 프로세스로 띄우고, 전부 `/actuator/health`가 200을 반환할 때까지 기다린다. 마지막에 `all services are running`이 찍히면 성공이다.
+MySQL(호스트 3316)과 Kafka(호스트 9192)를 자동으로 준비하고 bootJar를 빌드한다. BFF를 포함한 14개 실행 단위를 로컬 프로세스로 띄우며, 모두 health 검사를 통과하면 `all services are running`을 출력한다.
 
-프론트엔드는 별도 터미널에서:
+별도 터미널에서:
 
 ```bash
 make frontend-install
 make frontend-dev
 ```
 
-`http://localhost:5173`을 열면 지면이 보인다.
+http://localhost:5173 에 접속한다. Gateway는 8080, Storefront BFF는 8110이다. 브라우저 요청은 Gateway를 거친다.
 
-## 지면이 제대로 붙었는지 확인하는 법
+코드를 바꿨는데 이미 서비스가 실행 중이면 `make stop` 후 다시 `make boot-all`을 실행한다. 살아 있는 프로세스는 자동 교체하지 않는다. `SKIP_BUILD=true ./scripts/run-all.sh`는 현재 jar로 중지된 실행 단위만 올릴 때 사용한다.
 
-화면 우측 상단 배지가 판정 기준이다.
+## 데모 회원과 시드
 
-- **`Gateway connected`** (초록) — 5개 리소스 전부 실제 데이터
-- **`Partial — demo: ...`** (파랑) — 나열된 것만 `src/mockData.ts` 시드로 대체, 나머지는 실제 데이터
-- **`Demo mode`** (노랑) — 5개 전부 실패. 화면 전체가 시드 데이터
+기본 `local` 프로파일에서 자동으로 생성한다.
 
-Demo mode에서도 상품이 보이므로 **화면만 보고 백엔드가 붙었다고 판단하면 안 된다.** 배지를 먼저 본다.
-
-백엔드만 따로 확인하려면:
-
-```bash
-curl -s http://localhost:8080/display/home | jq '.sections[] | {key, count: (.products | length)}'
-```
-
-시드 데이터에서는 `daily_essentials` 2건, `new_arrivals` 2건, `premium_picks` 1건이 나온다. 섹션이 비어 있으면 catalog의 상품 태그(`daily`/`new`/`premium`)와 display의 섹션 정의가 어긋난 것이다 — 지면 필터는 태그 기준이다.
-
-## 상품 노출만 보려면 몇 개를 띄워야 하나
-
-**3개면 된다.**
-
-| 서비스 | 왜 필요한가 |
+| 데이터 | 초기 값 |
 | --- | --- |
-| api-gateway | 프론트의 유일한 진입점 |
-| display-service | `/display/home` 섹션 구성 |
-| catalog-service | display가 상품/SKU를 물어본다 |
+| 회원 | `demo@impati.test` / `demo-password`, 인증 완료, 기본 배송지 1개 |
+| 상품 | 티셔츠, 드립 세트, 파우치 3개 상품과 SKU 5개 |
+| 가격 | 티셔츠 29,000원, 드립 세트 87,000원·91,000원, 파우치 34,000원 |
+| 재고 | SKU마다 20개, 총 100개 |
+| 장바구니·주문 | 사전 생성하지 않는다. 직접 담고 주문한다 |
+| 결제 대역 | `card_test_success` 성공, `card_test_decline` 거절 |
 
-프론트 초기 로딩은 `home`, `products`, `cart`, `inventory`, `notifications`를 각각 독립적으로 가져오므로, 살아있는 것은 실제 데이터를 쓰고 죽은 것만 시드로 대체된다 ([App.tsx](../frontend/storefront/src/App.tsx)의 `fetchStorefront`). cart / inventory / notification 3개를 죽이고 확인하면 상품은 실제 가격으로 뜨고 배지가 `Partial — demo: cart, inventory, notifications`가 된다.
+회원은 데모 이메일이 없을 때, 상품과 재고는 각 저장소가 비었을 때만 생성한다. 재시작해서 재고를 다시 채우거나 상품을 중복 생성하지 않는다.
 
-**5개 전부를 실제 데이터로 보려면** 여기에 cart-service, inventory-service, notification-service를 더해 6개다. member / payment / shipping / order 4개는 지면 노출에 필요 없고 checkout을 눌렀을 때 필요하다.
+## 장바구니와 주문 확인
 
-재고 숫자로 실제/시드를 구분할 수 있다. 시드 합계는 100이고, 체크아웃을 한 번이라도 했으면 실제 값은 그보다 작다.
+로그인 후 상품을 담으면 Cart 저장 결과를 먼저 받고 BFF의 화면 데이터를 별도로 조회한다. 화면의 상품 합계는 Order가 계산한 견적이다. 상품 정보 실패는 해당 상품에 표시하고, 견적·재고 확인 실패는 결제를 제한한다. 장바구니 조회나 담기 실패를 데모 성공으로 바꾸지 않는다.
 
-## 전체 흐름 확인
+결제할 때 확인한 견적을 전달한다. 다른 탭에서 상품·수량을 바꾸거나 가격이 달라지면 새 장바구니와 견적을 확인해야 한다. 접수한 구매분은 장바구니에서 분리되며 결제 실패 시 자동 복원하지 않는다. 응답을 잃은 주문은 같은 요청 키와 같은 본문으로 결과를 회수한다.
+
+명령으로 수동 확인하려면:
 
 ```bash
 make demo
 ```
 
-지면 조회 → 장바구니 담기 → checkout → 출고 → 배송 완료 → 알림 확인을 순서대로 호출한다. 결제 성공 토큰(`card_test_success`)을 쓰므로 주문은 `FULFILLING`까지 간다.
+로그인 → 지면 → 담기 → 견적 조회 → 확인된 주문 접수 → 출고 → 배송 완료 → 알림 조회를 호출한다. 이 스크립트는 응답을 눈으로 보는 데모이며 검증은 `make verify`다.
 
-**이 스크립트에는 assert가 없다.** 응답을 눈으로 보는 수동 확인용이며 검증 수단이 아니다. 검증은 `./gradlew test`다.
+상품 탐색 데이터는 API 실패 시 데모 데이터로 표시될 수 있다. 화면의 연결 상태 배지와 실제 요청 결과를 함께 확인한다. 상품이 보인다는 이유만으로 백엔드가 연결됐다고 판단하지 않는다. 구매 화면은 데모 데이터로 대체하지 않는다.
 
-결제 실패 경로를 보려면 토큰을 바꿔서 직접 호출한다:
+## 데이터 보존과 초기화
 
-```bash
-curl -sS -X POST http://localhost:8080/checkout -H 'Content-Type: application/json' \
-  -d '{"memberId":"mem_demo","paymentToken":"card_test_decline"}' | jq
-```
+저장소가 있는 8개 서비스는 하나의 MySQL에서 서비스별 데이터베이스를 사용한다. Gateway, BFF와 Display는 자체 저장소가 없다. Flyway가 각 서비스의 마이그레이션을 기동 시 적용한다.
 
-주문은 `CANCELLED`가 되고 재고 예약은 release되며 장바구니는 유지된다.
+`make stop`은 로컬 서비스 프로세스만 종료한다. MySQL과 Kafka 컨테이너는 유지되며, 회원·재고·주문 등도 남는다.
 
-## 데이터가 남는 범위
-
-저장소가 있는 8개 서비스가 MySQL 하나를 공유하고 서비스마다 데이터베이스를 나눠 쓴다. api-gateway와 display-service는 저장소가 없다.
-
-**`make boot-all`이 DB를 함께 챙긴다.** compose의 mysql이 떠 있지 않으면 띄우고 준비될 때까지 기다린다. `make stop`은 서비스만 내리므로 프로세스를 전부 재시작해도 상품, 재고, 회원, 장바구니, 주문, 결제, 배송, 알림이 그대로 남는다.
-
-```bash
-docker compose exec mysql mysql -uroot -proot -e "show databases;"   # 서비스마다 하나
-docker compose down -v                                              # 초기화 (make stop 후에)
-```
-
-스키마는 각 서비스의 `src/main/resources/db/migration`에 있고 Flyway가 기동 시 적용한다.
-
-시드 데이터는 저장소가 비어 있을 때만 들어간다. 재시작해도 상품이 6개로 늘거나 재고가 두 배가 되지 않는다.
-
-데이터를 비우고 처음부터 보려면 `make stop` 후 `docker compose down -v`를 실행하고 다시 띄운다.
-
-**호스트 포트는 3316이다.** 3306은 흔한 포트라 다른 프로젝트의 MySQL과 부딪힌다. 바꾸려면 `MYSQL_PORT`(compose)와 `DB_PORT`(서비스)를 함께 지정한다.
-
-## 로그와 종료
+전체 데이터를 삭제하고 처음부터 시작할 때만:
 
 ```bash
 make stop
+docker compose down -v
+make boot-all
 ```
 
-- 로그: `.run/<service>.log`
-- PID: `.run/<service>.pid`
-- 특정 서비스만 다시 띄우려면 `SKIP_BUILD=true ./scripts/run-all.sh`. 이미 살아 있는 것은 건너뛰고 죽은 것만 올린다.
+기존 로컬 데이터가 삭제된다.
 
-## 자주 겪는 문제
+## 로그와 문제 확인
 
-| 증상 | 원인과 대처 |
-| --- | --- |
-| `Demo mode`가 뜬다 | 게이트웨이가 아예 안 떴다. 5개 호출이 전부 실패한 상태다 |
-| `Partial — demo: ...`가 뜬다 | 나열된 리소스의 서비스만 죽었다. `.run/<service>.log`를 본다 |
-| `did not become healthy` | 포트 충돌이 대부분이다. `lsof -i :8080` 등으로 확인 |
-| 상품이 비어 있다 | catalog-service가 죽었거나 태그가 어긋났다 |
-| 재시작했는데 예전 데이터가 남아 있다 | 정상이다. MySQL에 남는다. 초기화는 `make stop` 후 `docker compose down -v` |
-| `3316를 이미 다른 프로세스가 쓰고 있다` | 다른 프로젝트의 DB가 그 포트에 있다. 남의 DB에 마이그레이션을 돌리지 않으려고 멈춘 것이다. 그것을 내리거나 `MYSQL_PORT`·`DB_PORT`를 옮긴다 |
-| `Communications link failure` | DB가 아직 접속을 안 받는다. `docker compose ps`로 mysql이 healthy인지 본다 |
-| 재고가 이상하다 | 체크아웃한 만큼 차감된 실제 값이다. 시드 합계는 100이다 |
-| `jq: command not found` | `make demo`가 jq를 쓴다. `brew install jq` |
+- 로그: `.run/<실행 단위>.log`, BFF는 `.run/storefront-bff.log`.
+- PID: `.run/<실행 단위>.pid`.
+- 시작 실패 시 로그와 `docker compose ps`를 확인한다.
+- 3316이나 9192를 다른 프로젝트가 쓰면 자동 기동은 멈춘다. 접속 대상은 명시적으로 지정해야 한다.
+- BFF health가 정상이어도 의존 서버 조회가 실패할 수 있다. 장바구니 화면의 영역별 오류와 로그를 확인한다.
+- `make verify`는 Docker가 필요하며 실제 MySQL·Kafka 통합 테스트를 포함한다.
+- 프론트 검증: `make frontend-test`, `make frontend-build`.
 
-## docker compose 대안
-
-[docker-compose.yml](../docker-compose.yml)로도 띄울 수 있다. 서비스 간 URL은 컨테이너 이름으로 환경변수(`CLIENTS_*_URL`)를 통해 주입된다.
+## 모든 백엔드를 컨테이너로 실행
 
 ```bash
 ./gradlew bootJar
 docker compose up --build
 ```
 
-[docker/service.Dockerfile](../docker/service.Dockerfile)이 이미 빌드된 jar를 복사하는 구조이므로 **`bootJar`를 먼저 돌려야 한다.** 이미지 안에서 빌드하지 않는다.
-
-로컬 개발에는 `make boot-all`이 더 빠르다. compose는 서비스 간 네트워킹을 컨테이너 이름으로 확인하고 싶을 때 쓴다.
+이미지 안에서 빌드하지 않으므로 bootJar를 먼저 만든다. 서비스 URL은 compose의 환경변수로 전달한다. 시드가 필요하면 서비스에 `SPRING_PROFILES_ACTIVE=local`을 지정한다. 호스트 프로세스와 컨테이너의 서비스 포트를 동시에 사용하지 않는다.

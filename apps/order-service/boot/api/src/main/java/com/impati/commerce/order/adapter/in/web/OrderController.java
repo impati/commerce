@@ -2,6 +2,7 @@ package com.impati.commerce.order.adapter.in.web;
 
 import com.impati.commerce.common.ApiContracts.CheckoutRequest;
 import com.impati.commerce.common.ApiContracts.CheckoutResponse;
+import com.impati.commerce.common.ApiContracts.ConfirmedCheckoutRequest;
 import com.impati.commerce.common.ApiContracts.OrderResponse;
 import com.impati.commerce.common.ApiContracts.OrderDetailResponse;
 import com.impati.commerce.common.ApiContracts.OrderPageResponse;
@@ -37,19 +38,13 @@ public class OrderController {
         this.orderHistoryUseCase = orderHistoryUseCase;
     }
 
-    @PostMapping("/checkouts")
-    ResponseEntity<CheckoutResponse> checkout(
-            @RequestHeader("X-Member-Id") String memberId,
-            @RequestHeader("Idempotency-Key") String idempotencyKey,
-            @RequestBody CheckoutRequest request
-    ) {
-        var result = orderUseCase.checkout(
-                memberId, new IdempotencyKey(idempotencyKey), request.paymentToken(), request.addressId());
+    @PostMapping("/checkouts/confirmed")
+    ResponseEntity<CheckoutResponse> checkoutConfirmed(@RequestHeader("X-Member-Id") String memberId,
+            @RequestHeader("Idempotency-Key") String key,
+            @RequestBody ConfirmedCheckoutRequest request) {
+        var result = orderUseCase.checkoutConfirmed(memberId, new IdempotencyKey(key), request.paymentToken(), request.addressId(), request.quoteId());
         var response = OrderResponseMapper.from(result);
-        if ("PROCESSING".equals(result.order().checkoutStatus())) {
-            return ResponseEntity.accepted().body(response);
-        }
-        return ResponseEntity.status(result.newlyAccepted() ? 201 : 200).body(response);
+        return ResponseEntity.status("PROCESSING".equals(result.order().checkoutStatus()) ? 202 : result.newlyAccepted() ? 201 : 200).body(response);
     }
 
     @GetMapping("/orders/{orderId}")

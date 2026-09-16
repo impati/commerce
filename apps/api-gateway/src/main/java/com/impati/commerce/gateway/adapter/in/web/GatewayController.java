@@ -5,7 +5,8 @@ import com.impati.commerce.common.ApiContracts.AddAddressRequest;
 import com.impati.commerce.common.ApiContracts.AddressResponse;
 import com.impati.commerce.common.ApiContracts.CartItemRequest;
 import com.impati.commerce.common.ApiContracts.CartResponse;
-import com.impati.commerce.common.ApiContracts.CheckoutRequest;
+import com.impati.commerce.common.ApiContracts.ConfirmedCheckoutRequest;
+import com.impati.commerce.common.ApiContracts.StorefrontCartResponse;
 import com.impati.commerce.common.ApiContracts.CheckoutResponse;
 import com.impati.commerce.common.ApiContracts.DisplayHomeResponse;
 import com.impati.commerce.common.ApiContracts.LoginRequest;
@@ -158,7 +159,7 @@ public class GatewayController {
     }
 
     @GetMapping("/cart")
-    CartResponse cart(@RequestHeader(value = "Authorization", required = false) String authorization) {
+    StorefrontCartResponse cart(@RequestHeader(value = "Authorization", required = false) String authorization) {
         return clients.cart(identity.require(authorization));
     }
 
@@ -174,7 +175,7 @@ public class GatewayController {
     ResponseEntity<CheckoutResponse> checkout(
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestHeader("Idempotency-Key") String idempotencyKey,
-            @RequestBody CheckoutRequest request
+            @RequestBody ConfirmedCheckoutRequest request
     ) {
         return clients.checkout(identity.require(authorization), idempotencyKey, request);
     }

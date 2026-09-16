@@ -37,3 +37,4 @@
 | [0017](pd-0017-checkout-execution-and-recovery.md) | 체크아웃 실행과 복구 |
 | [0018](pd-0018-cart-checkout-snapshot.md) | 장바구니와 구매 스냅샷 |
 | [0020](pd-0020-order-history-visibility.md) | 주문 내역 노출과 진행 이력 |
+| [0021](pd-0021-purchase-confirmation.md) | 확인한 구매 내용과 금액으로 주문 |

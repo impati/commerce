@@ -47,12 +47,26 @@ export type DisplayHome = {
 export type CartLine = {
   skuId: string;
   quantity: number;
+  productName?: string | null;
+  skuName?: string | null;
+  availableQuantity?: number | null;
+  informationAvailable?: boolean;
+};
+
+export type PurchaseQuote = {
+  id: string;
+  cartVersion: number;
+  lines: { skuId: string; quantity: number; unitPrice: Money; lineTotal: Money }[];
+  total: Money;
 };
 
 export type Cart = {
   memberId: string;
   lines: CartLine[];
   version: number;
+  quote?: PurchaseQuote | null;
+  unavailable?: string[];
+  checkoutAllowed?: boolean;
 };
 
 export type Address = {

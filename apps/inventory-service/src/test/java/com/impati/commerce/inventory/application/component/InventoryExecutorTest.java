@@ -231,4 +231,12 @@ class InventoryExecutorTest {
                 .findFirst()
                 .orElseThrow();
     }
+    @Test
+    void targetedStockLookupReadsOnlyExistingInventory() {
+        inventoryUseCase.addStock("sku_targeted_lookup", 7);
+        assertThat(inventoryUseCase.getStock("sku_targeted_lookup").available()).isEqualTo(7);
+        assertThatThrownBy(() -> inventoryUseCase.getStock("sku_targeted_missing"))
+                .isInstanceOfSatisfying(DomainException.class, error -> assertThat(error.code()).isEqualTo("not_found"));
+        assertThat(jdbc.queryForObject("select count(*) from stock_items where sku_id = ?", Integer.class, "sku_targeted_missing")).isZero();
+    }
 }

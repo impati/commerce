@@ -9,7 +9,11 @@ flowchart LR
     Gateway --> Member[member-service]
     Gateway --> Display[display-service]
     Gateway --> Catalog[catalog-service]
-    Gateway --> Cart[cart-service]
+    Gateway --> BFF[storefront-bff]
+    BFF --> Cart[cart-service]
+    BFF --> Catalog
+    BFF --> Inventory
+    BFF --> Order
     Gateway --> Order[order-service]
     Gateway --> Shipping[shipping-service]
     Gateway --> Inventory[inventory-service]
@@ -23,8 +27,15 @@ flowchart LR
     Order --> Inventory
     Order --> Payment[payment-service]
     Order --> Shipping
-    Order --> Notification
 ```
+
+### Storefront BFF
+
+Gateway는 인증 신원을 BFF에 전달하고 장바구니·담기·주문 접수를 라우팅한다. BFF는 화면용 응답을 만들고 도메인 명령은 해당 서버에 위임한다. 다른 지면의 기존 경로는 유지한다. Cart는 장바구니 변경과 구매분 분리, Order는 견적 계산과 확인된 구매 내용의 접수를 소유한다. 견적 조회는 저장하지 않으며 접수는 현재 상태로 같은 계산을 반복해 견적 식별값을 검증한다.
+
+BFF는 장바구니에 담긴 SKU의 상품과 재고만 조회한다. 독립 조회는 가상 스레드에서 병렬로 수행하고 공통 HTTP 경계의 타임아웃과 오류 번역을 적용한다. 일부 조회 실패는 확인된 상태와 분리해 표현하며, 견적 또는 재고 미확인 시 새 결제를 제한한다. 이미 접수한 요청의 결과 회수는 동일한 키와 견적 식별값으로 Order에 위임한다.
+
+Cart의 버전은 읽은 상태를 저장할 때 비교하고, 다른 쓰기나 구매분 분리가 먼저 진행됐으면 오래된 저장을 거절한다. 장바구니의 헤더와 줄 조회는 같은 DB 스냅샷으로 읽는다. ([ADR-0023](adr/0023-storefront-bff.md), [PD-0021](policy/pd-0021-purchase-confirmation.md))
 
 ### 경로의 두 등급
 

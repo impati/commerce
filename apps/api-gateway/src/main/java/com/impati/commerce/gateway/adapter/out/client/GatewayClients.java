@@ -5,7 +5,8 @@ import com.impati.commerce.common.ApiContracts.AddAddressRequest;
 import com.impati.commerce.common.ApiContracts.AddressResponse;
 import com.impati.commerce.common.ApiContracts.CartItemRequest;
 import com.impati.commerce.common.ApiContracts.CartResponse;
-import com.impati.commerce.common.ApiContracts.CheckoutRequest;
+import com.impati.commerce.common.ApiContracts.ConfirmedCheckoutRequest;
+import com.impati.commerce.common.ApiContracts.StorefrontCartResponse;
 import com.impati.commerce.common.ApiContracts.CheckoutResponse;
 import com.impati.commerce.common.ApiContracts.DisplayHomeResponse;
 import com.impati.commerce.common.ApiContracts.LoginRequest;
@@ -44,7 +45,7 @@ public class GatewayClients {
     private final RestClient display;
     private final RestClient catalog;
     private final RestClient inventory;
-    private final RestClient carts;
+    private final RestClient storefront;
     private final RestClient orders;
     private final RestClient shipping;
     private final RestClient notifications;
@@ -56,7 +57,7 @@ public class GatewayClients {
             @Value("${clients.display.url}") String displayBaseUrl,
             @Value("${clients.catalog.url}") String catalogBaseUrl,
             @Value("${clients.inventory.url}") String inventoryBaseUrl,
-            @Value("${clients.cart.url}") String cartBaseUrl,
+            @Value("${clients.storefront.url}") String storefrontBaseUrl,
             @Value("${clients.order.url}") String orderBaseUrl,
             @Value("${clients.shipping.url}") String shippingBaseUrl,
             @Value("${clients.notification.url}") String notificationBaseUrl
@@ -66,7 +67,7 @@ public class GatewayClients {
         this.display = restClients.forBaseUrl(displayBaseUrl);
         this.catalog = restClients.forBaseUrl(catalogBaseUrl);
         this.inventory = restClients.forBaseUrl(inventoryBaseUrl);
-        this.carts = restClients.forBaseUrl(cartBaseUrl);
+        this.storefront = restClients.forBaseUrl(storefrontBaseUrl);
         this.orders = restClients.forBaseUrl(orderBaseUrl);
         this.shipping = restClients.forBaseUrl(shippingBaseUrl);
         this.notifications = restClients.forBaseUrl(notificationBaseUrl);
@@ -179,26 +180,26 @@ public class GatewayClients {
                 .body(AddressResponse.class);
     }
 
-    public CartResponse cart(String memberId) {
-        return carts.get()
-                .uri("/carts")
+    public StorefrontCartResponse cart(String memberId) {
+        return storefront.get()
+                .uri("/cart")
                 .header(MEMBER_ID_HEADER, memberId)
                 .retrieve()
-                .body(CartResponse.class);
+                .body(StorefrontCartResponse.class);
     }
 
     public CartResponse addCartItem(String memberId, CartItemRequest request) {
-        return carts.post()
-                .uri("/carts/items")
+        return storefront.post()
+                .uri("/cart/items")
                 .header(MEMBER_ID_HEADER, memberId)
                 .body(request)
                 .retrieve()
                 .body(CartResponse.class);
     }
 
-    public ResponseEntity<CheckoutResponse> checkout(String memberId, String idempotencyKey, CheckoutRequest request) {
-        return orders.post()
-                .uri("/checkouts")
+    public ResponseEntity<CheckoutResponse> checkout(String memberId, String idempotencyKey, ConfirmedCheckoutRequest request) {
+        return storefront.post()
+                .uri("/checkout")
                 .header(MEMBER_ID_HEADER, memberId)
                 .header("Idempotency-Key", idempotencyKey)
                 .body(request)

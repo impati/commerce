@@ -121,4 +121,30 @@ class JdbcCartRepositoryTest {
                 .extracting(CartLine::skuId)
                 .containsExactly("sku_a", "sku_b");
     }
+    /** [PD-0021-R3] 구매분 분리 이후 오래된 수정이 구매분을 다시 장바구니에 넣지 않는다. */
+    @Test void staleSaveCannotRestoreDetachedPurchaseLines() {
+        var cart = new Cart("mem_stale_after_checkout");
+        cart.add("sku_a", 1);
+        cartRepository.save(cart);
+        var stale = cartRepository.findByMemberId(cart.memberId()).orElseThrow();
+        cartRepository.checkout(cart.memberId(), "ord_stale_after_checkout", cart.version());
+        stale.add("sku_b", 1);
+        assertThatThrownBy(() -> cartRepository.save(stale)).isInstanceOfSatisfying(DomainException.class,
+                error -> assertThat(error.code()).isEqualTo("cart_changed"));
+        assertThat(cartRepository.findByMemberId(cart.memberId()).orElseThrow().lines()).isEmpty();
+    }
+
+    @Test void concurrentVersionsCannotSilentlyOverwriteEachOther() {
+        var cart = new Cart("mem_compare_and_save");
+        cart.add("sku_a", 1);
+        cartRepository.save(cart);
+        var first = cartRepository.findByMemberId(cart.memberId()).orElseThrow();
+        var second = cartRepository.findByMemberId(cart.memberId()).orElseThrow();
+        first.add("sku_b", 2);
+        second.add("sku_c", 3);
+        cartRepository.save(first);
+        assertThatThrownBy(() -> cartRepository.save(second)).isInstanceOf(DomainException.class);
+        assertThat(cartRepository.findByMemberId(cart.memberId()).orElseThrow().lines())
+                .extracting(CartLine::skuId).containsExactly("sku_a", "sku_b");
+    }
 }

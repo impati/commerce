@@ -304,6 +304,30 @@ services:
       kafka:
         condition: service_healthy
 
+  storefront-bff:
+    build:
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        MODULE: storefront-bff
+        ARTIFACT: storefront-bff
+    ports:
+      - "8110:8110"
+    environment:
+      CLIENTS_CART_URL: http://cart-service:8105
+      CLIENTS_CATALOG_URL: http://catalog-service:8102
+      CLIENTS_INVENTORY_URL: http://inventory-service:8104
+      CLIENTS_ORDER_URL: http://order-api:8108
+    depends_on:
+      cart-service:
+        condition: service_started
+      catalog-service:
+        condition: service_started
+      inventory-service:
+        condition: service_started
+      order-api:
+        condition: service_started
+
   api-gateway:
     build:
       context: .
@@ -318,7 +342,7 @@ services:
       CLIENTS_DISPLAY_URL: http://display-service:8103
       CLIENTS_CATALOG_URL: http://catalog-service:8102
       CLIENTS_INVENTORY_URL: http://inventory-service:8104
-      CLIENTS_CART_URL: http://cart-service:8105
+      CLIENTS_STOREFRONT_URL: http://storefront-bff:8110
       CLIENTS_ORDER_URL: http://order-api:8108
       CLIENTS_SHIPPING_URL: http://shipping-service:8107
       CLIENTS_NOTIFICATION_URL: http://notification-api:8109
@@ -331,7 +355,7 @@ services:
         condition: service_started
       inventory-service:
         condition: service_started
-      cart-service:
+      storefront-bff:
         condition: service_started
       order-api:
         condition: service_started

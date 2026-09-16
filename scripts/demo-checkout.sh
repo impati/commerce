@@ -9,7 +9,7 @@ json_post() {
   local path="$1"
   local body="$2"
   curl -sS -H 'Content-Type: application/json' -H "Authorization: Bearer ${TOKEN:-}" \
-    -X POST "${BASE_URL}${path}" -d "$body"
+    -H "Idempotency-Key: ${CHECKOUT_KEY:-demo-unused}" -X POST "${BASE_URL}${path}" -d "$body"
 }
 
 echo "1. login"
@@ -32,7 +32,11 @@ echo
 echo
 
 echo "4. checkout"
-checkout_response="$(json_post "/checkout" '{"paymentToken":"card_test_success"}')"
+cart_view="$(curl -sS -H "Authorization: Bearer ${TOKEN}" "${BASE_URL}/cart")"
+quote_id="$(printf '%s' "$cart_view" | jq -r '.quote.id')"
+CHECKOUT_KEY="demo-$(date +%s)-${RANDOM}"
+checkout_body="$(jq -n --arg quote "$quote_id" '{paymentToken:"card_test_success",quoteId:$quote}')"
+checkout_response="$(json_post "/checkout" "$checkout_body")"
 echo "$checkout_response"
 echo
 echo

@@ -127,6 +127,13 @@ public class InventoryExecutor implements InventoryUseCase {
 
     @Override
     @Transactional(readOnly = true)
+    public StockDetails getStock(String skuId) {
+        return InventoryMapper.toDetails(inventoryRepository.findStock(skuId)
+                .orElseThrow(() -> DomainException.notFound("stock not found")));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public ReservationDetails reservationForOrder(String orderId) {
         return InventoryMapper.toDetails(inventoryRepository.findReservationByOrderId(orderId)
                 .orElseThrow(() -> DomainException.notFound("reservation not found for order")));

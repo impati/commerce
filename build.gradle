@@ -62,7 +62,7 @@ project(':libs:test-kafka') {
 // 나뉜 서비스는 api와 worker가 실행 단위이고 core는 아니다 — core에 boot 플러그인을 붙이면
 // 쓰이지 않는 jar이 나오고, 무엇이 배포 대상인지가 흐려진다 (ADR-0014).
 def bootModules = [
-        ':apps:api-gateway', ':apps:member-service', ':apps:display-service',
+        ':apps:api-gateway', ':apps:storefront-bff', ':apps:member-service', ':apps:display-service',
         ':apps:catalog-service', ':apps:inventory-service', ':apps:cart-service',
         ':apps:payment-service', ':apps:shipping-service',
         ':apps:order-service:boot:api', ':apps:order-service:boot:worker',
@@ -122,6 +122,7 @@ configure([
         project(':apps:order-service:infra:client:payment'),
         project(':apps:order-service:infra:client:shipping'),
         project(':apps:api-gateway'),
+        project(':apps:storefront-bff'),
         project(':apps:display-service'),
         project(':apps:cart-service'),
         project(':apps:member-service')

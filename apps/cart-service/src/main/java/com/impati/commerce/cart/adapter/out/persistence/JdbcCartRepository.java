@@ -14,8 +14,8 @@ import java.util.Map;
 /**
  * 이름 바인딩만 쓴다. 위치 기반 {@code ?}는 타입이 같은 인접 컬럼의 값이 뒤바뀌어도 잡히지 않는다.
  *
- * <p>복원은 빈 {@link Cart}를 만들고 라인을 {@code add}로 다시 넣는다. 도메인의 add가 같은 SKU를
- * 합치는 규칙을 그대로 타므로 별도 restore 팩토리가 필요하지 않다.
+ * <p>복원은 저장된 버전과 라인을 그대로 읽는다. 저장은 읽었던 버전과 비교해 오래된 수정이
+ * 최신 장바구니나 이미 분리된 구매분을 덮어쓰지 못하게 한다.
  */
 @Repository
 public class JdbcCartRepository implements CartRepository {
@@ -66,7 +66,7 @@ public class JdbcCartRepository implements CartRepository {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public Optional<Cart> findByMemberId(String memberId) {
         var params = new MapSqlParameterSource("member_id", memberId);
         var headers = jdbc.query(SELECT_CART, params,
@@ -87,10 +87,19 @@ public class JdbcCartRepository implements CartRepository {
         var params = new MapSqlParameterSource()
                 .addValue("member_id", cart.memberId())
                 .addValue("version", cart.version());
-        jdbc.update(INSERT_CART, params);
-        jdbc.update(UPDATE_CART_VERSION, params);
+        if (cart.persistedVersion() < 0) {
+            if (jdbc.update(INSERT_CART, params) != 1) throw DomainException.cartChanged("cart was created by another request");
+        } else {
+            var changed = jdbc.update("update carts set version = :version where member_id = :member_id and version = :expected_version",
+                    params.addValue("expected_version", cart.persistedVersion()));
+            if (changed != 1) throw DomainException.cartChanged("cart changed during modification");
+        }
         jdbc.update(DELETE_LINES, params);
 
+        org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                new org.springframework.transaction.support.TransactionSynchronization() {
+                    @Override public void afterCommit() { cart.markPersisted(); }
+                });
         var lines = cart.lines();
         for (var index = 0; index < lines.size(); index++) {
             var line = lines.get(index);

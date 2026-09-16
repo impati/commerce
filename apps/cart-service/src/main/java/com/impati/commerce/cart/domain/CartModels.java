@@ -38,6 +38,7 @@ public final class CartModels {
         private final String memberId;
         private final List<CartLine> lines = new ArrayList<>();
         private long version;
+        private long persistedVersion = -1;
 
         public Cart(String memberId) {
             this.memberId = memberId;
@@ -46,6 +47,7 @@ public final class CartModels {
         public static Cart restore(String memberId, long version) {
             var cart = new Cart(memberId);
             cart.version = version;
+            cart.persistedVersion = version;
             return cart;
         }
 
@@ -65,6 +67,10 @@ public final class CartModels {
         public long version() {
             return version;
         }
+
+        public long persistedVersion() { return persistedVersion; }
+
+        public void markPersisted() { persistedVersion = version; }
 
         public void add(String skuId, int quantity) {
             if (quantity <= 0) {

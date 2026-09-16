@@ -162,7 +162,7 @@ class CheckoutSagaTest {
 
     @Test
     void rejectsCheckoutWithoutAnIdempotencyKey() throws Exception {
-        mockMvc.perform(post("/checkouts")
+        mockMvc.perform(post("/internal/checkouts")
                         .header("X-Member-Id", MEMBER_ID)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json(new CheckoutRequest("card_success", "addr_demo"))))
@@ -259,8 +259,69 @@ class CheckoutSagaTest {
                 .andExpect(jsonPath("$.order.status").value("CANCELLED"));
     }
 
+    /** [PD-0021-R1, PD-0021-R6] 확인된 견적 접수와 결과 회수는 최신 장바구니 조회를 반복하지 않는다. */
+    @Test
+    void confirmedCheckoutCompletesOnceAndRecoversTheOriginalResult() throws Exception {
+        stubCheckoutInputs();
+        stubCartDetach();
+        stubReservation();
+        stubAuthorization("card_success");
+        stubShipmentCreation();
+        stubCapture();
+        stubCommitReservation();
+        stubSuccessDecoration(2);
+        var request = new com.impati.commerce.common.ApiContracts.ConfirmedCheckoutRequest("card_success", "addr_demo", confirmedQuoteId());
+        var first = mockMvc.perform(post("/checkouts/confirmed").header("X-Member-Id", MEMBER_ID)
+                .header("Idempotency-Key", "confirmed-key").contentType(MediaType.APPLICATION_JSON).content(json(request)))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.order.checkoutStatus").value("SUCCEEDED")).andReturn();
+        var id = objectMapper.readTree(first.getResponse().getContentAsString()).path("order").path("id").asText();
+        mockMvc.perform(post("/checkouts/confirmed").header("X-Member-Id", MEMBER_ID)
+                .header("Idempotency-Key", "confirmed-key").contentType(MediaType.APPLICATION_JSON).content(json(request)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.order.id").value(id));
+        var changed = new com.impati.commerce.common.ApiContracts.ConfirmedCheckoutRequest("card_success", "addr_demo", "a".repeat(64));
+        mockMvc.perform(post("/checkouts/confirmed").header("X-Member-Id", MEMBER_ID)
+                .header("Idempotency-Key", "confirmed-key").contentType(MediaType.APPLICATION_JSON).content(json(changed)))
+                .andExpect(status().isConflict());
+        assertThat(jdbc.queryForObject("select count(*) from orders", Integer.class)).isEqualTo(1);
+    }
+
+    /** [PD-0021-R2, PD-0021-R3] 구매 내용 변경은 주문 저장과 재고 예약 전에 거절된다. */
+    @Test
+    void confirmedCheckoutRejectsAStaleQuoteBeforePersistingAnOrder() throws Exception {
+        stubQuoteInputs(CART_VERSION + 1);
+        mockMvc.perform(post("/checkouts/confirmed").header("X-Member-Id", MEMBER_ID)
+                .header("Idempotency-Key", "stale-confirmed-key").contentType(MediaType.APPLICATION_JSON)
+                .content(json(new com.impati.commerce.common.ApiContracts.ConfirmedCheckoutRequest("card_success", "addr_demo", confirmedQuoteId()))))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("quote_changed"));
+        assertThat(jdbc.queryForObject("select count(*) from orders", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("select count(*) from checkout_progress", Integer.class)).isZero();
+    }
+
+    @Test
+    void quoteLookupDoesNotCreateAnOrder() throws Exception {
+        stubQuoteInputs(CART_VERSION);
+        mockMvc.perform(get("/internal/purchase-quotes").header("X-Member-Id", MEMBER_ID).param("cartVersion", String.valueOf(CART_VERSION)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(confirmedQuoteId()))
+                .andExpect(jsonPath("$.total.amount").value(UNIT_PRICE * QUANTITY));
+        assertThat(jdbc.queryForObject("select count(*) from orders", Integer.class)).isZero();
+    }
+
+    private String confirmedQuoteId() {
+        return com.impati.commerce.order.domain.PurchasePricing.quoteId(MEMBER_ID, CART_VERSION,
+                List.of(new com.impati.commerce.order.domain.OrderModels.OrderLine(SKU_ID, PRODUCT_ID,
+                        "Everyday Cotton Tee", "White / M", QUANTITY, Money.krw(UNIT_PRICE))));
+    }
+
+    private void stubQuoteInputs(long version) {
+        server.expect(times(1), requestTo(CART_URL + "/carts")).andRespond(withSuccess(json(new CartResponse(
+                MEMBER_ID, List.of(new CartLineResponse(SKU_ID, QUANTITY)), version)), MediaType.APPLICATION_JSON));
+        server.expect(times(1), requestTo(CATALOG_URL + "/internal/skus/" + SKU_ID)).andRespond(withSuccess(json(sku()), MediaType.APPLICATION_JSON));
+        server.expect(times(1), requestTo(CATALOG_URL + "/products/" + PRODUCT_ID)).andRespond(withSuccess(json(new ProductResponse(
+                PRODUCT_ID, "Everyday Cotton Tee", "impati", "TOP", "seed product", "ON_SALE", List.of("seed"), List.of(sku()))), MediaType.APPLICATION_JSON));
+    }
+
     private MockHttpServletRequestBuilder checkout(String key, String token) {
-        return post("/checkouts")
+        return post("/internal/checkouts")
                 .header("X-Member-Id", MEMBER_ID)
                 .header("Idempotency-Key", key)
                 .contentType(MediaType.APPLICATION_JSON)

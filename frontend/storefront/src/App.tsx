@@ -2,10 +2,7 @@ import {
   Check,
   CreditCard,
   Loader2,
-  Minus,
   PackageCheck,
-  PackageOpen,
-  Plus,
   RefreshCcw,
   Search,
   ShoppingBag,
@@ -15,7 +12,8 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { UnauthorizedError, api, fallback } from './api';
+import { ApiError, UnauthorizedError, api, fallback } from './api';
+import { CartSummary } from './CartSummary';
 import { session } from './session';
 import { formatMoney } from './format';
 import { orderStatusText } from './orderPresentation';
@@ -38,7 +36,7 @@ async function fetchStorefront(authenticated: boolean) {
     api.home(),
     api.products(),
     api.stock(),
-    authenticated ? api.cart() : Promise.resolve(fallback.cart),
+    authenticated ? api.cart() : Promise.resolve<Cart>({ memberId: '', lines: [], version: 0 }),
     authenticated ? api.notifications() : Promise.resolve([])
   ]);
 
@@ -55,13 +53,13 @@ async function fetchStorefront(authenticated: boolean) {
     home: pick(homeResult, 'display', fallback.home),
     products: pick(productsResult, 'products', fallback.products),
     stock: pick(stockResult, 'inventory', fallback.stock),
-    cart: pick(cartResult, 'cart', fallback.cart),
+    cart: cartResult.status === 'fulfilled' ? cartResult.value : null,
     notifications: pick(notificationsResult, 'notifications', fallback.notifications)
   };
 
   const total = authenticated ? 5 : 3;
   const mode: ApiMode = degraded.length === 0 ? 'live' : degraded.length >= total ? 'demo' : 'partial';
-  return { data, degraded, mode };
+  return { data, degraded, mode, cartFailed: authenticated && cartResult.status === 'rejected' };
 }
 
 function noticeFor(mode: ApiMode, degraded: string[]): string {
@@ -75,9 +73,10 @@ function noticeFor(mode: ApiMode, degraded: string[]): string {
 }
 
 export function App() {
+  const [cartUnavailable, setCartUnavailable] = useState(false);
   const [home, setHome] = useState<DisplayHome>(fallback.home);
   const [products, setProducts] = useState<Product[]>(fallback.products);
-  const [cart, setCart] = useState<Cart>(fallback.cart);
+  const [cart, setCart] = useState<Cart>({ memberId: '', lines: [], version: 0 });
   const [stock, setStock] = useState<Stock[]>(fallback.stock);
   const [notifications, setNotifications] = useState<Notification[]>(fallback.notifications);
   const [checkout, setCheckout] = useState<Checkout | null>(null);
@@ -99,7 +98,8 @@ export function App() {
   function applyStorefront(result: Awaited<ReturnType<typeof fetchStorefront>>) {
     setHome(result.data.home);
     setProducts(result.data.products);
-    setCart(result.data.cart);
+    if (result.data.cart) setCart(result.data.cart);
+    setCartUnavailable(result.cartFailed);
     setStock(result.data.stock);
     setNotifications(result.data.notifications);
     setApiMode(result.mode);
@@ -168,20 +168,6 @@ export function App() {
     });
   }, [category, products, query]);
 
-  const cartItems = useMemo(() => {
-    return cart.lines.map((line) => {
-      const product = products.find((candidate) => candidate.skus.some((sku) => sku.id === line.skuId));
-      const sku = product?.skus.find((candidate) => candidate.id === line.skuId);
-      return {
-        ...line,
-        product,
-        sku,
-        lineTotal: (sku?.price.amount ?? 0) * line.quantity
-      };
-    });
-  }, [cart.lines, products]);
-
-  const cartTotal = cartItems.reduce((sum, item) => sum + item.lineTotal, 0);
   const checkoutState = checkout?.order.checkoutStatus === 'SUCCEEDED' ? 'SUCCEEDED'
     : checkout?.order.checkoutStatus === 'FAILED' && checkout.order.paymentCleanupStatus === 'DONE' ? 'FAILED' : 'PROCESSING';
 
@@ -192,6 +178,23 @@ export function App() {
     } finally {
       setBusy(null);
     }
+  }
+
+  async function loadCart() {
+    try {
+      setCart(await api.cart());
+      setCartUnavailable(false);
+      return true;
+    } catch (error) {
+      setCartUnavailable(true);
+      if (error instanceof UnauthorizedError) handleExpiredSession();
+      return false;
+    }
+  }
+
+  async function retryCart() {
+    setBusy('cart');
+    try { await loadCart(); } finally { setBusy(null); }
   }
 
   async function submitAuth() {
@@ -208,6 +211,7 @@ export function App() {
       session.writeAccess(issued.accessToken);
       const current = await api.me();
       setMember(current);
+      setCart({ memberId: current.id, lines: [], version: 0 });
       applyStorefront(await fetchStorefront(true));
       await resumePendingCheckout(current.id);
       setAuthNotice('');
@@ -235,6 +239,8 @@ export function App() {
   function handleExpiredSession() {
     session.clear();
     setMember(null);
+    setCart({ memberId: '', lines: [], version: 0 });
+    setCartUnavailable(true);
     setAuthNotice('세션이 만료됐습니다. 다시 로그인해주세요.');
   }
 
@@ -248,15 +254,21 @@ export function App() {
     setBusy('cart');
     try {
       setCart(await api.addCartItem(skuId, 1));
-      setNotice('Cart updated');
+      setCartUnavailable(false);
+      const loaded = await loadCart();
+      setNotice(loaded ? '상품을 담았습니다.' : '상품을 담았습니다. 장바구니와 금액을 다시 확인해주세요.');
     } catch (error) {
       if (error instanceof UnauthorizedError) {
         handleExpiredSession();
         return;
       }
-      setApiMode('demo');
-      setCart((current) => addLine(current, skuId));
-      setNotice('Cart updated');
+      setCartUnavailable(true);
+      if (error instanceof ApiError && error.status < 500 && error.code !== 'outcome_unknown') {
+        setNotice(error.message);
+      } else {
+        setNotice('상품 담기 결과를 확인하지 못했습니다. 장바구니를 다시 확인해주세요.');
+      }
+      await loadCart();
     } finally {
       setBusy(null);
     }
@@ -267,7 +279,18 @@ export function App() {
       setAuthNotice('주문하려면 로그인해주세요.');
       return;
     }
-    const pending = session.readPendingCheckout(member.id) ?? { idempotencyKey: crypto.randomUUID() };
+    const existing = session.readPendingCheckout(member.id);
+    if (!existing && (cartUnavailable || !cart.checkoutAllowed || !cart.quote)) {
+      setNotice('장바구니와 견적·재고를 다시 확인해주세요.');
+      return;
+    }
+    const pending = existing ?? { idempotencyKey: crypto.randomUUID(), quoteId: cart.quote!.id };
+    if (!pending.quoteId && !pending.orderId) {
+      session.clearPendingCheckout(member.id);
+      setNotice('새 견적을 확인하고 다시 결제해주세요.');
+      await loadCart();
+      return;
+    }
     if (cart.lines.length === 0 && !session.readPendingCheckout(member.id)) {
       setNotice('Cart is empty');
       return;
@@ -277,13 +300,13 @@ export function App() {
     try {
       let result: Checkout;
       try {
-        result = await api.checkout(pending.idempotencyKey);
+        result = pending.orderId ? await api.checkoutResult(pending.orderId) : await api.checkout(pending.idempotencyKey, pending.quoteId!);
       } catch (first) {
-        if (first instanceof UnauthorizedError) throw first;
-        result = await api.checkout(pending.idempotencyKey);
+        if (first instanceof UnauthorizedError || (first instanceof ApiError && first.status < 500)) throw first;
+        result = pending.orderId ? await api.checkoutResult(pending.orderId) : await api.checkout(pending.idempotencyKey, pending.quoteId!);
       }
       try {
-        setCart(await api.cart());
+        await loadCart();
       } catch {
         // 주문 접수 결과는 이미 받았다. 장바구니 조회 실패가 그 결과를 뒤집지는 않는다.
       }
@@ -293,7 +316,13 @@ export function App() {
         handleExpiredSession();
         return;
       }
-      setNotice('Checkout response was not received. Retry uses the same request key.');
+      if (error instanceof ApiError && error.status < 500) {
+        session.clearPendingCheckout(member.id);
+        await loadCart();
+        setNotice(error.message);
+      } else {
+        setNotice('주문 접수 결과를 확인하지 못했습니다. 같은 요청으로 결과를 다시 확인합니다.');
+      }
     } finally {
       setBusy(null);
     }
@@ -302,17 +331,28 @@ export function App() {
   async function resumePendingCheckout(memberId: string) {
     const pending = session.readPendingCheckout(memberId);
     if (!pending) return;
+    if (!pending.orderId && !pending.quoteId) {
+      session.clearPendingCheckout(memberId);
+      setNotice('새 견적을 확인하고 다시 결제해주세요.');
+      return;
+    }
     try {
       const result = pending.orderId
         ? await api.checkoutResult(pending.orderId)
-        : await api.checkout(pending.idempotencyKey);
+        : await api.checkout(pending.idempotencyKey, pending.quoteId!);
       await acceptCheckoutResult(result, memberId, pending.idempotencyKey);
     } catch (error) {
       if (error instanceof UnauthorizedError) {
         handleExpiredSession();
         return;
       }
-      setNotice('A pending checkout will be checked again on retry.');
+      if (error instanceof ApiError && error.status < 500) {
+        session.clearPendingCheckout(memberId);
+        await loadCart();
+        setNotice(error.message);
+      } else {
+        setNotice('주문 접수 결과를 다시 확인해주세요.');
+      }
     }
   }
 
@@ -608,40 +648,14 @@ export function App() {
               <span className="count-badge">{cart.lines.reduce((sum, line) => sum + line.quantity, 0)}</span>
             </div>
 
-            <div className="cart-list">
-              {cartItems.length === 0 ? (
-                <div className="empty-state">
-                  <PackageOpen size={22} />
-                  <span>Cart empty</span>
-                </div>
-              ) : (
-                cartItems.map((item) => (
-                  <div className="cart-line" key={item.skuId}>
-                    <div>
-                      <strong>{item.product?.name ?? item.skuId}</strong>
-                      <span>{item.sku?.name ?? item.skuId}</span>
-                    </div>
-                    <div className="quantity">
-                      <Minus size={14} />
-                      <b>{item.quantity}</b>
-                      <Plus size={14} />
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-
-            <div className="total-row">
-              <span>Total</span>
-              <strong>{formatMoney({ amount: cartTotal, currency: 'KRW' })}</strong>
-            </div>
+            <CartSummary cart={cart} unavailable={cartUnavailable} refreshing={busy === 'cart'} onRetry={retryCart} />
 
             <button
               className="checkout-button"
               type="button"
               onClick={runCheckout}
-              disabled={busy === 'checkout' || checkout?.order.checkoutStatus === 'PROCESSING'
-                || (cart.lines.length === 0 && !(member && session.readPendingCheckout(member.id)))}
+              disabled={busy !== null || checkout?.order.checkoutStatus === 'PROCESSING'
+                || ((!cart.checkoutAllowed || cartUnavailable || !cart.quote) && !(member && session.readPendingCheckout(member.id)))}
             >
               {busy === 'checkout' ? <Loader2 className="spin" size={18} /> : <CreditCard size={18} />}
               Checkout
@@ -744,17 +758,4 @@ function Step({ active, done, label }: { active: boolean; done: boolean; label: 
       <b>{label}</b>
     </div>
   );
-}
-
-function addLine(cart: Cart, skuId: string): Cart {
-  const existing = cart.lines.find((line) => line.skuId === skuId);
-  if (existing) {
-    return {
-      ...cart,
-      lines: cart.lines.map((line) =>
-        line.skuId === skuId ? { ...line, quantity: line.quantity + 1 } : line
-      )
-    };
-  }
-  return { ...cart, lines: [...cart.lines, { skuId, quantity: 1 }] };
 }

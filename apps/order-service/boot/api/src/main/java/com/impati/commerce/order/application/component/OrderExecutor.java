@@ -1,6 +1,9 @@
 package com.impati.commerce.order.application.component;
 
 import com.impati.commerce.common.ApiContracts.AddressResponse;
+import com.impati.commerce.common.ApiContracts.CartResponse;
+import com.impati.commerce.order.domain.PurchasePricing;
+import com.impati.commerce.order.application.model.PurchaseQuoteDetails;
 import com.impati.commerce.common.ApiContracts.PaymentResponse;
 import com.impati.commerce.common.ApiContracts.ShipmentResponse;
 import com.impati.commerce.common.DomainException;
@@ -75,26 +78,38 @@ public class OrderExecutor implements OrderUseCase {
             String paymentToken,
             String addressId
     ) {
+        return checkoutWithQuote(memberId, idempotencyKey, paymentToken, addressId, null);
+    }
+
+    @Override
+    public CheckoutResult checkoutConfirmed(String memberId, IdempotencyKey key, String paymentToken, String addressId, String quoteId) {
+        if (quoteId == null || !quoteId.matches("[a-f0-9]{64}")) {
+            throw DomainException.validation("a server purchase quote is required");
+        }
+        return checkoutWithQuote(memberId, key, paymentToken, addressId, quoteId);
+    }
+
+    private CheckoutResult checkoutWithQuote(String memberId, IdempotencyKey idempotencyKey, String paymentToken, String addressId, String quoteId) {
         validatePaymentToken(paymentToken);
-        var fingerprint = CheckoutRequestFingerprint.from(paymentToken, addressId);
+        var fingerprint = quoteId == null ? CheckoutRequestFingerprint.from(paymentToken, addressId)
+                : CheckoutRequestFingerprint.from(CheckoutRequestFingerprint.from(paymentToken, addressId).value(), quoteId);
         var existing = progressRepository.findByMemberAndKey(memberId, idempotencyKey);
         if (existing.isPresent()) {
             ensureSameRequest(existing.get(), fingerprint);
             return result(existing.get(), false);
         }
 
-        var member = memberClient.member(memberId);
-        var address = OrderMapper.toAddress(selectAddress(member.addresses(), addressId));
         var cart = cartClient.cart(memberId);
         if (cart.lines().isEmpty()) {
             throw DomainException.cartEmpty("cart is empty");
         }
 
-        var orderLines = cart.lines().stream().map(line -> {
-            var sku = catalogClient.sku(line.skuId());
-            var product = catalogClient.product(sku.productId());
-            return new OrderLine(sku.id(), product.id(), product.name(), sku.name(), line.quantity(), sku.price());
-        }).toList();
+        var orderLines = price(cart);
+        if (quoteId != null && !quoteId.equals(PurchasePricing.quoteId(memberId, cart.version(), orderLines))) {
+            throw new DomainException("quote_changed", "구매 내용이나 금액이 변경됐습니다. 새 견적을 확인해주세요.", 409);
+        }
+        var member = memberClient.member(memberId);
+        var address = OrderMapper.toAddress(selectAddress(member.addresses(), addressId));
         var orderId = Ids.newId("ord");
         var order = Order.create(orderId, memberId, orderLines, address, clock);
         var progress = new CheckoutProgress(orderId, memberId, idempotencyKey, fingerprint, paymentToken, cart.version());
@@ -108,6 +123,26 @@ public class OrderExecutor implements OrderUseCase {
 
         progressRepository.claim(orderId, CheckoutRecoveryExecutor.LEASE_DURATION).ifPresent(checkoutExecution::run);
         return result(progressRepository.findByOrderId(orderId).orElseThrow(), true);
+    }
+
+    @Override
+    public PurchaseQuoteDetails quote(String memberId, long expectedVersion) {
+        var cart = cartClient.cart(memberId);
+        if (cart.version() != expectedVersion) throw DomainException.cartChanged("cart changed during quote lookup");
+        var lines = price(cart);
+        return new PurchaseQuoteDetails(
+                PurchasePricing.quoteId(memberId, cart.version(), lines), cart.version(),
+                lines.stream().map(line -> new PurchaseQuoteDetails.Line(
+                        line.skuId(), line.quantity(), line.unitPrice(), line.lineTotal())).toList(),
+                PurchasePricing.total(lines));
+    }
+
+    private List<OrderLine> price(CartResponse cart) {
+        return cart.lines().stream().map(line -> {
+            var sku = catalogClient.sku(line.skuId());
+            var product = catalogClient.product(sku.productId());
+            return new OrderLine(sku.id(), product.id(), product.name(), sku.name(), line.quantity(), sku.price());
+        }).toList();
     }
 
     private CheckoutResult result(CheckoutProgress progress, boolean newlyAccepted) {

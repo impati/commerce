@@ -2,15 +2,16 @@
 
 Java 21 + Spring Boot 3.2 기반 이커머스 마이크로서비스 레퍼런스입니다.
 
-목표는 “상품 전시 -> 장바구니 -> 주문 -> 결제 -> 배송 완료” 흐름을 실제 서비스 경계로 쪼개서 볼 수 있게 만드는 것입니다. 각 서비스는 독립 Spring Boot 애플리케이션이며, 로컬에서는 인메모리 저장소와 HTTP 동기 호출로 동작합니다.
+목표는 “상품 전시 -> 장바구니 -> 주문 -> 결제 -> 배송 완료” 흐름을 실제 서비스 경계로 쪼개서 볼 수 있게 만드는 것입니다. 각 서비스는 독립 Spring Boot 애플리케이션이며, 로컬에서는 MySQL 저장소, 서비스 간 HTTP와 Kafka 주문 사건으로 동작합니다.
 
-프론트엔드는 `frontend/storefront`에 React + Vite + TypeScript로 구성했습니다. API Gateway가 켜져 있으면 실제 백엔드 흐름을 호출하고, 꺼져 있으면 데모 데이터로 화면을 유지합니다.
+프론트엔드는 `frontend/storefront`에 React + Vite + TypeScript로 구성했습니다. 상품 탐색은 조회 실패 시 데모 데이터를 표시할 수 있습니다. 장바구니와 구매 흐름은 실제 서버 응답을 사용하며 실패를 데모 성공으로 대체하지 않습니다.
 
 ## 서비스 구성
 
 | 서비스 | 포트 | 책임 |
 | --- | ---: | --- |
-| `api-gateway` | 8080 | 외부 진입점, 서비스 조합 |
+| `api-gateway` | 8080 | 외부 진입점, 인증 검증과 라우팅 |
+| `storefront-bff` | 8110 | 장바구니 화면 조합, 도메인 명령 위임 |
 | `member-service` | 8101 | 회원, 배송지 |
 | `catalog-service` | 8102 | 상품, SKU, 가격 스냅샷 |
 | `display-service` | 8103 | 홈 전시 섹션 |
@@ -24,7 +25,7 @@ Java 21 + Spring Boot 3.2 기반 이커머스 마이크로서비스 레퍼런스
 | `notification-service` / worker | 8119 | 메일 발송 |
 | `notification-service` / consumer | 8129 | 주문 사건 구독 |
 
-**두 서비스는 실행 단위가 나뉘어 있습니다** ([ADR-0014](docs/adr/0014-split-api-and-worker-modules.md)). 요청을 받는 것과 큐를 비우는 것은 스케일 축이 다르고, 브로커 의존성이 API에 붙으면 안 되기 때문입니다. 절단면은 `adapter/in`의 종류입니다 — 컨트롤러는 api, 스케줄러는 worker, 브로커 구독은 consumer. notification은 셋이고 order는 둘이라 실행 단위가 13개입니다 ([ADR-0016](docs/adr/0016-publish-order-events-to-kafka.md)).
+**두 서비스는 실행 단위가 나뉘어 있습니다** ([ADR-0014](docs/adr/0014-split-api-and-worker-modules.md)). 요청을 받는 것과 큐를 비우는 것은 스케일 축이 다르고, 브로커 의존성이 API에 붙으면 안 되기 때문입니다. 절단면은 `adapter/in`의 종류입니다 — 컨트롤러는 api, 스케줄러는 worker, 브로커 구독은 consumer. notification은 셋이고 order는 둘이라 BFF를 포함한 실행 단위가 14개입니다 ([ADR-0016](docs/adr/0016-publish-order-events-to-kafka.md)).
 
 ## 실행
 
@@ -36,7 +37,7 @@ make demo
 make stop
 ```
 
-`make boot-all`은 bootJar를 만든 뒤 각 서비스를 로컬 프로세스로 실행합니다. 초기화는 `docker compose down -v`입니다.
+`make boot-all`은 bootJar를 만든 뒤 각 서비스를 로컬 프로세스로 실행합니다. 전체 데이터 초기화는 `make stop` 후 `docker compose down -v`입니다. 기존 로컬 데이터가 삭제됩니다.
 
 호스트 포트는 **3316**입니다. 3306은 흔한 포트라 다른 프로젝트의 MySQL과 부딪힙니다. 그 포트를 이미 다른 것이 쓰고 있으면 `make boot-all`은 **남의 DB에 마이그레이션을 돌리지 않으려고 멈춥니다.**
 API Gateway는 `http://localhost:8080` 입니다.
@@ -90,9 +91,9 @@ POST /login
 ```http
 GET  /me
 POST /me/addresses
-GET  /cart
+GET  /cart                       BFF 상품·수량·재고·서버 견적
 POST /cart/items
-POST /checkout
+POST /checkout                   quoteId와 Idempotency-Key 필수
 GET  /orders?cursor={cursor}&size=20
 GET  /orders/{orderId}
 GET  /orders/{orderId}/checkout-result
@@ -122,6 +123,10 @@ POST /logout                     세션 폐기
 - 결제 성공 토큰: `card_test_success`
 - 결제 실패 토큰: `card_test_decline`
 
+장바구니 조회는 BFF가 상품 정보, 줄별 가용 재고와 Order의 견적을 조합합니다. `quote`는 서버가 계산한 상품 금액이며, `checkoutAllowed`가 결제 가능 여부를 나타냅니다. 정보 미확인은 `unavailable`과 null로 표시합니다. 금액을 0원으로 대체하지 않으며 재고나 견적을 확인하지 못하면 결제를 제한합니다. 담기 응답은 성공한 Cart 상태이고, 이후 화면 조회는 별도 요청입니다.
+
+주문 요청의 `quoteId`는 확인한 장바구니 버전과 구매 금액을 식별합니다. 상품·수량 또는 금액이 달라지면 `quote_changed`로 거절하고 새 견적 확인을 요구합니다. 견적은 가격·재고 예약이 아니며 주문 접수 때 다시 계산하고 검증합니다. 결과를 잃은 요청은 같은 키와 같은 본문을 반복합니다. ([ADR-0023](docs/adr/0023-storefront-bff.md), [PD-0021](docs/policy/pd-0021-purchase-confirmation.md))
+
 ## Checkout 예시
 
 ```bash
@@ -133,12 +138,17 @@ curl -X POST http://localhost:8080/cart/items \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d '{"skuId":"sku_tee_white_m","quantity":2}'
 
+QUOTE_ID=$(curl -sS http://localhost:8080/cart -H "Authorization: Bearer $TOKEN" | jq -r '.quote.id')
+CHECKOUT_KEY=$(uuidgen)
+
 curl -X POST http://localhost:8080/checkout \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-  -d '{"paymentToken":"card_test_success"}'
+  -H "Idempotency-Key: $CHECKOUT_KEY" \
+  -d "$(jq -n --arg quote "$QUOTE_ID" '{paymentToken:"card_test_success",quoteId:$quote}')"
+
 ```
 
-결제 실패 토큰을 쓰면 주문은 `CANCELLED`가 되고, 재고 예약은 release됩니다. 장바구니는 유지되어 재시도할 수 있습니다.
+결제 실패 토큰을 쓰면 주문은 `CANCELLED`가 되고, 재고 예약은 release됩니다. 접수한 장바구니 구매분은 분리되어 자동 복원되지 않습니다.
 
 결제는 승인과 매입으로 나뉘어 있고 매입이 배송 생성 뒤에 옵니다. 매입 전에 실패하면 배송·승인·예약이 모두 되돌아가므로 사용자에게 흔적이 남지 않습니다. 같은 주문에 결제는 하나만 존재하므로 승인을 여러 번 요청해도 이중 청구가 되지 않습니다.
 
