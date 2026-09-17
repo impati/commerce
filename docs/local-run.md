@@ -94,3 +94,9 @@ docker compose up --build
 ```
 
 이미지 안에서 빌드하지 않으므로 bootJar를 먼저 만든다. 서비스 URL은 compose의 환경변수로 전달한다. 시드가 필요하면 서비스에 `SPRING_PROFILES_ACTIVE=local`을 지정한다. 호스트 프로세스와 컨테이너의 서비스 포트를 동시에 사용하지 않는다.
+
+## 장바구니 조회 시간 제한
+
+BFF의 전체 조회 마감은 `storefront.cart-page.timeout`(기본 `PT5S`), Gateway의 장바구니 조회 HTTP 읽기 제한은 `clients.storefront.cart-read-timeout`(기본 `PT7S`)이다. 브라우저의 전체 장바구니 요청 제한은 `VITE_CART_REQUEST_TIMEOUT_MS`(기본 `10000`)로 설정한다. 바깥 호출에 응답 전달 여유가 있도록 함께 조정한다.
+
+장바구니 자체가 마감 안에 확인되지 않으면 조회 실패로 응답한다. 상품·재고·견적은 같은 마감 시각까지 병렬로 기다리고, 미완료 영역은 미확인으로 표시한다. HTTP 연결·읽기 제한은 별도로 적용되며, 응답을 마감해도 이미 진행 중인 서버 작업이 즉시 중단된다는 의미는 아니다.

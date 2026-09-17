@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { beforeEach, afterEach, expect, test, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, cleanup, act } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { App } from './App';
-import { api, ApiError } from './api';
+import { api, ApiError, UnauthorizedError } from './api';
 import { session } from './session';
 import { formatMoney } from './format';
 import type { Cart, Checkout, Product } from './types';
@@ -251,4 +251,136 @@ test('distinguishes an empty cart from a failed price lookup', async () => {
   expect(screen.getByText('상품을 담아주세요')).toBeInTheDocument();
   expect(screen.queryByText('금액 확인 불가')).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Checkout' })).toBeDisabled();
+});
+
+// [PD-0021-R3] 먼저 시작한 조회가 늦게 끝나도 최신 확인 내용을 유지한다.
+test('ignores an older cart response after a newer storefront refresh', async () => {
+  let resolveOld!: (value: Cart) => void;
+  const old = new Promise<Cart>(resolve => { resolveOld = resolve; });
+  vi.mocked(api.cart).mockResolvedValueOnce(cart).mockReturnValueOnce(old).mockResolvedValueOnce(updated);
+  open();
+  await ready();
+  fireEvent.click(screen.getByRole('button', { name: '장바구니 다시 확인' }));
+  await waitFor(() => expect(api.cart).toHaveBeenCalledTimes(2));
+  fireEvent.click(screen.getByTitle('Refresh'));
+  await waitFor(() => expect(screen.getByText('3개')).toBeInTheDocument());
+  await act(async () => { resolveOld(cart); });
+  expect(screen.getByText('3개')).toBeInTheDocument();
+  expect(screen.queryByText('2개')).not.toBeInTheDocument();
+  expect(screen.getByText(formatMoney(updatedQuote.total))).toBeInTheDocument();
+});
+
+test('ignores an older failed lookup after a newer successful refresh', async () => {
+  let rejectOld!: (reason: Error) => void;
+  const old = new Promise<Cart>((_, reject) => { rejectOld = reject; });
+  vi.mocked(api.cart).mockResolvedValueOnce(cart).mockReturnValueOnce(old).mockResolvedValueOnce(updated);
+  open();
+  await ready();
+  fireEvent.click(screen.getByRole('button', { name: '장바구니 다시 확인' }));
+  await waitFor(() => expect(api.cart).toHaveBeenCalledTimes(2));
+  fireEvent.click(screen.getByTitle('Refresh'));
+  await waitFor(() => expect(screen.getByText('3개')).toBeInTheDocument());
+  await act(async () => { rejectOld(new UnauthorizedError()); });
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Checkout' })).toBeEnabled();
+  expect(screen.getByRole('heading', { name: 'Member' })).toBeInTheDocument();
+});
+
+test('does not apply a previous members cart after logout and another login', async () => {
+  let resolveOld!: (value: Cart) => void;
+  const old = new Promise<Cart>(resolve => { resolveOld = resolve; });
+  const nextMember = { id: 'next', name: 'Next member', email: 'next@example.test', status: 'ACTIVE', addresses: [] };
+  const nextCart = { ...updated, memberId: 'next', lines: [{ ...updated.lines[0], productName: 'Next cart product' }] };
+  vi.mocked(api.cart).mockResolvedValueOnce(cart).mockReturnValueOnce(old).mockResolvedValueOnce(nextCart);
+  vi.spyOn(api, 'logout').mockResolvedValue();
+  vi.spyOn(api, 'login').mockResolvedValue({ accessToken: 'next-token', accessTokenExpiresAt: '2030-01-01T00:00:00Z' });
+  open();
+  await ready();
+  fireEvent.click(screen.getByRole('button', { name: '장바구니 다시 확인' }));
+  await waitFor(() => expect(api.cart).toHaveBeenCalledTimes(2));
+  fireEvent.click(screen.getByRole('button', { name: '로그아웃' }));
+  await screen.findByRole('button', { name: '로그인' });
+  await waitFor(() => expect(screen.getByTitle('Refresh')).toBeEnabled());
+  vi.mocked(api.me).mockResolvedValue(nextMember);
+  fireEvent.click(screen.getByRole('button', { name: '로그인' }));
+  await screen.findByText('Next cart product');
+  await act(async () => { resolveOld(cart); });
+  expect(screen.getByText('Next cart product')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Checkout' })).toBeEnabled();
+  expect(screen.queryByText('Cart product')).not.toBeInTheDocument();
+  expect(screen.getByText('3개')).toBeInTheDocument();
+});
+
+test('does not let a delayed bootstrap replace a newer cart lookup', async () => {
+  let resolveOld!: (value: Cart) => void;
+  const old = new Promise<Cart>(resolve => { resolveOld = resolve; });
+  vi.mocked(api.cart).mockReturnValueOnce(old).mockResolvedValueOnce(updated);
+  open();
+  await waitFor(() => expect(api.cart).toHaveBeenCalledTimes(1));
+  fireEvent.click(screen.getByRole('button', { name: '장바구니 다시 확인' }));
+  await screen.findByText('3개');
+  await act(async () => { resolveOld(cart); });
+  expect(screen.getByText('3개')).toBeInTheDocument();
+  expect(screen.queryByText('2개')).not.toBeInTheDocument();
+});
+
+test('invalidates a query started before a committed addition', async () => {
+  let resolveOld!: (value: Cart) => void;
+  const old = new Promise<Cart>(resolve => { resolveOld = resolve; });
+  vi.mocked(api.cart).mockResolvedValueOnce(cart).mockReturnValueOnce(old).mockResolvedValueOnce(updated);
+  vi.mocked(api.addCartItem).mockResolvedValue({ memberId: 'm', version: 6, lines: [{ skuId: 'sku', quantity: 3 }] });
+  open();
+  await ready();
+  fireEvent.click(screen.getByTitle('Refresh'));
+  await waitFor(() => expect(api.cart).toHaveBeenCalledTimes(2));
+  fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+  await screen.findByText('3개');
+  await act(async () => { resolveOld(cart); });
+  expect(screen.getByText('3개')).toBeInTheDocument();
+  expect(screen.queryByText('2개')).not.toBeInTheDocument();
+});
+
+test('labels a cart-only failure and clears the label after recovery', async () => {
+  vi.mocked(api.cart).mockRejectedValueOnce(new TypeError('offline')).mockResolvedValueOnce(cart);
+  open();
+  const failure = await screen.findByText('장바구니 조회 실패');
+  expect(failure).toHaveClass('partial');
+  expect(screen.queryByText('Gateway connected')).not.toBeInTheDocument();
+  expect(screen.queryByText('Partial — demo: cart')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: '장바구니 다시 확인' }));
+  await ready();
+  expect(screen.getByText('Gateway connected')).toBeInTheDocument();
+  expect(screen.queryByText('장바구니 조회 실패')).not.toBeInTheDocument();
+});
+
+test('keeps authenticated purchase data outside the demo fallback status', async () => {
+  vi.mocked(api.home).mockRejectedValue(new TypeError('offline'));
+  vi.mocked(api.products).mockRejectedValue(new TypeError('offline'));
+  vi.mocked(api.stock).mockRejectedValue(new TypeError('offline'));
+  vi.mocked(api.notifications).mockRejectedValue(new TypeError('offline'));
+  open();
+  await ready();
+  expect(screen.getByText(formatMoney(originalQuote.total))).toBeInTheDocument();
+  expect(screen.getByText(/Partial — demo:/)).toHaveClass('partial');
+  expect(screen.queryByText('Demo mode')).not.toBeInTheDocument();
+});
+
+test('ignores bootstrap identity arriving after a newer login', async () => {
+  let resolveOld!: (value: Awaited<ReturnType<typeof api.me>>) => void;
+  const old = new Promise<Awaited<ReturnType<typeof api.me>>>(resolve => { resolveOld = resolve; });
+  const nextMember = { id: 'next', name: 'Next member', email: 'next@example.test', status: 'ACTIVE', addresses: [] };
+  const nextCart = { ...updated, memberId: 'next', lines: [{ ...updated.lines[0], productName: 'Next cart product' }] };
+  vi.mocked(api.me).mockReturnValueOnce(old).mockResolvedValue(nextMember);
+  vi.mocked(api.cart).mockResolvedValue(nextCart);
+  vi.spyOn(api, 'login').mockResolvedValue({ accessToken: 'next-token', accessTokenExpiresAt: '2030-01-01T00:00:00Z' });
+  open();
+  await waitFor(() => expect(api.me).toHaveBeenCalledTimes(1));
+  fireEvent.click(screen.getByRole('button', { name: '로그인' }));
+  await screen.findByText('Next cart product');
+  await act(async () => {
+    resolveOld({ id: 'm', name: 'Member', email: 'm@example.test', status: 'ACTIVE', addresses: [] });
+  });
+  expect(screen.getByRole('heading', { name: 'Next member' })).toBeInTheDocument();
+  expect(screen.queryByRole('heading', { name: 'Member' })).not.toBeInTheDocument();
+  expect(api.cart).toHaveBeenCalledTimes(1);
 });

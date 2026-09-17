@@ -21,6 +21,10 @@ import type {
 import type { OrderDetail, OrderPage } from './types';
 
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? '/api';
+const cartRequestTimeoutMs = Number(import.meta.env.VITE_CART_REQUEST_TIMEOUT_MS ?? 10000);
+if (!Number.isFinite(cartRequestTimeoutMs) || cartRequestTimeoutMs <= 0) {
+  throw new Error('VITE_CART_REQUEST_TIMEOUT_MS must be positive');
+}
 
 export class ApiUnavailableError extends Error {
   constructor() {
@@ -88,7 +92,29 @@ function refreshAccessToken(): Promise<boolean> {
  * 갱신은 세션 토큰이 살아 있을 때만 성공한다. 실패하면 401이 그대로 올라가고 호출자가
  * 로그인 화면으로 돌려보낸다.
  */
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(path: string, init?: RequestInit, timeoutMs?: number): Promise<T> {
+  if (timeoutMs !== undefined) {
+    const controller = new AbortController();
+    let timeout: number | undefined;
+    const expired = new Promise<T>((_, reject) => {
+      timeout = window.setTimeout(() => {
+        controller.abort();
+        reject(new ApiUnavailableError());
+      }, timeoutMs);
+    });
+    try {
+      return await Promise.race([
+        performRequest<T>(path, { ...init, signal: controller.signal }),
+        expired
+      ]);
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  }
+  return performRequest<T>(path, init);
+}
+
+async function performRequest<T>(path: string, init?: RequestInit): Promise<T> {
   let response = await send(path, init);
   if (response.status === 401 && (await refreshAccessToken())) {
     response = await send(path, init);
@@ -173,7 +199,7 @@ export const api = {
   },
 
   cart(): Promise<Cart> {
-    return request<Cart>('/cart');
+    return request<Cart>('/cart', undefined, cartRequestTimeoutMs);
   },
 
   addCartItem(skuId: string, quantity: number): Promise<Cart> {

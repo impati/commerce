@@ -10,9 +10,10 @@ import {
   Wifi,
   WifiOff
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ApiError, UnauthorizedError, api, fallback } from './api';
+import { CartRequestTracker } from './CartRequestTracker';
 import { CartSummary } from './CartSummary';
 import { session } from './session';
 import type { PendingCheckout } from './session';
@@ -58,12 +59,23 @@ async function fetchStorefront(authenticated: boolean) {
     notifications: pick(notificationsResult, 'notifications', fallback.notifications)
   };
 
-  const total = authenticated ? 5 : 3;
-  const mode: ApiMode = degraded.length === 0 ? 'live' : degraded.length >= total ? 'demo' : 'partial';
-  return { data, degraded, mode, cartFailed: authenticated && cartResult.status === 'rejected' };
+  let fallbackMode: ApiMode = 'live';
+  if (degraded.length > 0) {
+    // 회원의 구매 데이터는 데모로 대체하지 않으므로 전체 데모 상태로 표시하지 않는다.
+    fallbackMode = !authenticated && degraded.length >= 3 ? 'demo' : 'partial';
+  }
+  const cartFailed = authenticated && cartResult.status === 'rejected';
+  const mode: ApiMode = cartFailed && fallbackMode === 'live' ? 'partial' : fallbackMode;
+  return { data, degraded, mode, fallbackMode, cartFailed };
 }
 
-function noticeFor(mode: ApiMode, degraded: string[]): string {
+function noticeFor(mode: ApiMode, degraded: string[], cartFailed = false): string {
+  if (cartFailed) {
+    if (degraded.length > 0) {
+      return `장바구니 조회 실패 · demo: ${degraded.join(', ')}`;
+    }
+    return '장바구니 조회 실패';
+  }
   if (mode === 'live') {
     return 'Gateway connected';
   }
@@ -96,6 +108,9 @@ async function requestCheckoutWithRecovery(pending: PendingCheckout): Promise<Ch
 }
 
 export function App() {
+  const cartRequests = useRef(new CartRequestTracker());
+  const [degradedResources, setDegradedResources] = useState<string[]>([]);
+  const [fallbackMode, setFallbackMode] = useState<ApiMode>('live');
   const [cartUnavailable, setCartUnavailable] = useState(false);
   const [home, setHome] = useState<DisplayHome>(fallback.home);
   const [products, setProducts] = useState<Product[]>(fallback.products);
@@ -118,21 +133,43 @@ export function App() {
   const [authNotice, setAuthNotice] = useState('');
   const [authBusy, setAuthBusy] = useState(false);
 
+  function changeMember(current: Member | null) {
+    cartRequests.current.changeMember(current?.id ?? null);
+    setMember(current);
+    setBusy(null);
+    setCart({ memberId: current?.id ?? '', lines: [], version: 0 });
+    setCartUnavailable(false);
+  }
+
+  async function loadStorefront(request = cartRequests.current.begin()) {
+    const result = await fetchStorefront(request.memberId !== null);
+    if (!cartRequests.current.isCurrent(request)) {
+      return false;
+    }
+    applyStorefront(result);
+    return true;
+  }
+
   function applyStorefront(result: Awaited<ReturnType<typeof fetchStorefront>>) {
     setHome(result.data.home);
     setProducts(result.data.products);
-    if (result.data.cart) setCart(result.data.cart);
+    if (result.data.cart) {
+      setCart(result.data.cart);
+    }
     setCartUnavailable(result.cartFailed);
     setStock(result.data.stock);
     setNotifications(result.data.notifications);
     setApiMode(result.mode);
-    setNotice(noticeFor(result.mode, result.degraded));
+    setFallbackMode(result.fallbackMode);
+    setDegradedResources(result.degraded);
+    setNotice(noticeFor(result.mode, result.degraded, result.cartFailed));
   }
 
   useEffect(() => {
     let ignore = false;
 
     async function bootstrap() {
+      const bootRequest = cartRequests.current.begin();
       setBusy('load');
 
       // 인증 링크로 들어온 경우 먼저 처리한다. 토큰은 한 번만 쓸 수 있으므로 URL에서 지운다.
@@ -150,31 +187,44 @@ export function App() {
 
       // 세션이 유효하지 않다는 응답만 로그아웃으로 해석한다. 게이트웨이 장애는 세션에 대한 답이
       // 아니며 HttpOnly 쿠키는 브라우저가 계속 보관하므로, 장애가 끝나면 다시 복원할 수 있다.
+      if (ignore || !cartRequests.current.isCurrent(bootRequest)) {
+        return;
+      }
       let current: Member | null = null;
       try {
         current = await api.me();
       } catch (error) {
+        if (ignore || !cartRequests.current.isCurrent(bootRequest)) {
+          return;
+        }
         if (error instanceof UnauthorizedError) {
           session.clear();
         } else {
           setAuthNotice('로그인 정보를 확인할 수 없습니다. 잠시 후 다시 시도해주세요.');
         }
       }
-      if (ignore) return;
-      setMember(current);
-
-      const result = await fetchStorefront(current !== null);
-      if (ignore) return;
-      applyStorefront(result);
+      if (ignore || !cartRequests.current.isCurrent(bootRequest)) {
+        return;
+      }
+      changeMember(current);
+      setBusy('load');
+      const request = cartRequests.current.begin();
+      await loadStorefront(request);
+      if (ignore || !cartRequests.current.sameSession(request)) {
+        return;
+      }
+      if (cartRequests.current.isCurrent(request)) {
+        setBusy(null);
+      }
       if (current) {
         await resumePendingCheckout(current.id);
       }
-      setBusy(null);
     }
 
     bootstrap();
     return () => {
       ignore = true;
+      cartRequests.current.changeMember(null);
     };
   }, []);
 
@@ -195,21 +245,34 @@ export function App() {
     : checkout?.order.checkoutStatus === 'FAILED' && checkout.order.paymentCleanupStatus === 'DONE' ? 'FAILED' : 'PROCESSING';
 
   async function refresh() {
+    const request = cartRequests.current.begin();
     setBusy('load');
     try {
-      applyStorefront(await fetchStorefront(member !== null));
+      await loadStorefront(request);
     } finally {
-      setBusy(null);
+      if (cartRequests.current.isCurrent(request)) {
+        setBusy(null);
+      }
     }
   }
 
-  async function loadCart() {
+  async function loadCart(request = cartRequests.current.begin()): Promise<boolean | null> {
     try {
-      setCart(await api.cart());
+      const result = await api.cart();
+      if (!cartRequests.current.isCurrent(request)) {
+        return null;
+      }
+      setCart(result);
       setCartUnavailable(false);
+      setApiMode(fallbackMode);
+      setNotice(current => current.startsWith('장바구니 조회 실패') ? '' : current);
       return true;
     } catch (error) {
+      if (!cartRequests.current.isCurrent(request)) {
+        return null;
+      }
       setCartUnavailable(true);
+      setNotice('');
       if (error instanceof UnauthorizedError) {
         handleExpiredSession();
       }
@@ -218,15 +281,19 @@ export function App() {
   }
 
   async function retryCart() {
+    const request = cartRequests.current.begin();
     setBusy('cart');
     try {
-      await loadCart();
+      await loadCart(request);
     } finally {
-      setBusy(null);
+      if (cartRequests.current.isCurrent(request)) {
+        setBusy(null);
+      }
     }
   }
 
   async function submitAuth() {
+    const authRequest = cartRequests.current.begin();
     setAuthBusy(true);
     setAuthNotice('');
     try {
@@ -237,11 +304,20 @@ export function App() {
         return;
       }
       const issued = await api.login(authEmail, authPassword);
+      if (!cartRequests.current.sameSession(authRequest)) {
+        return;
+      }
       session.writeAccess(issued.accessToken);
       const current = await api.me();
-      setMember(current);
-      setCart({ memberId: current.id, lines: [], version: 0 });
-      applyStorefront(await fetchStorefront(true));
+      if (!cartRequests.current.sameSession(authRequest)) {
+        return;
+      }
+      changeMember(current);
+      const request = cartRequests.current.begin();
+      await loadStorefront(request);
+      if (!cartRequests.current.sameSession(request)) {
+        return;
+      }
       await resumePendingCheckout(current.id);
       setAuthNotice('');
     } catch (error) {
@@ -252,23 +328,25 @@ export function App() {
   }
 
   async function signOut() {
+    changeMember(null);
+    session.clear();
+    setCheckout(null);
+    setShipment(null);
+    const request = cartRequests.current.begin();
     try {
       await api.logout();
     } catch {
-      // 서버가 이미 폐기했거나 닿지 않아도 로컬 세션은 지운다
+      // 서버가 이미 폐기했거나 닿지 않아도 로컬 세션은 지운다.
     }
-    session.clear();
-    setMember(null);
-    setCheckout(null);
-    setShipment(null);
-    applyStorefront(await fetchStorefront(false));
+    if (cartRequests.current.isCurrent(request)) {
+      await loadStorefront(request);
+    }
   }
 
   /** 세션이 끊겼다. 로그인 화면으로 돌려보낸다. */
   function handleExpiredSession() {
     session.clear();
-    setMember(null);
-    setCart({ memberId: '', lines: [], version: 0 });
+    changeMember(null);
     setCartUnavailable(true);
     setAuthNotice('세션이 만료됐습니다. 다시 로그인해주세요.');
   }
@@ -282,13 +360,24 @@ export function App() {
       setAuthNotice('장바구니를 쓰려면 로그인해주세요.');
       return;
     }
+    const mutation = cartRequests.current.begin();
     setBusy('cart');
     try {
-      setCart(await api.addCartItem(skuId, 1));
+      const result = await api.addCartItem(skuId, 1);
+      if (!cartRequests.current.sameSession(mutation)) {
+        return;
+      }
+      cartRequests.current.invalidateQueries();
+      setCart(result);
       setCartUnavailable(false);
       const loaded = await loadCart();
-      setNotice(loaded ? '상품을 담았습니다.' : '상품을 담았습니다. 장바구니와 금액을 다시 확인해주세요.');
+      if (loaded !== null) {
+        setNotice(loaded ? '상품을 담았습니다.' : '상품을 담았습니다. 장바구니와 금액을 다시 확인해주세요.');
+      }
     } catch (error) {
+      if (!cartRequests.current.sameSession(mutation)) {
+        return;
+      }
       if (error instanceof UnauthorizedError) {
         handleExpiredSession();
         return;
@@ -301,7 +390,9 @@ export function App() {
       }
       await loadCart();
     } finally {
-      setBusy(null);
+      if (cartRequests.current.sameSession(mutation)) {
+        setBusy(null);
+      }
     }
   }
 
@@ -330,14 +421,23 @@ export function App() {
       setNotice('Cart is empty');
       return;
     }
+    const request = cartRequests.current.begin();
     setBusy('checkout');
     session.writePendingCheckout(member.id, pending);
     try {
       const result = await requestCheckoutWithRecovery(pending);
+      if (!cartRequests.current.sameSession(request)) {
+        return;
+      }
       // loadCart는 실패를 화면 상태에 기록한다. 주문 접수 결과는 계속 처리한다.
       await loadCart();
-      await acceptCheckoutResult(result, member.id, pending.idempotencyKey);
+      if (cartRequests.current.sameSession(request)) {
+        await acceptCheckoutResult(result, member.id, pending.idempotencyKey);
+      }
     } catch (error) {
+      if (!cartRequests.current.sameSession(request)) {
+        return;
+      }
       if (error instanceof UnauthorizedError) {
         handleExpiredSession();
         return;
@@ -350,7 +450,9 @@ export function App() {
         setNotice('주문 접수 결과를 확인하지 못했습니다. 같은 요청으로 결과를 다시 확인합니다.');
       }
     } finally {
-      setBusy(null);
+      if (cartRequests.current.sameSession(request)) {
+        setBusy(null);
+      }
     }
   }
 
@@ -364,10 +466,16 @@ export function App() {
       setNotice('새 견적을 확인하고 다시 결제해주세요.');
       return;
     }
+    const request = cartRequests.current.begin();
     try {
       const result = await requestPendingCheckout(pending);
-      await acceptCheckoutResult(result, memberId, pending.idempotencyKey);
+      if (cartRequests.current.sameSession(request)) {
+        await acceptCheckoutResult(result, memberId, pending.idempotencyKey);
+      }
     } catch (error) {
+      if (!cartRequests.current.sameSession(request)) {
+        return;
+      }
       if (error instanceof UnauthorizedError) {
         handleExpiredSession();
         return;
@@ -497,6 +605,9 @@ export function App() {
     }
   }
 
+  const connectionMode = cartUnavailable && apiMode === 'live' ? 'partial' : apiMode;
+  const connectionNotice = noticeFor(apiMode, degradedResources, cartUnavailable && member !== null);
+
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -506,10 +617,11 @@ export function App() {
         </div>
         <div className="topbar-actions">
           <Link className="order-link" to="/orders">주문 내역</Link>
-          <span className={`connection ${apiMode}`}>
-            {apiMode !== 'demo' ? <Wifi size={16} /> : <WifiOff size={16} />}
-            {notice}
+          <span className={`connection ${connectionMode}`}>
+            {connectionMode !== 'demo' ? <Wifi size={16} /> : <WifiOff size={16} />}
+            {connectionNotice}
           </span>
+          {notice && notice !== connectionNotice && <span role="status">{notice}</span>}
           <button className="icon-button" type="button" onClick={refresh} title="Refresh" disabled={busy === 'load'}>
             {busy === 'load' ? <Loader2 className="spin" size={18} /> : <RefreshCcw size={18} />}
           </button>
