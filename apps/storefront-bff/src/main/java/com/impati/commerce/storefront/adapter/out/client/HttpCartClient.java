@@ -14,15 +14,33 @@ import org.springframework.web.client.RestClient;
 public class HttpCartClient implements CartClient {
     private final RestClient restClient;
     private final ServiceCallExecutor calls;
-    public HttpCartClient(RestClientFactory factory, ServiceCallExecutor calls, @Value("${clients.cart.url}") String url) {
+
+    public HttpCartClient(
+            RestClientFactory factory,
+            ServiceCallExecutor calls,
+            @Value("${clients.cart.url}") String url
+    ) {
         this.restClient = factory.forBaseUrl(url);
         this.calls = calls;
     }
+
+    @Override
     public CartResponse get(String memberId) {
-        return calls.query("storefront cart lookup", () -> restClient.get().uri("/carts").header("X-Member-Id", memberId).retrieve().body(CartResponse.class));
+        return calls.query("storefront cart lookup", () -> restClient.get()
+                .uri("/carts")
+                .header("X-Member-Id", memberId)
+                .retrieve()
+                .body(CartResponse.class));
     }
+
+    @Override
     public CartResponse add(String memberId, CartItemRequest request) {
-        return calls.command("storefront cart add", () -> restClient.post().uri("/carts/items").header("X-Member-Id", memberId).body(request).retrieve().body(CartResponse.class), error -> {
+        return calls.command("storefront cart add", () -> restClient.post()
+                .uri("/carts/items")
+                .header("X-Member-Id", memberId)
+                .body(request)
+                .retrieve()
+                .body(CartResponse.class), error -> {
             if (error.hasCode("validation_error")) {
                 throw DomainException.validation("수량을 확인해주세요.");
             }

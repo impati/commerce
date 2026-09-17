@@ -15,9 +15,10 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
-import org.springframework.test.web.client.match.MockRestRequestMatchers;
 import org.springframework.test.web.servlet.MockMvc;
+
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
@@ -31,44 +32,73 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @Import(StorefrontRoutingTest.Configuration.class)
 class StorefrontRoutingTest {
-    @TestConfiguration static class Configuration {
+    @TestConfiguration
+    static class Configuration {
         @Bean
         MockServerRestClientCustomizer mockServerRestClientCustomizer() {
             return new MockServerRestClientCustomizer();
         }
     }
+
     @MockBean
-    MemberIdentity identity;
+    private MemberIdentity identity;
+
     @Autowired
-    MockMvc mvc;
+    private MockMvc mvc;
+
     @Autowired
-    MockServerRestClientCustomizer customizer;
-    MockRestServiceServer server;
+    private MockServerRestClientCustomizer customizer;
+
+    private MockRestServiceServer server;
+
     @BeforeEach
     void setUp() {
-        server = customizer.getServer(); server.reset();
+        server = customizer.getServer();
+        server.reset();
         when(identity.require("Bearer access")).thenReturn("m");
     }
+
     @AfterEach
     void verify() {
         server.verify();
     }
+
     @Test
     void routesTheAuthenticatedCartToBffWithoutComposingData() throws Exception {
-        server.expect(requestTo("http://localhost:8110/cart")).andExpect(header("X-Member-Id", "m"))
-                .andRespond(withSuccess("{\"memberId\":\"m\",\"version\":5,\"lines\":[],\"quote\":null,\"unavailable\":[],\"checkoutAllowed\":false}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo("http://localhost:8110/cart"))
+                .andExpect(header("X-Member-Id", "m"))
+                .andRespond(withSuccess("""
+                        {"memberId":"m","version":5,"lines":[],"quote":null,
+                         "unavailable":[],"checkoutAllowed":false}
+                        """, MediaType.APPLICATION_JSON));
+
         mvc.perform(get("/cart").header("Authorization", "Bearer access"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.version").value(5)).andExpect(jsonPath("$.checkoutAllowed").value(false));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.version").value(5))
+                .andExpect(jsonPath("$.checkoutAllowed").value(false));
     }
+
     @Test
     void forwardsTheOriginalKeyAndQuoteToBffAndPreservesErrors() throws Exception {
-        server.expect(requestTo("http://localhost:8110/checkout")).andExpect(header("X-Member-Id", "m"))
+        var checkoutRequest = """
+                {"paymentToken":"card","quoteId":"quote"}
+                """;
+        server.expect(requestTo("http://localhost:8110/checkout"))
+                .andExpect(header("X-Member-Id", "m"))
                 .andExpect(header("Idempotency-Key", "key"))
-                .andExpect(MockRestRequestMatchers.content().json("{\"paymentToken\":\"card\",\"quoteId\":\"quote\"}"))
-                .andRespond(withStatus(HttpStatus.CONFLICT).contentType(MediaType.APPLICATION_JSON)
-                        .body("{\"code\":\"quote_changed\",\"message\":\"Review\"}"));
-        mvc.perform(post("/checkout").header("Authorization", "Bearer access").header("Idempotency-Key", "key")
-                .contentType(MediaType.APPLICATION_JSON).content("{\"paymentToken\":\"card\",\"quoteId\":\"quote\"}"))
-                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("quote_changed"));
+                .andExpect(content().json(checkoutRequest))
+                .andRespond(withStatus(HttpStatus.CONFLICT)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("""
+                                {"code":"quote_changed","message":"Review"}
+                                """));
+
+        mvc.perform(post("/checkout")
+                        .header("Authorization", "Bearer access")
+                        .header("Idempotency-Key", "key")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(checkoutRequest))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("quote_changed"));
     }
 }

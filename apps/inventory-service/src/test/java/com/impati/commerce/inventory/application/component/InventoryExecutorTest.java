@@ -231,6 +231,7 @@ class InventoryExecutorTest {
                 .findFirst()
                 .orElseThrow();
     }
+
     @Test
     void targetedStockLookupReadsOnlyExistingInventory() {
         inventoryUseCase.addStock("sku_targeted_lookup", 7);

@@ -37,6 +37,7 @@ public final class CartModels {
         private final String memberId;
         private final List<CartLine> lines = new ArrayList<>();
         private long version;
+        // DB에 저장된 기준 버전. 신규 객체는 아직 기준 버전이 없다.
         private long persistedVersion = -1;
 
         public Cart(String memberId) {
@@ -65,6 +66,10 @@ public final class CartModels {
 
         public long version() {
             return version;
+        }
+
+        public boolean isNew() {
+            return persistedVersion < 0;
         }
 
         public long persistedVersion() {

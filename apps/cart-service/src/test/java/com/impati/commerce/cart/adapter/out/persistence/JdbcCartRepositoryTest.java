@@ -121,6 +121,7 @@ class JdbcCartRepositoryTest {
                 .extracting(CartLine::skuId)
                 .containsExactly("sku_a", "sku_b");
     }
+
     /** [PD-0021-R3] 구매분 분리 이후 오래된 수정이 구매분을 다시 장바구니에 넣지 않는다. */
     @Test void staleSaveCannotRestoreDetachedPurchaseLines() {
         var cart = new Cart("mem_stale_after_checkout");

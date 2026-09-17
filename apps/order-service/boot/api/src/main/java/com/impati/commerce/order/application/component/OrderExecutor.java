@@ -72,27 +72,16 @@ public class OrderExecutor implements OrderUseCase {
     }
 
     @Override
-    public CheckoutResult checkout(
+    public CheckoutResult checkoutConfirmed(
             String memberId,
             IdempotencyKey idempotencyKey,
             String paymentToken,
-            String addressId
+            String addressId,
+            String quoteId
     ) {
-        return checkoutWithQuote(memberId, idempotencyKey, paymentToken, addressId, null);
-    }
-
-    @Override
-    public CheckoutResult checkoutConfirmed(String memberId, IdempotencyKey key, String paymentToken, String addressId, String quoteId) {
-        if (quoteId == null || !quoteId.matches("[a-f0-9]{64}")) {
-            throw DomainException.validation("a server purchase quote is required");
-        }
-        return checkoutWithQuote(memberId, key, paymentToken, addressId, quoteId);
-    }
-
-    private CheckoutResult checkoutWithQuote(String memberId, IdempotencyKey idempotencyKey, String paymentToken, String addressId, String quoteId) {
+        validateQuoteId(quoteId);
         validatePaymentToken(paymentToken);
-        var fingerprint = quoteId == null ? CheckoutRequestFingerprint.from(paymentToken, addressId)
-                : CheckoutRequestFingerprint.from(CheckoutRequestFingerprint.from(paymentToken, addressId).value(), quoteId);
+        var fingerprint = confirmedRequestFingerprint(paymentToken, addressId, quoteId);
         var existing = progressRepository.findByMemberAndKey(memberId, idempotencyKey);
         if (existing.isPresent()) {
             ensureSameRequest(existing.get(), fingerprint);
@@ -104,10 +93,8 @@ public class OrderExecutor implements OrderUseCase {
             throw DomainException.cartEmpty("cart is empty");
         }
 
-        var orderLines = price(cart);
-        if (quoteId != null && !quoteId.equals(PurchasePricing.quoteId(memberId, cart.version(), orderLines))) {
-            throw new DomainException("quote_changed", "구매 내용이나 금액이 변경됐습니다. 새 견적을 확인해주세요.", 409);
-        }
+        var orderLines = loadPricedOrderLines(cart);
+        ensureQuoteMatches(memberId, cart.version(), orderLines, quoteId);
         var member = memberClient.member(memberId);
         var address = OrderMapper.toAddress(selectAddress(member.addresses(), addressId));
         var orderId = Ids.newId("ord");
@@ -131,20 +118,50 @@ public class OrderExecutor implements OrderUseCase {
         if (cart.version() != expectedVersion) {
             throw DomainException.cartChanged("cart changed during quote lookup");
         }
-        var lines = price(cart);
+        var lines = loadPricedOrderLines(cart);
+        var quoteLines = lines.stream().map(line -> new PurchaseQuoteDetails.Line(
+                line.skuId(), line.quantity(), line.unitPrice(), line.lineTotal())).toList();
         return new PurchaseQuoteDetails(
-                PurchasePricing.quoteId(memberId, cart.version(), lines), cart.version(),
-                lines.stream().map(line -> new PurchaseQuoteDetails.Line(
-                        line.skuId(), line.quantity(), line.unitPrice(), line.lineTotal())).toList(),
-                PurchasePricing.total(lines));
+                PurchasePricing.quoteId(memberId, cart.version(), lines),
+                cart.version(),
+                quoteLines,
+                PurchasePricing.total(lines)
+        );
     }
 
-    private List<OrderLine> price(CartResponse cart) {
+    private List<OrderLine> loadPricedOrderLines(CartResponse cart) {
         return cart.lines().stream().map(line -> {
             var sku = catalogClient.sku(line.skuId());
             var product = catalogClient.product(sku.productId());
             return new OrderLine(sku.id(), product.id(), product.name(), sku.name(), line.quantity(), sku.price());
         }).toList();
+    }
+
+    private static void validateQuoteId(String quoteId) {
+        if (quoteId == null || !quoteId.matches("[a-f0-9]{64}")) {
+            throw DomainException.validation("a server purchase quote is required");
+        }
+    }
+
+    private static CheckoutRequestFingerprint confirmedRequestFingerprint(
+            String paymentToken,
+            String addressId,
+            String quoteId
+    ) {
+        var paymentAndAddress = CheckoutRequestFingerprint.from(paymentToken, addressId);
+        return CheckoutRequestFingerprint.from(paymentAndAddress.value(), quoteId);
+    }
+
+    private static void ensureQuoteMatches(
+            String memberId,
+            long cartVersion,
+            List<OrderLine> lines,
+            String confirmedQuoteId
+    ) {
+        var currentQuoteId = PurchasePricing.quoteId(memberId, cartVersion, lines);
+        if (!confirmedQuoteId.equals(currentQuoteId)) {
+            throw DomainException.quoteChanged("구매 내용이나 금액이 변경됐습니다. 새 견적을 확인해주세요.");
+        }
     }
 
     private CheckoutResult result(CheckoutProgress progress, boolean newlyAccepted) {
@@ -165,15 +182,6 @@ public class OrderExecutor implements OrderUseCase {
             }
         }
         return new CheckoutResult(OrderMapper.toDetails(order, progress), payment, shipment, newlyAccepted);
-    }
-
-    @Override
-    public OrderDetails getOwned(String memberId, String orderId) {
-        var order = order(orderId);
-        if (!order.memberId().equals(memberId)) {
-            throw DomainException.notFound("order not found");
-        }
-        return OrderMapper.toDetails(order, progressRepository.findByOrderId(orderId).orElse(null));
     }
 
     @Override

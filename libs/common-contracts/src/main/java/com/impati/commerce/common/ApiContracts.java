@@ -1,8 +1,8 @@
 package com.impati.commerce.common;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
-import java.time.OffsetDateTime;
 
 public final class ApiContracts {
     private ApiContracts() {
@@ -199,20 +199,51 @@ public final class ApiContracts {
         }
     }
 
-    /** 회원 신원은 X-Member-Id 헤더로 전달된다. 본문에 memberId를 두지 않는다. */
-    public record CheckoutRequest(String paymentToken, String addressId) {
+    /** Order 견적 조회와 BFF가 사용하는 서버 계산 결과. */
+    public record PurchaseQuoteResponse(
+            String id,
+            long cartVersion,
+            List<PurchaseQuoteLineResponse> lines,
+            Money total
+    ) {
     }
 
-    /** Order 견적 조회와 BFF가 사용하는 서버 계산 결과. */
-    public record PurchaseQuoteResponse(String id, long cartVersion, List<PurchaseQuoteLineResponse> lines, Money total) { }
-    public record PurchaseQuoteLineResponse(String skuId, int quantity, Money unitPrice, Money lineTotal) { }
+    public record PurchaseQuoteLineResponse(
+            String skuId,
+            int quantity,
+            Money unitPrice,
+            Money lineTotal
+    ) {
+    }
+
     /** BFF와 Order의 확인된 주문 접수. 가격은 본문으로 받지 않는다. */
-    public record ConfirmedCheckoutRequest(String paymentToken, String addressId, String quoteId) { }
+    public record ConfirmedCheckoutRequest(
+            String paymentToken,
+            String addressId,
+            String quoteId
+    ) {
+    }
+
     /** BFF 장바구니 화면. 금액이나 재고 미확인은 null과 unavailable로 구분한다. */
-    public record StorefrontCartResponse(String memberId, long version, List<StorefrontCartLineResponse> lines,
-            PurchaseQuoteResponse quote, List<String> unavailable, boolean checkoutAllowed) { }
-    public record StorefrontCartLineResponse(String skuId, int quantity, String productName, String skuName,
-            Integer availableQuantity, boolean informationAvailable) { }
+    public record StorefrontCartResponse(
+            String memberId,
+            long version,
+            List<StorefrontCartLineResponse> lines,
+            PurchaseQuoteResponse quote,
+            List<String> unavailable,
+            boolean checkoutAllowed
+    ) {
+    }
+
+    public record StorefrontCartLineResponse(
+            String skuId,
+            int quantity,
+            String productName,
+            String skuName,
+            Integer availableQuantity,
+            boolean informationAvailable
+    ) {
+    }
 
     public record CheckoutResponse(OrderResponse order, PaymentResponse payment, ShipmentResponse shipment) {
     }

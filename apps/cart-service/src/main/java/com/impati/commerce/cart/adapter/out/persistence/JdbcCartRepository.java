@@ -29,6 +29,12 @@ public class JdbcCartRepository implements CartRepository {
             select :member_id, :version
              where not exists (select 1 from carts where member_id = :member_id)
             """;
+    private static final String UPDATE_CART_IF_UNCHANGED = """
+            update carts
+               set version = :version
+             where member_id = :member_id
+               and version = :expected_version
+            """;
     private static final String UPDATE_CART_VERSION =
             "update carts set version = :version where member_id = :member_id";
     private static final String SELECT_LINES = """
@@ -67,6 +73,8 @@ public class JdbcCartRepository implements CartRepository {
     public JdbcCartRepository(NamedParameterJdbcTemplate jdbc) {
         this.jdbc = jdbc;
     }
+
+    // 헤더와 라인을 같은 스냅샷으로 읽는다. 쓰기도 버전과 라인을 한 트랜잭션으로 갱신한다.
     @Override
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public Optional<Cart> findByMemberId(String memberId) {
@@ -82,32 +90,38 @@ public class JdbcCartRepository implements CartRepository {
         });
         return Optional.of(cart);
     }
+
     @Override
     @Transactional
     public void save(Cart cart) {
         var params = new MapSqlParameterSource()
                 .addValue("member_id", cart.memberId())
                 .addValue("version", cart.version());
-        if (cart.persistedVersion() < 0) {
-            if (jdbc.update(INSERT_CART, params) != 1) {
-                throw DomainException.cartChanged("cart was created by another request");
-            }
+        if (cart.isNew()) {
+            insertCart(params);
         } else {
-            var changed = jdbc.update("update carts set version = :version where member_id = :member_id and version = :expected_version",
-                    params.addValue("expected_version", cart.persistedVersion()));
-            if (changed != 1) {
-                throw DomainException.cartChanged("cart changed during modification");
-            }
+            updateCartIfUnchanged(params, cart.persistedVersion());
         }
-        jdbc.update(DELETE_LINES, params);
+        replaceLines(cart, params);
+        markPersistedAfterCommit(cart);
+    }
 
-        TransactionSynchronizationManager.registerSynchronization(
-                new TransactionSynchronization() {
-                    @Override
-                    public void afterCommit() {
-                        cart.markPersisted();
-                    }
-                });
+    private void insertCart(MapSqlParameterSource params) {
+        if (jdbc.update(INSERT_CART, params) != 1) {
+            throw DomainException.cartChanged("cart was created by another request");
+        }
+    }
+
+    private void updateCartIfUnchanged(MapSqlParameterSource params, long expectedVersion) {
+        var changed = jdbc.update(UPDATE_CART_IF_UNCHANGED,
+                params.addValue("expected_version", expectedVersion));
+        if (changed != 1) {
+            throw DomainException.cartChanged("cart changed during modification");
+        }
+    }
+
+    private void replaceLines(Cart cart, MapSqlParameterSource params) {
+        jdbc.update(DELETE_LINES, params);
         var lines = cart.lines();
         for (var index = 0; index < lines.size(); index++) {
             var line = lines.get(index);
@@ -117,6 +131,16 @@ public class JdbcCartRepository implements CartRepository {
                     .addValue("line_no", index)
                     .addValue("quantity", line.quantity()));
         }
+    }
+
+    private void markPersistedAfterCommit(Cart cart) {
+        // 라인 저장이나 최종 커밋이 실패하면 객체의 기준 버전도 갱신하지 않는다.
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                cart.markPersisted();
+            }
+        });
     }
 
     /**

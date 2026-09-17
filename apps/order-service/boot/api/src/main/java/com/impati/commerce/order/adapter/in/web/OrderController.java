@@ -38,14 +38,21 @@ public class OrderController {
     }
 
     @PostMapping("/checkouts/confirmed")
-    ResponseEntity<CheckoutResponse> checkoutConfirmed(@RequestHeader("X-Member-Id") String memberId,
-                                                       @RequestHeader("Idempotency-Key") String key,
-                                                       @RequestBody ConfirmedCheckoutRequest request
+    ResponseEntity<CheckoutResponse> checkoutConfirmed(
+            @RequestHeader("X-Member-Id") String memberId,
+            @RequestHeader("Idempotency-Key") String key,
+            @RequestBody ConfirmedCheckoutRequest request
     ) {
-        var result = orderUseCase.checkoutConfirmed(memberId, new IdempotencyKey(key), request.paymentToken(), request.addressId(),
-                request.quoteId());
+        var result = orderUseCase.checkoutConfirmed(
+                memberId, new IdempotencyKey(key), request.paymentToken(), request.addressId(), request.quoteId());
         var response = OrderResponseMapper.from(result);
-        return ResponseEntity.status("PROCESSING".equals(result.order().checkoutStatus()) ? 202 : result.newlyAccepted() ? 201 : 200).body(response);
+        if ("PROCESSING".equals(result.order().checkoutStatus())) {
+            return ResponseEntity.accepted().body(response);
+        }
+        if (result.newlyAccepted()) {
+            return ResponseEntity.status(201).body(response);
+        }
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/orders/{orderId}")

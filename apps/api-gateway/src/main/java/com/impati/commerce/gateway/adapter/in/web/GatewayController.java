@@ -169,6 +169,7 @@ public class GatewayController {
     ) {
         return clients.addCartItem(identity.require(authorization), request);
     }
+
     @PostMapping("/checkout")
     ResponseEntity<CheckoutResponse> checkout(
             @RequestHeader(value = "Authorization", required = false) String authorization,

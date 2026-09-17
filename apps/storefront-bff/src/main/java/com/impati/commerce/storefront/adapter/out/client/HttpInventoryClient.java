@@ -13,13 +13,22 @@ import org.springframework.web.client.RestClient;
 public class HttpInventoryClient implements InventoryClient {
     private final RestClient restClient;
     private final ServiceCallExecutor calls;
-    public HttpInventoryClient(RestClientFactory factory, ServiceCallExecutor calls, @Value("${clients.inventory.url}") String url) {
+
+    public HttpInventoryClient(
+            RestClientFactory factory,
+            ServiceCallExecutor calls,
+            @Value("${clients.inventory.url}") String url
+    ) {
         this.restClient = factory.forBaseUrl(url);
         this.calls = calls;
     }
+
+    @Override
     public StockResponse get(String skuId) {
-        return calls.query("storefront stock lookup", () -> restClient.get().uri("/internal/stock/{id}", skuId)
-                .retrieve().body(StockResponse.class), error -> {
+        return calls.query("storefront stock lookup", () -> restClient.get()
+                .uri("/internal/stock/{id}", skuId)
+                .retrieve()
+                .body(StockResponse.class), error -> {
             if (error.hasCode("not_found")) {
                 throw DomainException.notFound("재고 정보를 찾을 수 없습니다.");
             }

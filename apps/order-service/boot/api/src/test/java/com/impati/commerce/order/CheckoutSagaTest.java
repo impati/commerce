@@ -7,7 +7,6 @@ import com.impati.commerce.common.ApiContracts.CartLineResponse;
 import com.impati.commerce.common.ApiContracts.CartResponse;
 import com.impati.commerce.common.ApiContracts.CheckoutCartRequest;
 import com.impati.commerce.common.ApiContracts.CheckoutCartResponse;
-import com.impati.commerce.common.ApiContracts.CheckoutRequest;
 import com.impati.commerce.common.ApiContracts.ConfirmedCheckoutRequest;
 import com.impati.commerce.common.ApiContracts.CreateShipmentRequest;
 import com.impati.commerce.common.ApiContracts.ErrorResponse;
@@ -47,6 +46,7 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.test.web.client.UnorderedRequestExpectationManager;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.client.ExpectedCount.times;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
@@ -92,12 +92,16 @@ class CheckoutSagaTest {
     @Autowired
 
     private MockMvc mockMvc;
+
     @Autowired
     private ObjectMapper objectMapper;
+
     @Autowired
     private MockServerRestClientCustomizer customizer;
+
     @Autowired
     private JdbcTemplate jdbc;
+
     @Autowired
     private CheckoutRecoveryUseCase recovery;
 
@@ -170,10 +174,10 @@ class CheckoutSagaTest {
 
     @Test
     void rejectsCheckoutWithoutAnIdempotencyKey() throws Exception {
-        mockMvc.perform(post("/internal/checkouts")
+        mockMvc.perform(post("/checkouts/confirmed")
                         .header("X-Member-Id", MEMBER_ID)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(new CheckoutRequest("card_success", "addr_demo"))))
+                        .content(json(new ConfirmedCheckoutRequest("card_success", "addr_demo", confirmedQuoteId()))))
                 .andExpect(status().isBadRequest());
     }
 
@@ -279,16 +283,25 @@ class CheckoutSagaTest {
         stubCommitReservation();
         stubSuccessDecoration(2);
         var request = new ConfirmedCheckoutRequest("card_success", "addr_demo", confirmedQuoteId());
-        var first = mockMvc.perform(post("/checkouts/confirmed").header("X-Member-Id", MEMBER_ID)
-                .header("Idempotency-Key", "confirmed-key").contentType(MediaType.APPLICATION_JSON).content(json(request)))
-                .andExpect(status().isCreated()).andExpect(jsonPath("$.order.checkoutStatus").value("SUCCEEDED")).andReturn();
+        var first = mockMvc.perform(post("/checkouts/confirmed")
+                .header("X-Member-Id", MEMBER_ID)
+                .header("Idempotency-Key", "confirmed-key")
+                .contentType(MediaType.APPLICATION_JSON).content(json(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.order.checkoutStatus").value("SUCCEEDED"))
+                .andReturn();
         var id = objectMapper.readTree(first.getResponse().getContentAsString()).path("order").path("id").asText();
-        mockMvc.perform(post("/checkouts/confirmed").header("X-Member-Id", MEMBER_ID)
-                .header("Idempotency-Key", "confirmed-key").contentType(MediaType.APPLICATION_JSON).content(json(request)))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.order.id").value(id));
+        mockMvc.perform(post("/checkouts/confirmed")
+                .header("X-Member-Id", MEMBER_ID)
+                .header("Idempotency-Key", "confirmed-key")
+                .contentType(MediaType.APPLICATION_JSON).content(json(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.order.id").value(id));
         var changed = new ConfirmedCheckoutRequest("card_success", "addr_demo", "a".repeat(64));
-        mockMvc.perform(post("/checkouts/confirmed").header("X-Member-Id", MEMBER_ID)
-                .header("Idempotency-Key", "confirmed-key").contentType(MediaType.APPLICATION_JSON).content(json(changed)))
+        mockMvc.perform(post("/checkouts/confirmed")
+                .header("X-Member-Id", MEMBER_ID)
+                .header("Idempotency-Key", "confirmed-key")
+                .contentType(MediaType.APPLICATION_JSON).content(json(changed)))
                 .andExpect(status().isConflict());
         assertThat(jdbc.queryForObject("select count(*) from orders", Integer.class)).isEqualTo(1);
     }
@@ -297,10 +310,13 @@ class CheckoutSagaTest {
     @Test
     void confirmedCheckoutRejectsAStaleQuoteBeforePersistingAnOrder() throws Exception {
         stubQuoteInputs(CART_VERSION + 1);
-        mockMvc.perform(post("/checkouts/confirmed").header("X-Member-Id", MEMBER_ID)
-                .header("Idempotency-Key", "stale-confirmed-key").contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post("/checkouts/confirmed")
+                .header("X-Member-Id", MEMBER_ID)
+                .header("Idempotency-Key", "stale-confirmed-key")
+                .contentType(MediaType.APPLICATION_JSON)
                 .content(json(new ConfirmedCheckoutRequest("card_success", "addr_demo", confirmedQuoteId()))))
-                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("quote_changed"));
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("quote_changed"));
         assertThat(jdbc.queryForObject("select count(*) from orders", Integer.class)).isZero();
         assertThat(jdbc.queryForObject("select count(*) from checkout_progress", Integer.class)).isZero();
     }
@@ -308,8 +324,10 @@ class CheckoutSagaTest {
     @Test
     void quoteLookupDoesNotCreateAnOrder() throws Exception {
         stubQuoteInputs(CART_VERSION);
-        mockMvc.perform(get("/internal/purchase-quotes").header("X-Member-Id", MEMBER_ID).param("cartVersion", String.valueOf(CART_VERSION)))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(confirmedQuoteId()))
+        mockMvc.perform(get("/internal/purchase-quotes")
+                .header("X-Member-Id", MEMBER_ID).param("cartVersion", String.valueOf(CART_VERSION)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(confirmedQuoteId()))
                 .andExpect(jsonPath("$.total.amount").value(UNIT_PRICE * QUANTITY));
         assertThat(jdbc.queryForObject("select count(*) from orders", Integer.class)).isZero();
     }
@@ -321,19 +339,22 @@ class CheckoutSagaTest {
     }
 
     private void stubQuoteInputs(long version) {
-        server.expect(times(1), requestTo(CART_URL + "/carts")).andRespond(withSuccess(json(new CartResponse(
+        server.expect(times(1), requestTo(CART_URL + "/carts"))
+                .andRespond(withSuccess(json(new CartResponse(
                 MEMBER_ID, List.of(new CartLineResponse(SKU_ID, QUANTITY)), version)), MediaType.APPLICATION_JSON));
-        server.expect(times(1), requestTo(CATALOG_URL + "/internal/skus/" + SKU_ID)).andRespond(withSuccess(json(sku()), MediaType.APPLICATION_JSON));
-        server.expect(times(1), requestTo(CATALOG_URL + "/products/" + PRODUCT_ID)).andRespond(withSuccess(json(new ProductResponse(
+        server.expect(times(1), requestTo(CATALOG_URL + "/internal/skus/" + SKU_ID))
+                .andRespond(withSuccess(json(sku()), MediaType.APPLICATION_JSON));
+        server.expect(times(1), requestTo(CATALOG_URL + "/products/" + PRODUCT_ID))
+                .andRespond(withSuccess(json(new ProductResponse(
                 PRODUCT_ID, "Everyday Cotton Tee", "impati", "TOP", "seed product", "ON_SALE", List.of("seed"), List.of(sku()))), MediaType.APPLICATION_JSON));
     }
 
     private MockHttpServletRequestBuilder checkout(String key, String token) {
-        return post("/internal/checkouts")
+        return post("/checkouts/confirmed")
                 .header("X-Member-Id", MEMBER_ID)
                 .header("Idempotency-Key", key)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(json(new CheckoutRequest(token, "addr_demo")));
+                .content(json(new ConfirmedCheckoutRequest(token, "addr_demo", confirmedQuoteId())));
     }
 
     private void stubCheckoutInputs() {
