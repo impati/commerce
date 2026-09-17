@@ -95,6 +95,37 @@ public final class CartModels {
             version++;
         }
 
+        public void changeQuantity(String skuId, int quantity, long expectedVersion) {
+            ensureVersion(expectedVersion);
+            var line = findLine(skuId);
+            if (line.quantity() != quantity) {
+                line.changeQuantity(quantity);
+                version++;
+            }
+        }
+
+        public void remove(String skuId, long expectedVersion) {
+            ensureVersion(expectedVersion);
+            lines.remove(findLine(skuId));
+            version++;
+        }
+
+        private void ensureVersion(long expectedVersion) {
+            if (expectedVersion < 0) {
+                throw DomainException.validation("cart version must not be negative");
+            }
+            if (version != expectedVersion) {
+                throw DomainException.cartChanged("cart changed after it was viewed");
+            }
+        }
+
+        private CartLine findLine(String skuId) {
+            return lines.stream()
+                    .filter(line -> line.skuId().equals(skuId))
+                    .findFirst()
+                    .orElseThrow(() -> DomainException.notFound("cart line not found"));
+        }
+
         public void clear() {
             lines.clear();
             version++;

@@ -93,6 +93,8 @@ GET  /me
 POST /me/addresses
 GET  /cart                       BFF 상품·수량·재고·서버 견적
 POST /cart/items
+PUT  /cart/items/{skuId}          최종 수량과 expectedVersion으로 변경
+DELETE /cart/items/{skuId}?expectedVersion=...
 POST /checkout                   quoteId와 Idempotency-Key 필수
 GET  /orders?cursor={cursor}&size=20
 GET  /orders/{orderId}
@@ -124,6 +126,8 @@ POST /logout                     세션 폐기
 - 결제 실패 토큰: `card_test_decline`
 
 장바구니 조회는 BFF가 상품 정보, 줄별 가용 재고와 Order의 견적을 조합합니다. `quote`는 서버가 계산한 상품 금액이며, `checkoutAllowed`가 결제 가능 여부를 나타냅니다. 정보 미확인은 `unavailable`과 null로 표시합니다. 금액을 0원으로 대체하지 않으며 재고나 견적을 확인하지 못하면 결제를 제한합니다. 담기 응답은 성공한 Cart 상태이고, 이후 화면 조회는 별도 요청입니다.
+
+장바구니의 각 줄은 제거, +·−, 수량 입력으로 조작합니다. 수량은 1 이상의 정수이고 직접 입력은 Enter 또는 적용 버튼으로 확정합니다. 미적용 입력이 있거나 변경·후속 조회 중이면 결제를 제한합니다. 수량 변경 본문은 `{ "quantity": 3, "expectedVersion": 5 }`이며 삭제는 `expectedVersion`을 쿼리로 전달합니다. 조회한 버전과 현재 버전이 다르면 `cart_changed`로 거절하고 최신 내용을 확인한 뒤 다시 조작합니다. 같은 수량은 버전을 유지하며 없는 줄은 404입니다. 저장 성공과 후속 조회 실패를 구분하고, 결과 미확인 명령은 자동 반복하지 않습니다. ([ADR-0024](docs/adr/0024-cart-line-management.md))
 
 주문 요청의 `quoteId`는 확인한 장바구니 버전과 구매 금액을 식별합니다. 상품·수량 또는 금액이 달라지면 `quote_changed`로 거절하고 새 견적 확인을 요구합니다. 견적은 가격·재고 예약이 아니며 주문 접수 때 다시 계산하고 검증합니다. 결과를 잃은 요청은 같은 키와 같은 본문을 반복합니다. ([ADR-0023](docs/adr/0023-storefront-bff.md), [PD-0021](docs/policy/pd-0021-purchase-confirmation.md))
 

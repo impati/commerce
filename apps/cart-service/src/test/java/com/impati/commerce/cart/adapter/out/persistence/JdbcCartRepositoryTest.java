@@ -5,6 +5,10 @@ import com.impati.commerce.cart.domain.CartModels.Cart;
 import com.impati.commerce.cart.domain.CartModels.CartLine;
 import com.impati.commerce.common.DomainException;
 import com.impati.commerce.test.RequiresDatabase;
+import java.util.UUID;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -147,5 +151,46 @@ class JdbcCartRepositoryTest {
         assertThatThrownBy(() -> cartRepository.save(second)).isInstanceOf(DomainException.class);
         assertThat(cartRepository.findByMemberId(cart.memberId()).orElseThrow().lines())
                 .extracting(CartLine::skuId).containsExactly("sku_a", "sku_b");
+    }
+    @Test
+    void modificationAndCheckoutCannotBothCommitTheSameVersion() throws Exception {
+        var cart = new Cart(UUID.randomUUID().toString());
+        cart.add("sku_a", 2);
+        cartRepository.save(cart);
+        var barrier = new CyclicBarrier(2);
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            var modification = executor.submit(() -> {
+                var loaded = cartRepository.findByMemberId(cart.memberId()).orElseThrow();
+                loaded.changeQuantity("sku_a", 7, cart.version());
+                barrier.await(10, TimeUnit.SECONDS);
+                try {
+                    cartRepository.save(loaded);
+                    return true;
+                } catch (DomainException failure) {
+                    assertThat(failure.code()).isEqualTo("cart_changed");
+                    return false;
+                }
+            });
+            var checkout = executor.submit(() -> {
+                barrier.await(10, TimeUnit.SECONDS);
+                try {
+                    cartRepository.checkout(cart.memberId(), UUID.randomUUID().toString(), cart.version());
+                    return true;
+                } catch (DomainException failure) {
+                    assertThat(failure.code()).isEqualTo("cart_changed");
+                    return false;
+                }
+            });
+            var modified = modification.get(20, TimeUnit.SECONDS);
+            var detached = checkout.get(20, TimeUnit.SECONDS);
+            assertThat(modified).isNotEqualTo(detached);
+            var stored = cartRepository.findByMemberId(cart.memberId()).orElseThrow();
+            if (modified) {
+                assertThat(stored.lines().getFirst().quantity()).isEqualTo(7);
+            } else {
+                assertThat(stored.lines()).isEmpty();
+            }
+            assertThat(stored.version()).isEqualTo(cart.version() + 1);
+        }
     }
 }

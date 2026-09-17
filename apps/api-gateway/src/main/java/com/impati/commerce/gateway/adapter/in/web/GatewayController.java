@@ -5,6 +5,7 @@ import com.impati.commerce.common.ApiContracts.AddAddressRequest;
 import com.impati.commerce.common.ApiContracts.AddressResponse;
 import com.impati.commerce.common.ApiContracts.CartItemRequest;
 import com.impati.commerce.common.ApiContracts.CartResponse;
+import com.impati.commerce.common.ApiContracts.ChangeCartQuantityRequest;
 import com.impati.commerce.common.ApiContracts.CheckoutResponse;
 import com.impati.commerce.common.ApiContracts.ConfirmedCheckoutRequest;
 import com.impati.commerce.common.ApiContracts.DisplayHomeResponse;
@@ -26,9 +27,11 @@ import java.util.List;
 import java.util.Map;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CookieValue;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -168,6 +171,24 @@ public class GatewayController {
             @RequestBody CartItemRequest request
     ) {
         return clients.addCartItem(identity.require(authorization), request);
+    }
+
+    @PutMapping("/cart/items/{skuId}")
+    CartResponse changeCartQuantity(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @PathVariable String skuId,
+            @RequestBody ChangeCartQuantityRequest request
+    ) {
+        return clients.changeCartQuantity(identity.require(authorization), skuId, request);
+    }
+
+    @DeleteMapping("/cart/items/{skuId}")
+    CartResponse removeCartItem(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @PathVariable String skuId,
+            @RequestParam long expectedVersion
+    ) {
+        return clients.removeCartItem(identity.require(authorization), skuId, expectedVersion);
     }
 
     @PostMapping("/checkout")

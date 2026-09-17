@@ -34,6 +34,22 @@ public class CartExecutor implements CartUseCase {
     }
 
     @Override
+    public CartDetails changeQuantity(String memberId, String skuId, int quantity, long expectedVersion) {
+        var cart = loadOrNew(memberId);
+        cart.changeQuantity(skuId, quantity, expectedVersion);
+        cartRepository.save(cart);
+        return CartMapper.toDetails(cart);
+    }
+
+    @Override
+    public CartDetails removeItem(String memberId, String skuId, long expectedVersion) {
+        var cart = loadOrNew(memberId);
+        cart.remove(skuId, expectedVersion);
+        cartRepository.save(cart);
+        return CartMapper.toDetails(cart);
+    }
+
+    @Override
     public CartDetails clear(String memberId) {
         var cart = loadOrNew(memberId);
         cart.clear();

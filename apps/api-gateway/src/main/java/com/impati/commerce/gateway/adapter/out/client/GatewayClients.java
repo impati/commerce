@@ -5,6 +5,7 @@ import com.impati.commerce.common.ApiContracts.AddAddressRequest;
 import com.impati.commerce.common.ApiContracts.AddressResponse;
 import com.impati.commerce.common.ApiContracts.CartItemRequest;
 import com.impati.commerce.common.ApiContracts.CartResponse;
+import com.impati.commerce.common.ApiContracts.ChangeCartQuantityRequest;
 import com.impati.commerce.common.ApiContracts.CheckoutResponse;
 import com.impati.commerce.common.ApiContracts.ConfirmedCheckoutRequest;
 import com.impati.commerce.common.ApiContracts.DisplayHomeResponse;
@@ -198,6 +199,25 @@ public class GatewayClients {
                 .uri("/cart/items")
                 .header(MEMBER_ID_HEADER, memberId)
                 .body(request)
+                .retrieve()
+                .body(CartResponse.class);
+    }
+
+    public CartResponse changeCartQuantity(String memberId, String skuId, ChangeCartQuantityRequest request) {
+        return storefront.put()
+                .uri("/cart/items/{skuId}", skuId)
+                .header(MEMBER_ID_HEADER, memberId)
+                .body(request)
+                .retrieve()
+                .body(CartResponse.class);
+    }
+
+    public CartResponse removeCartItem(String memberId, String skuId, long expectedVersion) {
+        return storefront.delete()
+                .uri(builder -> builder.path("/cart/items/{skuId}")
+                        .queryParam("expectedVersion", expectedVersion)
+                        .build(skuId))
+                .header(MEMBER_ID_HEADER, memberId)
                 .retrieve()
                 .body(CartResponse.class);
     }

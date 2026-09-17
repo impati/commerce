@@ -1,5 +1,6 @@
 package com.impati.commerce.common;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
@@ -107,6 +108,34 @@ public final class ApiContracts {
     }
 
     public record CartItemRequest(String skuId, int quantity) {
+    }
+
+    /** Gateway → BFF → cart-service의 줄 수량 지정. */
+    public record ChangeCartQuantityRequest(BigDecimal quantity, BigDecimal expectedVersion) {
+        public ChangeCartQuantityRequest {
+            if (quantity == null || expectedVersion == null) {
+                throw DomainException.validation("quantity and cart version are required");
+            }
+            // JSON의 소수를 정수로 잘라내거나 큰 버전의 정밀도를 잃지 않는다.
+            try {
+                quantity.intValueExact();
+                expectedVersion.longValueExact();
+            } catch (ArithmeticException invalidNumber) {
+                throw DomainException.validation("quantity and cart version must be representable integers");
+            }
+        }
+
+        public ChangeCartQuantityRequest(int quantity, long expectedVersion) {
+            this(BigDecimal.valueOf(quantity), BigDecimal.valueOf(expectedVersion));
+        }
+
+        public int quantityAsInt() {
+            return quantity.intValueExact();
+        }
+
+        public long expectedVersionAsLong() {
+            return expectedVersion.longValueExact();
+        }
     }
 
     public record CartLineResponse(String skuId, int quantity) {

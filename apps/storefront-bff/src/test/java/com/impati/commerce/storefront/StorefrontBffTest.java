@@ -12,6 +12,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.client.MockServerRestClientCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
@@ -21,12 +22,15 @@ import org.springframework.test.web.servlet.MockMvc;
 import static org.springframework.test.web.client.ExpectedCount.once;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -154,5 +158,33 @@ class StorefrontBffTest {
                                 """))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("quote_changed"));
+    }
+    @Test
+    void forwardsQuantityAndExpectedVersionUsingTheAuthenticatedMember() throws Exception {
+        var request = "{\"quantity\":3,\"expectedVersion\":5}";
+        server.expect(requestTo("http://localhost:8105/carts/items/sku"))
+                .andExpect(method(HttpMethod.PUT))
+                .andExpect(header("X-Member-Id", "m"))
+                .andExpect(content().json(request))
+                .andRespond(withSuccess("""
+                        {"memberId":"m","version":6,"lines":[{"skuId":"sku","quantity":3}]}
+                        """, MediaType.APPLICATION_JSON));
+        mvc.perform(put("/cart/items/sku").header("X-Member-Id", "m")
+                        .contentType(MediaType.APPLICATION_JSON).content(request))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.version").value(6))
+                .andExpect(jsonPath("$.lines[0].quantity").value(3));
+    }
+
+    @Test
+    void forwardsDeletionAndPreservesTheVersionConflict() throws Exception {
+        server.expect(requestTo("http://localhost:8105/carts/items/sku?expectedVersion=5"))
+                .andExpect(method(HttpMethod.DELETE))
+                .andExpect(header("X-Member-Id", "m"))
+                .andRespond(withStatus(HttpStatus.CONFLICT).contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"code\":\"cart_changed\",\"message\":\"Reload\"}"));
+        mvc.perform(delete("/cart/items/sku").header("X-Member-Id", "m").param("expectedVersion", "5"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("cart_changed"));
     }
 }

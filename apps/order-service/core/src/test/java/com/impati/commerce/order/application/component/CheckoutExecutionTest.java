@@ -10,6 +10,8 @@ import com.impati.commerce.order.application.port.out.OrderRepository;
 import com.impati.commerce.order.application.port.out.PaymentClient;
 import com.impati.commerce.order.application.port.out.ShippingClient;
 import com.impati.commerce.order.domain.CheckoutProgress;
+import com.impati.commerce.order.domain.CheckoutRequestFingerprint;
+import com.impati.commerce.order.domain.IdempotencyKey;
 import com.impati.commerce.order.domain.OrderModels.Address;
 import com.impati.commerce.order.domain.OrderModels.Order;
 import com.impati.commerce.order.domain.OrderModels.OrderLine;
@@ -21,6 +23,8 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -29,6 +33,40 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class CheckoutExecutionTest {
+
+    /** [PD-0021-R3] 견적 확인 뒤 구매분 분리와 수정이 경합하면 결제로 진행하지 않는다. */
+    @Test
+    void aCartVersionConflictStopsCheckoutBeforeInventoryOrPaymentCommands() {
+        var orderId = "ord_cart_conflict";
+        var order = Order.create(
+                orderId,
+                "member",
+                List.of(new OrderLine("sku", "product", "Product", "SKU", 2, Money.krw(1_000))),
+                new Address("addr", "home", "Customer", "010", "1 Main", "Seoul", "04524", true),
+                LocalDateTime.now());
+        var progress = new CheckoutProgress(
+                orderId, "member", new IdempotencyKey("key"),
+                CheckoutRequestFingerprint.from("card", "address"), "card", 5);
+        var orders = mock(OrderRepository.class);
+        var changes = mock(CheckoutChanges.class);
+        var carts = mock(CartClient.class);
+        var inventory = mock(InventoryClient.class);
+        var payments = mock(PaymentClient.class);
+        var shipping = mock(ShippingClient.class);
+        when(orders.findById(orderId)).thenReturn(Optional.of(order));
+        when(carts.checkout("member", orderId, 5)).thenThrow(DomainException.cartChanged("changed"));
+
+        new CheckoutExecution(
+                orders, changes, carts, inventory, payments, shipping, mock(OperationalAttention.class),
+                Clock.systemUTC()).run(progress);
+
+        verify(carts, times(1)).checkout("member", orderId, 5);
+        verify(inventory, never()).reserve(any());
+        verify(payments, never()).authorizePayment(any());
+        verify(payments, never()).capturePayment(any());
+        assertThat(progress.failureCode()).isEqualTo("CART_CHANGED");
+        assertThat(progress.outcome()).isEqualTo(CheckoutProgress.Outcome.FAILED);
+    }
 
     @Test
     void unknownInventoryCommitAfterCaptureIsRetriedForwardWithoutRefunding() {
