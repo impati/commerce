@@ -25,6 +25,7 @@ import com.impati.commerce.common.ApiContracts.VerifyEmailRequest;
 import com.impati.commerce.common.DomainException;
 import com.impati.commerce.gateway.support.MemberServiceAvailability;
 import com.impati.commerce.http.RestClientFactory;
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.beans.factory.annotation.Value;
@@ -47,6 +48,7 @@ public class GatewayClients {
     private final RestClient catalog;
     private final RestClient inventory;
     private final RestClient storefront;
+    private final RestClient cartPage;
     private final RestClient orders;
     private final RestClient shipping;
     private final RestClient notifications;
@@ -59,6 +61,7 @@ public class GatewayClients {
             @Value("${clients.catalog.url}") String catalogBaseUrl,
             @Value("${clients.inventory.url}") String inventoryBaseUrl,
             @Value("${clients.storefront.url}") String storefrontBaseUrl,
+            @Value("${clients.storefront.cart-read-timeout:PT7S}") Duration cartReadTimeout,
             @Value("${clients.order.url}") String orderBaseUrl,
             @Value("${clients.shipping.url}") String shippingBaseUrl,
             @Value("${clients.notification.url}") String notificationBaseUrl
@@ -69,6 +72,7 @@ public class GatewayClients {
         this.catalog = restClients.forBaseUrl(catalogBaseUrl);
         this.inventory = restClients.forBaseUrl(inventoryBaseUrl);
         this.storefront = restClients.forBaseUrl(storefrontBaseUrl);
+        this.cartPage = restClients.forBaseUrl(storefrontBaseUrl, cartReadTimeout);
         this.orders = restClients.forBaseUrl(orderBaseUrl);
         this.shipping = restClients.forBaseUrl(shippingBaseUrl);
         this.notifications = restClients.forBaseUrl(notificationBaseUrl);
@@ -182,7 +186,7 @@ public class GatewayClients {
     }
 
     public StorefrontCartResponse cart(String memberId) {
-        return storefront.get()
+        return cartPage.get()
                 .uri("/cart")
                 .header(MEMBER_ID_HEADER, memberId)
                 .retrieve()

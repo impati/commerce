@@ -4,13 +4,9 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.boot.web.client.ClientHttpRequestFactories;
-import org.springframework.boot.web.client.ClientHttpRequestFactorySettings;
 import org.springframework.boot.web.client.RestClientCustomizer;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
-import org.springframework.core.Ordered;
-import org.springframework.core.annotation.Order;
 import org.springframework.web.client.RestClient;
 
 /**
@@ -32,12 +28,7 @@ public class HttpClientTimeoutAutoConfiguration {
     }
 
     @Bean
-    @Order(Ordered.HIGHEST_PRECEDENCE)
     RestClientCustomizer httpClientTimeoutCustomizer(HttpClientTimeoutProperties properties) {
-        return builder -> builder.requestFactory(ClientHttpRequestFactories.get(
-                ClientHttpRequestFactorySettings.DEFAULTS
-                        .withConnectTimeout(properties.connectTimeout())
-                        .withReadTimeout(properties.readTimeout())
-        ));
+        return new HttpClientTimeoutCustomizer(properties);
     }
 }

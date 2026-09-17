@@ -11,14 +11,18 @@ import com.impati.commerce.storefront.application.port.out.CartClient;
 import com.impati.commerce.storefront.application.port.out.CatalogClient;
 import com.impati.commerce.storefront.application.port.out.InventoryClient;
 import com.impati.commerce.storefront.application.port.out.OrderClient;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -34,37 +38,96 @@ public class CartPageExecutor implements CartPageUseCase {
     private final InventoryClient inventoryClient;
     private final OrderClient orderClient;
     private final ExecutorService queryExecutor;
+    private final Duration cartPageTimeout;
 
     public CartPageExecutor(
             CartClient cartClient,
             CatalogClient catalogClient,
             InventoryClient inventoryClient,
             OrderClient orderClient,
-            ExecutorService queryExecutor
+            ExecutorService queryExecutor,
+            @Value("${storefront.cart-page.timeout:PT5S}") Duration cartPageTimeout
     ) {
         this.cartClient = cartClient;
         this.catalogClient = catalogClient;
         this.inventoryClient = inventoryClient;
         this.orderClient = orderClient;
         this.queryExecutor = queryExecutor;
+        this.cartPageTimeout = cartPageTimeout;
     }
 
     @Override
     public CartPage get(String memberId) {
-        var cart = loadCart(memberId);
+        var deadline = new QueryDeadline(cartPageTimeout);
+        var cart = awaitCart(memberId, deadline);
         if (cart.lines().isEmpty()) {
             return new CartPage(memberId, cart.version(), List.of(), null, List.of(), false);
         }
 
-        var lineQueries = startLineQueries(cart);
-        var quoteQuery = submitQuery(QUOTE_AREA, () -> orderClient.quote(memberId, cart.version()));
-        var lineResults = lineQueries.stream().map(this::awaitLine).toList();
-        var quoteResult = validateQuote(cart, quoteQuery.join());
+        var lineQueries = startLineQueries(cart, deadline);
+        var quoteQuery = submitQuery(QUOTE_AREA, () -> orderClient.quote(memberId, cart.version()), deadline);
+        try {
+            return assemblePage(cart, lineQueries, quoteQuery, deadline);
+        } finally {
+            quoteQuery.cancel(true);
+            lineQueries.forEach(queries -> {
+                queries.description().cancel(true);
+                queries.stock().cancel(true);
+            });
+        }
+    }
+
+    private CartPage assemblePage(
+            CartResponse cart,
+            List<LineQueries> lineQueries,
+            Future<QueryResult<PurchaseQuoteResponse>> quoteQuery,
+            QueryDeadline deadline
+    ) {
+        var lineResults = lineQueries.stream().map(queries -> awaitLine(queries, deadline)).toList();
+        var quoteResult = validateQuote(cart, awaitQuery(QUOTE_AREA, quoteQuery, deadline));
 
         var lines = lineResults.stream().map(this::toPageLine).toList();
         var quote = toPageQuote(quoteResult);
         var unavailable = unavailableAreas(lineResults, quoteResult);
-        return new CartPage(memberId, cart.version(), lines, quote, unavailable, canCheckout(quote, lines));
+        return new CartPage(cart.memberId(), cart.version(), lines, quote, unavailable, canCheckout(quote, lines));
+    }
+
+    private CartResponse awaitCart(String memberId, QueryDeadline deadline) {
+        var query = queryExecutor.submit(() -> loadCart(memberId));
+        try {
+            return deadline.await(query);
+        } catch (TimeoutException failure) {
+            throw DomainException.unavailable("cart lookup exceeded the page deadline");
+        } catch (InterruptedException failure) {
+            Thread.currentThread().interrupt();
+            throw DomainException.unavailable("cart lookup was interrupted");
+        } catch (ExecutionException failure) {
+            throw queryFailure(failure);
+        } finally {
+            query.cancel(true);
+        }
+    }
+
+    private <T> QueryResult<T> awaitQuery(String area, Future<QueryResult<T>> query, QueryDeadline deadline) {
+        try {
+            return deadline.await(query);
+        } catch (TimeoutException failure) {
+            query.cancel(true);
+            log.warn("cart page lookup exceeded deadline area={}", area);
+            return QueryResult.failed("query_timeout");
+        } catch (InterruptedException failure) {
+            Thread.currentThread().interrupt();
+            throw DomainException.unavailable("cart page lookup was interrupted");
+        } catch (ExecutionException failure) {
+            throw queryFailure(failure);
+        }
+    }
+
+    private RuntimeException queryFailure(ExecutionException failure) {
+        if (failure.getCause() instanceof RuntimeException cause) {
+            return cause;
+        }
+        return new IllegalStateException("cart page query failed", failure.getCause());
     }
 
     private CartResponse loadCart(String memberId) {
@@ -76,30 +139,38 @@ public class CartPageExecutor implements CartPageUseCase {
         return cart;
     }
 
-    private List<LineQueries> startLineQueries(CartResponse cart) {
+    private List<LineQueries> startLineQueries(CartResponse cart, QueryDeadline deadline) {
         return cart.lines().stream().map(line -> new LineQueries(
                 line,
-                submitQuery(PRODUCT_AREA, () -> loadDescription(line.skuId())),
-                submitQuery(INVENTORY_AREA, () -> inventoryClient.get(line.skuId()))
+                submitQuery(PRODUCT_AREA, () -> loadDescription(line.skuId(), deadline), deadline),
+                submitQuery(INVENTORY_AREA, () -> inventoryClient.get(line.skuId()), deadline)
         )).toList();
     }
 
-    private Description loadDescription(String skuId) {
+    private Description loadDescription(String skuId, QueryDeadline deadline) {
         var sku = catalogClient.sku(skuId);
+        if (deadline.expired()) {
+            throw DomainException.unavailable("product lookup exceeded the page deadline");
+        }
         var product = catalogClient.product(sku.productId());
         return new Description(product.name(), sku.name());
     }
 
-    private LineResult awaitLine(LineQueries queries) {
-        var stock = queries.stock().join();
+    private LineResult awaitLine(LineQueries queries, QueryDeadline deadline) {
+        var stock = awaitQuery(INVENTORY_AREA, queries.stock(), deadline);
         if (stock.isAvailable() && !queries.line().skuId().equals(stock.value().skuId())) {
             stock = QueryResult.failed("stock_identity_mismatch");
         }
-        return new LineResult(queries.line(), queries.description().join(), stock);
+        return new LineResult(queries.line(), awaitQuery(PRODUCT_AREA, queries.description(), deadline), stock);
     }
 
-    private <T> CompletableFuture<QueryResult<T>> submitQuery(String area, Supplier<T> query) {
-        return CompletableFuture.supplyAsync(() -> queryAllowingFailure(area, query), queryExecutor);
+    private <T> Future<QueryResult<T>> submitQuery(String area, Supplier<T> query, QueryDeadline deadline) {
+        return queryExecutor.submit(() -> {
+            if (deadline.expired()) {
+                return QueryResult.failed("query_timeout");
+            }
+            return queryAllowingFailure(area, query);
+        });
     }
 
     private <T> QueryResult<T> queryAllowingFailure(String area, Supplier<T> query) {
@@ -213,8 +284,8 @@ public class CartPageExecutor implements CartPageUseCase {
 
     private record LineQueries(
             CartLineResponse line,
-            CompletableFuture<QueryResult<Description>> description,
-            CompletableFuture<QueryResult<StockResponse>> stock
+            Future<QueryResult<Description>> description,
+            Future<QueryResult<StockResponse>> stock
     ) {
 
     }

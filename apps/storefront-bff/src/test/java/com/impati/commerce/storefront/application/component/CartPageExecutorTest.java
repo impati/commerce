@@ -13,8 +13,10 @@ import com.impati.commerce.storefront.application.port.out.CartClient;
 import com.impati.commerce.storefront.application.port.out.CatalogClient;
 import com.impati.commerce.storefront.application.port.out.InventoryClient;
 import com.impati.commerce.storefront.application.port.out.OrderClient;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import org.junit.jupiter.api.AfterEach;
@@ -23,6 +25,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -39,7 +42,7 @@ class CartPageExecutorTest {
     @BeforeEach
     void setUp() {
         queryExecutor = Executors.newVirtualThreadPerTaskExecutor();
-        executor = new CartPageExecutor(cartClient, catalogClient, inventoryClient, orderClient, queryExecutor);
+        executor = new CartPageExecutor(cartClient, catalogClient, inventoryClient, orderClient, queryExecutor, Duration.ofSeconds(5));
         when(cartClient.get("m")).thenReturn(new CartResponse("m", List.of(new CartLineResponse("sku", 2)), 5));
         when(catalogClient.sku("sku")).thenReturn(new SkuResponse("sku", "p", "Sku", Money.krw(1), Map.of(), "PUBLISHED"));
         when(catalogClient.product("p")).thenReturn(new ProductResponse(
@@ -164,6 +167,43 @@ class CartPageExecutorTest {
     void returnsAnEmptyCartWithoutCallingUnneededDependencies() {
         when(cartClient.get("m")).thenReturn(new CartResponse("m", List.of(), 5));
         assertThat(executor.get("m").lines()).isEmpty();
+        verifyNoInteractions(catalogClient, inventoryClient, orderClient);
+    }
+
+    /** 느린 재고 조회가 끝나지 않아도 확인한 장바구니와 견적을 제시간에 돌려준다. */
+    @Test
+    void returnsPartialResultsAtTheDeadlineWithoutWaitingForStock() {
+        executor = new CartPageExecutor(cartClient, catalogClient, inventoryClient, orderClient,
+                queryExecutor, Duration.ofMillis(250));
+        var blocked = new CountDownLatch(1);
+        when(inventoryClient.get("sku")).thenAnswer(invocation -> {
+            blocked.await();
+            return new StockResponse("sku", 3, 0, 3);
+        });
+
+        var page = assertTimeoutPreemptively(Duration.ofSeconds(1), () -> executor.get("m"));
+
+        assertThat(page.lines().getFirst().quantity()).isEqualTo(2);
+        assertThat(page.lines().getFirst().productName()).isEqualTo("Product");
+        assertThat(page.quote().total()).isEqualTo(Money.krw(200));
+        assertThat(page.unavailable()).containsExactly("inventory:sku");
+        assertThat(page.checkoutAllowed()).isFalse();
+    }
+
+    @Test
+    void requiredCartLookupAlsoUsesThePageDeadline() {
+        executor = new CartPageExecutor(cartClient, catalogClient, inventoryClient, orderClient,
+                queryExecutor, Duration.ofMillis(150));
+        var blocked = new CountDownLatch(1);
+        when(cartClient.get("m")).thenAnswer(invocation -> {
+            blocked.await();
+            return new CartResponse("m", List.of(), 5);
+        });
+
+        assertTimeoutPreemptively(Duration.ofSeconds(1), () -> {
+            assertThatThrownBy(() -> executor.get("m")).isInstanceOfSatisfying(DomainException.class,
+                    failure -> assertThat(failure.code()).isEqualTo("service_unavailable"));
+        });
         verifyNoInteractions(catalogClient, inventoryClient, orderClient);
     }
 }

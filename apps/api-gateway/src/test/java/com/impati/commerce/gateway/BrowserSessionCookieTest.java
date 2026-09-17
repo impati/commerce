@@ -135,7 +135,7 @@ class BrowserSessionCookieTest {
     static class StubDownstream {
         @Bean
         MockServerRestClientCustomizer restClientCustomizer() {
-            return new MockServerRestClientCustomizer();
+            return new GatewayRestClientStubs();
         }
     }
 }

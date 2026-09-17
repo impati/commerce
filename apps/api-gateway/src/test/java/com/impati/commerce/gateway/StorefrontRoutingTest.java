@@ -36,7 +36,7 @@ class StorefrontRoutingTest {
     static class Configuration {
         @Bean
         MockServerRestClientCustomizer mockServerRestClientCustomizer() {
-            return new MockServerRestClientCustomizer();
+            return new GatewayRestClientStubs();
         }
     }
 
