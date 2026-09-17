@@ -209,6 +209,19 @@ export const api = {
     });
   },
 
+  changeCartQuantity(skuId: string, quantity: number, expectedVersion: number): Promise<Cart> {
+    return request<Cart>(`/cart/items/${encodeURIComponent(skuId)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ quantity, expectedVersion })
+    });
+  },
+
+  removeCartItem(skuId: string, expectedVersion: number): Promise<Cart> {
+    return request<Cart>(`/cart/items/${encodeURIComponent(skuId)}?expectedVersion=${expectedVersion}`, {
+      method: 'DELETE'
+    });
+  },
+
   checkout(idempotencyKey: string, quoteId: string): Promise<Checkout> {
     return request<Checkout>('/checkout', {
       method: 'POST',

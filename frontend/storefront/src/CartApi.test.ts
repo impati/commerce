@@ -51,3 +51,16 @@ test('bounds the complete cart request and aborts its fetch', async () => {
   await rejection;
   expect(signal.aborted).toBe(true);
 });
+
+test('sends the viewed cart version with absolute quantity changes and removals', async () => {
+  const fetch = vi.fn().mockImplementation(() => Promise.resolve(new Response('{}', { status: 200 })));
+  vi.stubGlobal('fetch', fetch);
+  await api.changeCartQuantity('sku/a', 3, 5);
+  await api.removeCartItem('sku/a', 6);
+  expect(fetch).toHaveBeenNthCalledWith(1, '/api/cart/items/sku%2Fa', expect.objectContaining({
+    method: 'PUT', body: JSON.stringify({ quantity: 3, expectedVersion: 5 })
+  }));
+  expect(fetch).toHaveBeenNthCalledWith(2, '/api/cart/items/sku%2Fa?expectedVersion=6', expect.objectContaining({
+    method: 'DELETE'
+  }));
+});

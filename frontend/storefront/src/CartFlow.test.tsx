@@ -384,3 +384,132 @@ test('ignores bootstrap identity arriving after a newer login', async () => {
   expect(screen.queryByRole('heading', { name: 'Member' })).not.toBeInTheDocument();
   expect(api.cart).toHaveBeenCalledTimes(1);
 });
+
+// BL-0069: Unapplied input must not purchase the old quantity/quote.
+test.each(['Enter', 'button'] as const)('blocks checkout until a typed quantity is explicitly applied via %s', async method => {
+  vi.spyOn(api, 'changeCartQuantity').mockResolvedValue({ memberId: 'm', version: 6, lines: [{ skuId: 'sku', quantity: 3 }] });
+  vi.mocked(api.cart).mockResolvedValueOnce(cart).mockResolvedValueOnce(updated);
+  open();
+  await ready();
+  const input = screen.getByRole('textbox', { name: 'Cart product 수량' });
+  fireEvent.change(input, { target: { value: '3' } });
+  expect(screen.getByText('수량 변경을 적용해주세요.')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Checkout' })).toBeDisabled();
+  expect(api.changeCartQuantity).not.toHaveBeenCalled();
+  if (method === 'Enter') {
+    fireEvent.keyDown(input, { key: 'Enter' });
+  } else {
+    fireEvent.click(screen.getByRole('button', { name: 'Cart product 수량 적용' }));
+  }
+  await ready();
+  expect(api.changeCartQuantity).toHaveBeenCalledWith('sku', 3, 5);
+  expect(api.changeCartQuantity).toHaveBeenCalledTimes(1);
+  expect(screen.getByText(formatMoney(updatedQuote.total))).toBeInTheDocument();
+  expect(screen.queryByText('수량 변경을 적용해주세요.')).not.toBeInTheDocument();
+});
+
+test('rejects invalid input and re-enables checkout when the input is restored', async () => {
+  vi.spyOn(api, 'changeCartQuantity');
+  open();
+  await ready();
+  const input = screen.getByRole('textbox', { name: 'Cart product 수량' });
+  for (const value of ['', '0', '-1', '1.5', '2147483648']) {
+    fireEvent.change(input, { target: { value } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(screen.getByRole('button', { name: 'Cart product 수량 적용' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Checkout' })).toBeDisabled();
+  }
+  expect(api.changeCartQuantity).not.toHaveBeenCalled();
+  fireEvent.change(input, { target: { value: '2' } });
+  expect(screen.getByRole('button', { name: 'Checkout' })).toBeEnabled();
+});
+
+test('decrements immediately and disables minus at one', async () => {
+  const one = { ...cart, version: 6, lines: [{ ...cart.lines[0], quantity: 1 }] };
+  vi.spyOn(api, 'changeCartQuantity').mockResolvedValue(one);
+  vi.mocked(api.cart).mockResolvedValueOnce(cart).mockResolvedValueOnce(one);
+  open();
+  await ready();
+  fireEvent.click(screen.getByRole('button', { name: 'Cart product 수량 감소' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Cart product 수량 감소' })).toBeDisabled());
+  expect(api.changeCartQuantity).toHaveBeenCalledWith('sku', 1, 5);
+});
+
+test('locks cart commands and checkout through the follow-up quote lookup', async () => {
+  let resolveView!: (value: Cart) => void;
+  const lookup = new Promise<Cart>(resolve => {
+    resolveView = resolve;
+  });
+  vi.spyOn(api, 'changeCartQuantity').mockResolvedValue({ memberId: 'm', version: 6, lines: [{ skuId: 'sku', quantity: 3 }] });
+  vi.mocked(api.cart).mockResolvedValueOnce(cart).mockReturnValueOnce(lookup);
+  open();
+  await ready();
+  const plus = screen.getByRole('button', { name: 'Cart product 수량 증가' });
+  fireEvent.click(plus);
+  fireEvent.click(plus);
+  await waitFor(() => expect(api.cart).toHaveBeenCalledTimes(2));
+  expect(screen.getByRole('button', { name: 'Checkout' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'sku 수량 증가' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'sku 제거' })).toBeDisabled();
+  expect(api.changeCartQuantity).toHaveBeenCalledTimes(1);
+  await act(async () => {
+    resolveView(updated);
+  });
+  await ready();
+});
+
+test('removes a line and reports success independently of a failed view lookup', async () => {
+  vi.spyOn(api, 'removeCartItem').mockResolvedValue({ memberId: 'm', version: 6, lines: [] });
+  vi.mocked(api.cart).mockResolvedValueOnce(cart).mockRejectedValueOnce(new TypeError('offline'))
+    .mockResolvedValueOnce({ memberId: 'm', version: 6, lines: [], checkoutAllowed: false });
+  open();
+  await ready();
+  fireEvent.click(screen.getByRole('button', { name: 'Cart product 제거' }));
+  expect(await screen.findByText('상품을 제거했습니다. 장바구니와 금액을 다시 확인해주세요.')).toBeInTheDocument();
+  expect(api.removeCartItem).toHaveBeenCalledWith('sku', 5);
+  expect(screen.getByRole('button', { name: 'Checkout' })).toBeDisabled();
+  fireEvent.click(screen.getByRole('button', { name: '장바구니 다시 확인' }));
+  expect(await screen.findByText('Cart empty')).toBeInTheDocument();
+  expect(api.removeCartItem).toHaveBeenCalledTimes(1);
+});
+
+test('reloads a conflicting quantity without automatically reapplying the request', async () => {
+  vi.spyOn(api, 'changeCartQuantity').mockRejectedValue(new ApiError(409, '장바구니가 변경됐습니다.', 'cart_changed'));
+  vi.mocked(api.cart).mockResolvedValueOnce(cart).mockResolvedValueOnce(updated);
+  open();
+  await ready();
+  fireEvent.click(screen.getByRole('button', { name: 'Cart product 수량 증가' }));
+  expect(await screen.findByText('장바구니가 변경됐습니다.')).toBeInTheDocument();
+  await ready();
+  expect(screen.getByRole('textbox', { name: 'Cart product 수량' })).toHaveValue('3');
+  expect(api.changeCartQuantity).toHaveBeenCalledTimes(1);
+  expect(screen.queryByText('수량을 변경했습니다.')).not.toBeInTheDocument();
+});
+
+test('requeries an unknown removal without declaring or repeating a successful removal', async () => {
+  vi.spyOn(api, 'removeCartItem').mockRejectedValue(new TypeError('lost response'));
+  open();
+  await ready();
+  fireEvent.click(screen.getByRole('button', { name: 'Cart product 제거' }));
+  expect(await screen.findByText('상품 제거 결과를 확인하지 못했습니다. 장바구니를 다시 확인해주세요.')).toBeInTheDocument();
+  await ready();
+  expect(api.removeCartItem).toHaveBeenCalledTimes(1);
+  expect(screen.getByText('2개')).toBeInTheDocument();
+  expect(screen.queryByText('상품을 제거했습니다.')).not.toBeInTheDocument();
+});
+
+test('clears unapplied quantities when logging back into the same account', async () => {
+  vi.spyOn(api, 'logout').mockResolvedValue();
+  vi.spyOn(api, 'login').mockResolvedValue({ accessToken: 'token', accessTokenExpiresAt: '2030-01-01T00:00:00Z' });
+  open();
+  await ready();
+  fireEvent.change(screen.getByRole('textbox', { name: 'Cart product 수량' }), { target: { value: '3' } });
+  expect(screen.getByRole('button', { name: 'Checkout' })).toBeDisabled();
+  fireEvent.click(screen.getByRole('button', { name: '로그아웃' }));
+  await screen.findByRole('button', { name: '로그인' });
+  await waitFor(() => expect(screen.getByTitle('Refresh')).toBeEnabled());
+  fireEvent.click(screen.getByRole('button', { name: '로그인' }));
+  await ready();
+  expect(screen.getByRole('textbox', { name: 'Cart product 수량' })).toHaveValue('2');
+  expect(screen.queryByText('수량 변경을 적용해주세요.')).not.toBeInTheDocument();
+});

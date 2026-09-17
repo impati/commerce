@@ -109,12 +109,23 @@ async function requestCheckoutWithRecovery(pending: PendingCheckout): Promise<Ch
 
 export function App() {
   const cartRequests = useRef(new CartRequestTracker());
+  const cartMutationPending = useRef(false);
+  const [cartCommandBusy, setCartCommandBusy] = useState(false);
+  const [quantityDrafts, setQuantityDrafts] = useState<{
+    memberId: string;
+    version: number;
+    values: Record<string, string>;
+  }>({ memberId: '', version: -1, values: {} });
   const [degradedResources, setDegradedResources] = useState<string[]>([]);
   const [fallbackMode, setFallbackMode] = useState<ApiMode>('live');
   const [cartUnavailable, setCartUnavailable] = useState(false);
   const [home, setHome] = useState<DisplayHome>(fallback.home);
   const [products, setProducts] = useState<Product[]>(fallback.products);
   const [cart, setCart] = useState<Cart>({ memberId: '', lines: [], version: 0 });
+  const activeQuantityDrafts = quantityDrafts.memberId === cart.memberId && quantityDrafts.version === cart.version
+    ? quantityDrafts.values : {};
+  const hasQuantityDraft = cart.lines.some(line => activeQuantityDrafts[line.skuId] !== undefined
+    && activeQuantityDrafts[line.skuId] !== String(line.quantity));
   const [stock, setStock] = useState<Stock[]>(fallback.stock);
   const [notifications, setNotifications] = useState<Notification[]>(fallback.notifications);
   const [checkout, setCheckout] = useState<Checkout | null>(null);
@@ -136,6 +147,7 @@ export function App() {
   function changeMember(current: Member | null) {
     cartRequests.current.changeMember(current?.id ?? null);
     setMember(current);
+    setQuantityDrafts({ memberId: '', version: -1, values: {} });
     setBusy(null);
     setCart({ memberId: current?.id ?? '', lines: [], version: 0 });
     setCartUnavailable(false);
@@ -351,28 +363,38 @@ export function App() {
     setAuthNotice('세션이 만료됐습니다. 다시 로그인해주세요.');
   }
 
-  async function addToCart(product: Product) {
-    const skuId = selectedSku[product.id] ?? product.skus[0]?.id;
-    if (!skuId) {
+  function editQuantity(skuId: string, value: string) {
+    setQuantityDrafts({
+      memberId: cart.memberId,
+      version: cart.version,
+      values: { ...activeQuantityDrafts, [skuId]: value }
+    });
+  }
+
+  async function runCartCommand(command: () => Promise<Cart>, successMessage: string, unknownMessage: string) {
+    if (cartMutationPending.current || busy === 'checkout') {
       return;
     }
     if (!member) {
       setAuthNotice('장바구니를 쓰려면 로그인해주세요.');
       return;
     }
+    cartMutationPending.current = true;
+    setCartCommandBusy(true);
     const mutation = cartRequests.current.begin();
     setBusy('cart');
     try {
-      const result = await api.addCartItem(skuId, 1);
+      const result = await command();
       if (!cartRequests.current.sameSession(mutation)) {
         return;
       }
       cartRequests.current.invalidateQueries();
       setCart(result);
+      setQuantityDrafts({ memberId: result.memberId, version: result.version, values: {} });
       setCartUnavailable(false);
       const loaded = await loadCart();
       if (loaded !== null) {
-        setNotice(loaded ? '상품을 담았습니다.' : '상품을 담았습니다. 장바구니와 금액을 다시 확인해주세요.');
+        setNotice(loaded ? successMessage : `${successMessage} 장바구니와 금액을 다시 확인해주세요.`);
       }
     } catch (error) {
       if (!cartRequests.current.sameSession(mutation)) {
@@ -386,17 +408,55 @@ export function App() {
       if (error instanceof ApiError && error.status < 500 && error.code !== 'outcome_unknown') {
         setNotice(error.message);
       } else {
-        setNotice('상품 담기 결과를 확인하지 못했습니다. 장바구니를 다시 확인해주세요.');
+        setNotice(unknownMessage);
       }
+      setQuantityDrafts({ memberId: '', version: -1, values: {} });
       await loadCart();
     } finally {
+      cartMutationPending.current = false;
+      setCartCommandBusy(false);
       if (cartRequests.current.sameSession(mutation)) {
         setBusy(null);
       }
     }
   }
 
+  async function addToCart(product: Product) {
+    const skuId = selectedSku[product.id] ?? product.skus[0]?.id;
+    if (!skuId) {
+      return;
+    }
+    await runCartCommand(
+      () => api.addCartItem(skuId, 1),
+      '상품을 담았습니다.',
+      '상품 담기 결과를 확인하지 못했습니다. 장바구니를 다시 확인해주세요.'
+    );
+  }
+
+  async function changeQuantity(skuId: string, quantity: number) {
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 2147483647) {
+      setNotice('수량은 1 이상의 정수로 입력해주세요.');
+      return;
+    }
+    await runCartCommand(
+      () => api.changeCartQuantity(skuId, quantity, cart.version),
+      '수량을 변경했습니다.',
+      '수량 변경 결과를 확인하지 못했습니다. 장바구니를 다시 확인해주세요.'
+    );
+  }
+
+  async function removeCartItem(skuId: string) {
+    await runCartCommand(
+      () => api.removeCartItem(skuId, cart.version),
+      '상품을 제거했습니다.',
+      '상품 제거 결과를 확인하지 못했습니다. 장바구니를 다시 확인해주세요.'
+    );
+  }
+
   async function runCheckout() {
+    if (cartMutationPending.current || hasQuantityDraft) {
+      return;
+    }
     if (!member) {
       setAuthNotice('주문하려면 로그인해주세요.');
       return;
@@ -710,7 +770,7 @@ export function App() {
                       className="primary-button"
                       type="button"
                       onClick={() => addToCart(product)}
-                      disabled={busy === 'cart' || !sku}
+                      disabled={cartCommandBusy || busy === 'cart' || busy === 'checkout' || !sku}
                     >
                       <ShoppingBag size={18} />
                       Add
@@ -786,13 +846,24 @@ export function App() {
               <span className="count-badge">{cart.lines.reduce((sum, line) => sum + line.quantity, 0)}</span>
             </div>
 
-            <CartSummary cart={cart} unavailable={cartUnavailable} refreshing={busy === 'cart'} onRetry={retryCart} />
+            <CartSummary
+              cart={cart}
+              unavailable={cartUnavailable}
+              refreshing={busy === 'cart'}
+              commandsDisabled={!member || cartUnavailable || cartCommandBusy || busy === 'cart' || busy === 'checkout'}
+              quantityDrafts={activeQuantityDrafts}
+              onQuantityInput={editQuantity}
+              onQuantityChange={changeQuantity}
+              onRemove={removeCartItem}
+              onRetry={retryCart}
+            />
+            {hasQuantityDraft && <p role="status">수량 변경을 적용해주세요.</p>}
 
             <button
               className="checkout-button"
               type="button"
               onClick={runCheckout}
-              disabled={busy !== null || checkout?.order.checkoutStatus === 'PROCESSING'
+              disabled={busy !== null || cartCommandBusy || hasQuantityDraft || checkout?.order.checkoutStatus === 'PROCESSING'
                 || ((!cart.checkoutAllowed || cartUnavailable || !cart.quote) && !(member && session.readPendingCheckout(member.id)))}
             >
               {busy === 'checkout' ? <Loader2 className="spin" size={18} /> : <CreditCard size={18} />}
