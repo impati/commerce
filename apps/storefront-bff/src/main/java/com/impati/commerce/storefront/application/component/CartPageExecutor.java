@@ -23,6 +23,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class CartPageExecutor implements CartPageUseCase {
+
     private static final Logger log = LoggerFactory.getLogger(CartPageExecutor.class);
     private static final String PRODUCT_AREA = "product";
     private static final String INVENTORY_AREA = "inventory";
@@ -189,6 +190,7 @@ public class CartPageExecutor implements CartPageUseCase {
     }
 
     private record QueryResult<T>(T value, String failureCode) {
+
         static <T> QueryResult<T> succeeded(T value) {
             if (value == null) {
                 return failed("empty_response");
@@ -206,6 +208,7 @@ public class CartPageExecutor implements CartPageUseCase {
     }
 
     private record Description(String productName, String skuName) {
+
     }
 
     private record LineQueries(
@@ -213,6 +216,7 @@ public class CartPageExecutor implements CartPageUseCase {
             CompletableFuture<QueryResult<Description>> description,
             CompletableFuture<QueryResult<StockResponse>> stock
     ) {
+
     }
 
     private record LineResult(
@@ -220,5 +224,6 @@ public class CartPageExecutor implements CartPageUseCase {
             QueryResult<Description> description,
             QueryResult<StockResponse> stock
     ) {
+
     }
 }
