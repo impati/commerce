@@ -2,14 +2,13 @@ package com.impati.commerce.order.application.component;
 
 import com.impati.commerce.common.ApiContracts.AddressResponse;
 import com.impati.commerce.common.ApiContracts.CartResponse;
-import com.impati.commerce.order.domain.PurchasePricing;
-import com.impati.commerce.order.application.model.PurchaseQuoteDetails;
 import com.impati.commerce.common.ApiContracts.PaymentResponse;
 import com.impati.commerce.common.ApiContracts.ShipmentResponse;
 import com.impati.commerce.common.DomainException;
 import com.impati.commerce.common.Ids;
 import com.impati.commerce.order.application.model.CheckoutResult;
 import com.impati.commerce.order.application.model.OrderDetails;
+import com.impati.commerce.order.application.model.PurchaseQuoteDetails;
 import com.impati.commerce.order.application.port.in.OrderUseCase;
 import com.impati.commerce.order.application.port.out.CartClient;
 import com.impati.commerce.order.application.port.out.CatalogClient;
@@ -23,6 +22,7 @@ import com.impati.commerce.order.domain.CheckoutRequestFingerprint;
 import com.impati.commerce.order.domain.IdempotencyKey;
 import com.impati.commerce.order.domain.OrderModels.Order;
 import com.impati.commerce.order.domain.OrderModels.OrderLine;
+import com.impati.commerce.order.domain.PurchasePricing;
 import java.time.Clock;
 import java.util.List;
 import org.springframework.stereotype.Component;
@@ -128,7 +128,9 @@ public class OrderExecutor implements OrderUseCase {
     @Override
     public PurchaseQuoteDetails quote(String memberId, long expectedVersion) {
         var cart = cartClient.cart(memberId);
-        if (cart.version() != expectedVersion) throw DomainException.cartChanged("cart changed during quote lookup");
+        if (cart.version() != expectedVersion) {
+            throw DomainException.cartChanged("cart changed during quote lookup");
+        }
         var lines = price(cart);
         return new PurchaseQuoteDetails(
                 PurchasePricing.quoteId(memberId, cart.version(), lines), cart.version(),

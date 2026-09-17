@@ -3,13 +3,14 @@ package com.impati.commerce.order.domain;
 import com.impati.commerce.common.ApiContracts.Money;
 import com.impati.commerce.common.DomainException;
 import com.impati.commerce.common.Ids;
-import java.time.LocalDateTime;
 import java.time.Clock;
+import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public final class OrderModels {
 
@@ -101,7 +102,7 @@ public final class OrderModels {
             this.publishStatus = publishStatus;
             this.attempts = attempts;
             this.lastError = lastError;
-            this.occurredAt = java.util.Objects.requireNonNull(occurredAt).truncatedTo(ChronoUnit.MICROS);
+            this.occurredAt = Objects.requireNonNull(occurredAt).truncatedTo(ChronoUnit.MICROS);
         }
 
         private static OrderEvent occurred(
@@ -319,8 +320,8 @@ public final class OrderModels {
             this.memberId = memberId;
             this.lines = new ArrayList<>(lines);
             this.shippingAddress = shippingAddress;
-            this.createdAt = java.util.Objects.requireNonNull(createdAt).truncatedTo(ChronoUnit.MICROS);
-            this.clock = java.util.Objects.requireNonNull(clock);
+            this.createdAt = Objects.requireNonNull(createdAt).truncatedTo(ChronoUnit.MICROS);
+            this.clock = Objects.requireNonNull(clock);
         }
 
         /**

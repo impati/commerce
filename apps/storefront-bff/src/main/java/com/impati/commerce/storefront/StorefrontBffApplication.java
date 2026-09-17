@@ -6,5 +6,7 @@ import org.springframework.boot.autoconfigure.web.client.RestClientAutoConfigura
 
 @SpringBootApplication(exclude = RestClientAutoConfiguration.class)
 public class StorefrontBffApplication {
-    public static void main(String[] args) { SpringApplication.run(StorefrontBffApplication.class, args); }
+    public static void main(String[] args) {
+        SpringApplication.run(StorefrontBffApplication.class, args);
+    }
 }

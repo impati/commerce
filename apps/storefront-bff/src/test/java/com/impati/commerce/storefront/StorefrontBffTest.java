@@ -1,6 +1,8 @@
 package com.impati.commerce.storefront;
 
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -8,43 +10,61 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.client.MockServerRestClientCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.test.web.client.UnorderedRequestExpectationManager;
+import org.springframework.test.web.client.match.MockRestRequestMatchers;
 import org.springframework.test.web.servlet.MockMvc;
-import static org.springframework.test.web.client.ExpectedCount.*;
-import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.ExpectedCount.once;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
-import static org.springframework.test.web.client.response.MockRestResponseCreators.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
 @AutoConfigureMockMvc
 @Import(StorefrontBffTest.Configuration.class)
 class StorefrontBffTest {
     @TestConfiguration static class Configuration {
-        @Bean MockServerRestClientCustomizer mockServerRestClientCustomizer() {
+        @Bean
+        MockServerRestClientCustomizer mockServerRestClientCustomizer() {
             return new MockServerRestClientCustomizer(UnorderedRequestExpectationManager.class);
         }
     }
-    @Autowired MockServerRestClientCustomizer customizer;
-    @Autowired MockMvc mvc;
+    @Autowired
+    MockServerRestClientCustomizer customizer;
+    @Autowired
+    MockMvc mvc;
     MockRestServiceServer server;
-    @BeforeEach void setUp() { server = customizer.getServer(); server.reset(); }
-    @AfterEach void verify() { server.verify(); }
+    @BeforeEach
+    void setUp() {
+        server = customizer.getServer();
+        server.reset();
+    }
+    @AfterEach
+    void verify() {
+        server.verify();
+    }
     /** [PD-0021-R5] 변경 명령은 후속 견적 호출 없이 성공한 상태를 돌려준다. */
-    @Test void addingReturnsTheCommittedCartWithoutAQuoteLookup() throws Exception {
+    @Test
+    void addingReturnsTheCommittedCartWithoutAQuoteLookup() throws Exception {
         server.expect(once(), requestTo("http://localhost:8105/carts/items"))
                 .andExpect(header("X-Member-Id", "m"))
-                .andExpect(org.springframework.test.web.client.match.MockRestRequestMatchers.content().json("{\"skuId\":\"sku\",\"quantity\":2}"))
+                .andExpect(MockRestRequestMatchers.content().json("{\"skuId\":\"sku\",\"quantity\":2}"))
                 .andRespond(withSuccess("{\"memberId\":\"m\",\"version\":5,\"lines\":[{\"skuId\":\"sku\",\"quantity\":2}]}", MediaType.APPLICATION_JSON));
         mvc.perform(post("/cart/items").header("X-Member-Id", "m").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"skuId\":\"sku\",\"quantity\":2}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.version").value(5));
     }
     /** [PD-0021-R4] HTTP 경계의 견적·재고 실패에도 구매 수량은 보존한다. */
-    @Test void rendersPartialFailureInsteadOfAFakeCartOrPrice() throws Exception {
+    @Test
+    void rendersPartialFailureInsteadOfAFakeCartOrPrice() throws Exception {
         server.expect(requestTo("http://localhost:8105/carts")).andExpect(header("X-Member-Id", "m"))
                 .andRespond(withSuccess("{\"memberId\":\"m\",\"version\":5,\"lines\":[{\"skuId\":\"sku\",\"quantity\":2}]}", MediaType.APPLICATION_JSON));
         server.expect(requestTo("http://localhost:8102/internal/skus/sku")).andRespond(withServerError());
@@ -54,10 +74,11 @@ class StorefrontBffTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.lines[0].quantity").value(2))
                 .andExpect(jsonPath("$.quote").doesNotExist()).andExpect(jsonPath("$.checkoutAllowed").value(false));
     }
-    @Test void preservesQuoteChangedAsAnActionableError() throws Exception {
+    @Test
+    void preservesQuoteChangedAsAnActionableError() throws Exception {
         server.expect(requestTo("http://localhost:8108/checkouts/confirmed"))
                 .andExpect(header("Idempotency-Key", "key"))
-                .andRespond(withStatus(org.springframework.http.HttpStatus.CONFLICT)
+                .andRespond(withStatus(HttpStatus.CONFLICT)
                         .contentType(MediaType.APPLICATION_JSON).body("{\"code\":\"quote_changed\",\"message\":\"internal\"}"));
         mvc.perform(post("/checkout").header("X-Member-Id", "m").header("Idempotency-Key", "key")
                 .contentType(MediaType.APPLICATION_JSON).content("{\"paymentToken\":\"card\",\"quoteId\":\"quote\"}"))

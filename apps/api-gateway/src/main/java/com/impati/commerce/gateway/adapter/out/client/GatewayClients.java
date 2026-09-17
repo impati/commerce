@@ -5,9 +5,8 @@ import com.impati.commerce.common.ApiContracts.AddAddressRequest;
 import com.impati.commerce.common.ApiContracts.AddressResponse;
 import com.impati.commerce.common.ApiContracts.CartItemRequest;
 import com.impati.commerce.common.ApiContracts.CartResponse;
-import com.impati.commerce.common.ApiContracts.ConfirmedCheckoutRequest;
-import com.impati.commerce.common.ApiContracts.StorefrontCartResponse;
 import com.impati.commerce.common.ApiContracts.CheckoutResponse;
+import com.impati.commerce.common.ApiContracts.ConfirmedCheckoutRequest;
 import com.impati.commerce.common.ApiContracts.DisplayHomeResponse;
 import com.impati.commerce.common.ApiContracts.LoginRequest;
 import com.impati.commerce.common.ApiContracts.LoginResponse;
@@ -21,6 +20,7 @@ import com.impati.commerce.common.ApiContracts.RegisterMemberRequest;
 import com.impati.commerce.common.ApiContracts.SessionTokenRequest;
 import com.impati.commerce.common.ApiContracts.ShipmentResponse;
 import com.impati.commerce.common.ApiContracts.StockResponse;
+import com.impati.commerce.common.ApiContracts.StorefrontCartResponse;
 import com.impati.commerce.common.ApiContracts.VerifyEmailRequest;
 import com.impati.commerce.common.DomainException;
 import com.impati.commerce.gateway.support.MemberServiceAvailability;
@@ -81,8 +81,8 @@ public class GatewayClients {
     public List<ProductResponse> products(String category, String query) {
         return catalog.get()
                 .uri(uriBuilder -> uriBuilder.path("/products")
-                        .queryParamIfPresent("category", java.util.Optional.ofNullable(category))
-                        .queryParamIfPresent("query", java.util.Optional.ofNullable(query))
+                        .queryParamIfPresent("category", Optional.ofNullable(category))
+                        .queryParamIfPresent("query", Optional.ofNullable(query))
                         .build())
                 .retrieve()
                 .body(new ParameterizedTypeReference<>() {

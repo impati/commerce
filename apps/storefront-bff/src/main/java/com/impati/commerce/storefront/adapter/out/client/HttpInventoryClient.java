@@ -1,6 +1,6 @@
 package com.impati.commerce.storefront.adapter.out.client;
 
-import com.impati.commerce.common.ApiContracts.*;
+import com.impati.commerce.common.ApiContracts.StockResponse;
 import com.impati.commerce.common.DomainException;
 import com.impati.commerce.http.RestClientFactory;
 import com.impati.commerce.http.ServiceCallExecutor;
@@ -20,7 +20,9 @@ public class HttpInventoryClient implements InventoryClient {
     public StockResponse get(String skuId) {
         return calls.query("storefront stock lookup", () -> restClient.get().uri("/internal/stock/{id}", skuId)
                 .retrieve().body(StockResponse.class), error -> {
-            if (error.hasCode("not_found")) throw DomainException.notFound("재고 정보를 찾을 수 없습니다.");
+            if (error.hasCode("not_found")) {
+                throw DomainException.notFound("재고 정보를 찾을 수 없습니다.");
+            }
         });
     }
 }

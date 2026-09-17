@@ -1,6 +1,7 @@
 package com.impati.commerce.storefront.adapter.out.client;
 
-import com.impati.commerce.common.ApiContracts.*;
+import com.impati.commerce.common.ApiContracts.ProductResponse;
+import com.impati.commerce.common.ApiContracts.SkuResponse;
 import com.impati.commerce.common.DomainException;
 import com.impati.commerce.http.RestClientFactory;
 import com.impati.commerce.http.ServiceCallExecutor;

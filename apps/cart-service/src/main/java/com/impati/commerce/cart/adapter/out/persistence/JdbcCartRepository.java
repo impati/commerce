@@ -3,13 +3,15 @@ package com.impati.commerce.cart.adapter.out.persistence;
 import com.impati.commerce.cart.application.port.out.CartRepository;
 import com.impati.commerce.cart.domain.CartModels.Cart;
 import com.impati.commerce.common.DomainException;
+import java.util.Map;
+import java.util.Optional;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.Optional;
-import java.util.Map;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * 이름 바인딩만 쓴다. 위치 기반 {@code ?}는 타입이 같은 인접 컬럼의 값이 뒤바뀌어도 잡히지 않는다.
@@ -19,6 +21,7 @@ import java.util.Map;
  */
 @Repository
 public class JdbcCartRepository implements CartRepository {
+
     private static final String SELECT_CART = "select member_id, version from carts where member_id = :member_id";
     private static final String LOCK_CART = SELECT_CART + " for update";
     private static final String INSERT_CART = """
@@ -64,9 +67,8 @@ public class JdbcCartRepository implements CartRepository {
     public JdbcCartRepository(NamedParameterJdbcTemplate jdbc) {
         this.jdbc = jdbc;
     }
-
     @Override
-    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public Optional<Cart> findByMemberId(String memberId) {
         var params = new MapSqlParameterSource("member_id", memberId);
         var headers = jdbc.query(SELECT_CART, params,
@@ -80,7 +82,6 @@ public class JdbcCartRepository implements CartRepository {
         });
         return Optional.of(cart);
     }
-
     @Override
     @Transactional
     public void save(Cart cart) {
@@ -88,17 +89,24 @@ public class JdbcCartRepository implements CartRepository {
                 .addValue("member_id", cart.memberId())
                 .addValue("version", cart.version());
         if (cart.persistedVersion() < 0) {
-            if (jdbc.update(INSERT_CART, params) != 1) throw DomainException.cartChanged("cart was created by another request");
+            if (jdbc.update(INSERT_CART, params) != 1) {
+                throw DomainException.cartChanged("cart was created by another request");
+            }
         } else {
             var changed = jdbc.update("update carts set version = :version where member_id = :member_id and version = :expected_version",
                     params.addValue("expected_version", cart.persistedVersion()));
-            if (changed != 1) throw DomainException.cartChanged("cart changed during modification");
+            if (changed != 1) {
+                throw DomainException.cartChanged("cart changed during modification");
+            }
         }
         jdbc.update(DELETE_LINES, params);
 
-        org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
-                new org.springframework.transaction.support.TransactionSynchronization() {
-                    @Override public void afterCommit() { cart.markPersisted(); }
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        cart.markPersisted();
+                    }
                 });
         var lines = cart.lines();
         for (var index = 0; index < lines.size(); index++) {
@@ -111,7 +119,9 @@ public class JdbcCartRepository implements CartRepository {
         }
     }
 
-    /** 장바구니 행 잠금 안에서 버전 확인, 사본 저장과 현재 라인 삭제를 한 번에 수행한다. */
+    /**
+     * 장바구니 행 잠금 안에서 버전 확인, 사본 저장과 현재 라인 삭제를 한 번에 수행한다.
+     */
     @Override
     @Transactional
     public Cart checkout(String memberId, String orderId, long expectedVersion) {

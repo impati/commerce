@@ -1,6 +1,9 @@
 package com.impati.commerce.storefront.adapter.in.web;
 
-import com.impati.commerce.common.ApiContracts.*;
+import com.impati.commerce.common.ApiContracts.PurchaseQuoteLineResponse;
+import com.impati.commerce.common.ApiContracts.PurchaseQuoteResponse;
+import com.impati.commerce.common.ApiContracts.StorefrontCartLineResponse;
+import com.impati.commerce.common.ApiContracts.StorefrontCartResponse;
 import com.impati.commerce.storefront.application.model.CartPage;
 
 final class CartPageResponseMapper {

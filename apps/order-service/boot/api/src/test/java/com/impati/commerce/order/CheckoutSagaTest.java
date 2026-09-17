@@ -8,6 +8,7 @@ import com.impati.commerce.common.ApiContracts.CartResponse;
 import com.impati.commerce.common.ApiContracts.CheckoutCartRequest;
 import com.impati.commerce.common.ApiContracts.CheckoutCartResponse;
 import com.impati.commerce.common.ApiContracts.CheckoutRequest;
+import com.impati.commerce.common.ApiContracts.ConfirmedCheckoutRequest;
 import com.impati.commerce.common.ApiContracts.CreateShipmentRequest;
 import com.impati.commerce.common.ApiContracts.ErrorResponse;
 import com.impati.commerce.common.ApiContracts.MemberResponse;
@@ -20,7 +21,13 @@ import com.impati.commerce.common.ApiContracts.ReserveInventoryRequest;
 import com.impati.commerce.common.ApiContracts.ShipmentResponse;
 import com.impati.commerce.common.ApiContracts.SkuResponse;
 import com.impati.commerce.order.application.port.in.CheckoutRecoveryUseCase;
+import com.impati.commerce.order.domain.OrderModels.OrderLine;
+import com.impati.commerce.order.domain.PurchasePricing;
 import com.impati.commerce.test.RequiresDatabase;
+import java.net.SocketTimeoutException;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,6 +38,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.client.MockServerRestClientCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -39,12 +47,6 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.test.web.client.UnorderedRequestExpectationManager;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
-
-import java.net.SocketTimeoutException;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.client.ExpectedCount.times;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
@@ -87,11 +89,17 @@ class CheckoutSagaTest {
         }
     }
 
-    @Autowired private MockMvc mockMvc;
-    @Autowired private ObjectMapper objectMapper;
-    @Autowired private MockServerRestClientCustomizer customizer;
-    @Autowired private JdbcTemplate jdbc;
-    @Autowired private CheckoutRecoveryUseCase recovery;
+    @Autowired
+
+    private MockMvc mockMvc;
+    @Autowired
+    private ObjectMapper objectMapper;
+    @Autowired
+    private MockServerRestClientCustomizer customizer;
+    @Autowired
+    private JdbcTemplate jdbc;
+    @Autowired
+    private CheckoutRecoveryUseCase recovery;
 
     private MockRestServiceServer server;
     private final AtomicReference<String> orderId = new AtomicReference<>();
@@ -270,7 +278,7 @@ class CheckoutSagaTest {
         stubCapture();
         stubCommitReservation();
         stubSuccessDecoration(2);
-        var request = new com.impati.commerce.common.ApiContracts.ConfirmedCheckoutRequest("card_success", "addr_demo", confirmedQuoteId());
+        var request = new ConfirmedCheckoutRequest("card_success", "addr_demo", confirmedQuoteId());
         var first = mockMvc.perform(post("/checkouts/confirmed").header("X-Member-Id", MEMBER_ID)
                 .header("Idempotency-Key", "confirmed-key").contentType(MediaType.APPLICATION_JSON).content(json(request)))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.order.checkoutStatus").value("SUCCEEDED")).andReturn();
@@ -278,7 +286,7 @@ class CheckoutSagaTest {
         mockMvc.perform(post("/checkouts/confirmed").header("X-Member-Id", MEMBER_ID)
                 .header("Idempotency-Key", "confirmed-key").contentType(MediaType.APPLICATION_JSON).content(json(request)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.order.id").value(id));
-        var changed = new com.impati.commerce.common.ApiContracts.ConfirmedCheckoutRequest("card_success", "addr_demo", "a".repeat(64));
+        var changed = new ConfirmedCheckoutRequest("card_success", "addr_demo", "a".repeat(64));
         mockMvc.perform(post("/checkouts/confirmed").header("X-Member-Id", MEMBER_ID)
                 .header("Idempotency-Key", "confirmed-key").contentType(MediaType.APPLICATION_JSON).content(json(changed)))
                 .andExpect(status().isConflict());
@@ -291,7 +299,7 @@ class CheckoutSagaTest {
         stubQuoteInputs(CART_VERSION + 1);
         mockMvc.perform(post("/checkouts/confirmed").header("X-Member-Id", MEMBER_ID)
                 .header("Idempotency-Key", "stale-confirmed-key").contentType(MediaType.APPLICATION_JSON)
-                .content(json(new com.impati.commerce.common.ApiContracts.ConfirmedCheckoutRequest("card_success", "addr_demo", confirmedQuoteId()))))
+                .content(json(new ConfirmedCheckoutRequest("card_success", "addr_demo", confirmedQuoteId()))))
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("quote_changed"));
         assertThat(jdbc.queryForObject("select count(*) from orders", Integer.class)).isZero();
         assertThat(jdbc.queryForObject("select count(*) from checkout_progress", Integer.class)).isZero();
@@ -307,8 +315,8 @@ class CheckoutSagaTest {
     }
 
     private String confirmedQuoteId() {
-        return com.impati.commerce.order.domain.PurchasePricing.quoteId(MEMBER_ID, CART_VERSION,
-                List.of(new com.impati.commerce.order.domain.OrderModels.OrderLine(SKU_ID, PRODUCT_ID,
+        return PurchasePricing.quoteId(MEMBER_ID, CART_VERSION,
+                List.of(new OrderLine(SKU_ID, PRODUCT_ID,
                         "Everyday Cotton Tee", "White / M", QUANTITY, Money.krw(UNIT_PRICE))));
     }
 
@@ -504,7 +512,7 @@ class CheckoutSagaTest {
                 "123 Commerce Road", "Seoul", "04524", true);
     }
 
-    private <T> T readBody(org.springframework.http.HttpRequest request, Class<T> type) {
+    private <T> T readBody(HttpRequest request, Class<T> type) {
         try {
             return objectMapper.readValue(((MockClientHttpRequest) request).getBodyAsString(), type);
         } catch (Exception exception) {

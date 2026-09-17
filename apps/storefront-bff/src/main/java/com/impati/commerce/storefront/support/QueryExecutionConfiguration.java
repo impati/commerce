@@ -8,5 +8,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class QueryExecutionConfiguration {
     @Bean(destroyMethod = "close")
-    ExecutorService storefrontQueries() { return Executors.newVirtualThreadPerTaskExecutor(); }
+    ExecutorService storefrontQueries() {
+        return Executors.newVirtualThreadPerTaskExecutor();
+    }
 }

@@ -1,7 +1,6 @@
 package com.impati.commerce.cart.domain;
 
 import com.impati.commerce.common.DomainException;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -68,9 +67,13 @@ public final class CartModels {
             return version;
         }
 
-        public long persistedVersion() { return persistedVersion; }
+        public long persistedVersion() {
+            return persistedVersion;
+        }
 
-        public void markPersisted() { persistedVersion = version; }
+        public void markPersisted() {
+            persistedVersion = version;
+        }
 
         public void add(String skuId, int quantity) {
             if (quantity <= 0) {

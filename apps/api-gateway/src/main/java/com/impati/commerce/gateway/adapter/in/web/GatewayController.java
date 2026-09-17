@@ -5,24 +5,26 @@ import com.impati.commerce.common.ApiContracts.AddAddressRequest;
 import com.impati.commerce.common.ApiContracts.AddressResponse;
 import com.impati.commerce.common.ApiContracts.CartItemRequest;
 import com.impati.commerce.common.ApiContracts.CartResponse;
-import com.impati.commerce.common.ApiContracts.ConfirmedCheckoutRequest;
-import com.impati.commerce.common.ApiContracts.StorefrontCartResponse;
 import com.impati.commerce.common.ApiContracts.CheckoutResponse;
+import com.impati.commerce.common.ApiContracts.ConfirmedCheckoutRequest;
 import com.impati.commerce.common.ApiContracts.DisplayHomeResponse;
 import com.impati.commerce.common.ApiContracts.LoginRequest;
 import com.impati.commerce.common.ApiContracts.MemberResponse;
 import com.impati.commerce.common.ApiContracts.NotificationResponse;
-import com.impati.commerce.common.ApiContracts.OrderResponse;
 import com.impati.commerce.common.ApiContracts.OrderDetailResponse;
 import com.impati.commerce.common.ApiContracts.OrderPageResponse;
 import com.impati.commerce.common.ApiContracts.ProductResponse;
 import com.impati.commerce.common.ApiContracts.RegisterMemberRequest;
 import com.impati.commerce.common.ApiContracts.ShipmentResponse;
 import com.impati.commerce.common.ApiContracts.StockResponse;
+import com.impati.commerce.common.ApiContracts.StorefrontCartResponse;
 import com.impati.commerce.common.ApiContracts.VerifyEmailRequest;
 import com.impati.commerce.gateway.adapter.out.client.GatewayClients;
 import com.impati.commerce.gateway.support.MemberIdentity;
 import jakarta.servlet.http.HttpServletResponse;
+import java.util.List;
+import java.util.Map;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -31,10 +33,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.http.ResponseEntity;
-
-import java.util.List;
-import java.util.Map;
 
 /**
  * 외부 진입점.
@@ -47,6 +45,7 @@ import java.util.Map;
  */
 @RestController
 public class GatewayController {
+
     private final GatewayClients clients;
     private final MemberIdentity identity;
     private final BrowserSession browserSession;
@@ -170,7 +169,6 @@ public class GatewayController {
     ) {
         return clients.addCartItem(identity.require(authorization), request);
     }
-
     @PostMapping("/checkout")
     ResponseEntity<CheckoutResponse> checkout(
             @RequestHeader(value = "Authorization", required = false) String authorization,
