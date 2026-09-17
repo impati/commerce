@@ -1,7 +1,11 @@
 const CHECKOUT_KEY = 'impati.checkout.';
 let accessToken: string | null = null;
 
-export type PendingCheckout = { idempotencyKey: string; orderId?: string; quoteId?: string };
+export type PendingCheckout = {
+  idempotencyKey: string;
+  orderId?: string;
+  quoteId?: string;
+};
 
 /**
  * 접근 토큰은 페이지 메모리에만 둔다. 장기 세션 토큰은 HttpOnly 쿠키라 JavaScript가 읽지 않는다.

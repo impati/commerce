@@ -9,20 +9,110 @@ import { session } from './session';
 import { formatMoney } from './format';
 import type { Cart, Checkout, Product } from './types';
 
-const product: Product = { id: 'p', name: 'Catalog product', brand: 'B', category: 'home', description: 'D', status: 'PUBLISHED', tags: [],
-  skus: [{ id: 'sku', productId: 'p', name: 'Catalog SKU', price: { amount: 999, currency: 'KRW' }, attributes: {}, status: 'PUBLISHED' }] };
-const cart: Cart = { memberId: 'm', version: 5,
-  lines: [{ skuId: 'sku', quantity: 2, productName: 'Cart product', skuName: 'Cart SKU', availableQuantity: 3, informationAvailable: true }],
-  quote: { id: 'quote-original', cartVersion: 5, lines: [{ skuId: 'sku', quantity: 2, unitPrice: { amount: 100, currency: 'KRW' }, lineTotal: { amount: 200, currency: 'KRW' } }],
-    total: { amount: 200, currency: 'KRW' } }, unavailable: [], checkoutAllowed: true };
-const updated: Cart = { ...cart, version: 6, lines: [{ ...cart.lines[0], quantity: 3 }],
-  quote: { ...cart.quote!, id: 'quote-new', cartVersion: 6, lines: [{ ...cart.quote!.lines[0], quantity: 3, lineTotal: { amount: 300, currency: 'KRW' } }],
-    total: { amount: 300, currency: 'KRW' } } };
-const failedCheckout = { order: { id: 'order-original', checkoutStatus: 'FAILED', paymentCleanupStatus: 'DONE', failureCode: 'out_of_stock', status: 'CANCELLED', total: cart.quote!.total },
-  shipment: null, payment: null } as Checkout;
+const product: Product = {
+  id: 'p',
+  name: 'Catalog product',
+  brand: 'B',
+  category: 'home',
+  description: 'D',
+  status: 'PUBLISHED',
+  tags: [],
+  skus: [{
+    id: 'sku',
+    productId: 'p',
+    name: 'Catalog SKU',
+    price: { amount: 999, currency: 'KRW' },
+    attributes: {},
+    status: 'PUBLISHED'
+  }]
+};
+
+const originalQuote = {
+  id: 'quote-original',
+  cartVersion: 5,
+  lines: [{
+    skuId: 'sku',
+    quantity: 2,
+    unitPrice: { amount: 100, currency: 'KRW' },
+    lineTotal: { amount: 200, currency: 'KRW' }
+  }],
+  total: { amount: 200, currency: 'KRW' }
+};
+
+const cart: Cart = {
+  memberId: 'm',
+  version: 5,
+  lines: [{
+    skuId: 'sku',
+    quantity: 2,
+    productName: 'Cart product',
+    skuName: 'Cart SKU',
+    availableQuantity: 3,
+    informationAvailable: true
+  }],
+  quote: originalQuote,
+  unavailable: [],
+  checkoutAllowed: true
+};
+
+const updatedQuote = {
+  ...originalQuote,
+  id: 'quote-new',
+  cartVersion: 6,
+  lines: [{
+    ...originalQuote.lines[0],
+    quantity: 3,
+    lineTotal: { amount: 300, currency: 'KRW' }
+  }],
+  total: { amount: 300, currency: 'KRW' }
+};
+
+const updated: Cart = {
+  ...cart,
+  version: 6,
+  lines: [{ ...cart.lines[0], quantity: 3 }],
+  quote: updatedQuote
+};
+
+const failedCheckout: Checkout = {
+  order: {
+    id: 'order-original',
+    memberId: 'm',
+    lines: [{
+      skuId: 'sku',
+      productId: 'p',
+      productName: 'Cart product',
+      skuName: 'Cart SKU',
+      quantity: 2,
+      unitPrice: originalQuote.lines[0].unitPrice,
+      lineTotal: originalQuote.lines[0].lineTotal
+    }],
+    shippingAddress: {
+      id: 'address',
+      alias: 'home',
+      recipient: 'Member',
+      phone: '010-0000-0000',
+      line1: 'Road',
+      city: 'Seoul',
+      postalCode: '00000',
+      defaultAddress: true
+    },
+    paymentId: null,
+    shipmentId: null,
+    inventoryReservationId: null,
+    checkoutStatus: 'FAILED',
+    paymentCleanupStatus: 'DONE',
+    failureCode: 'out_of_stock',
+    status: 'CANCELLED',
+    total: originalQuote.total
+  },
+  shipment: null,
+  payment: null
+};
 
 beforeEach(() => {
-  localStorage.clear(); session.clear();
+  localStorage.clear();
+  session.clear();
   vi.spyOn(api, 'me').mockResolvedValue({ id: 'm', name: 'Member', email: 'm@example.test', status: 'ACTIVE', addresses: [] });
   vi.spyOn(api, 'home').mockResolvedValue({ title: 'Home', subtitle: 'Storefront', sections: [] });
   vi.spyOn(api, 'products').mockResolvedValue([product]);
@@ -32,14 +122,25 @@ beforeEach(() => {
   vi.spyOn(api, 'addCartItem');
   vi.spyOn(api, 'checkout');
 });
-afterEach(() => { cleanup(); vi.restoreAllMocks(); });
-function open() { render(<MemoryRouter><App /></MemoryRouter>); }
-async function ready() { await waitFor(() => expect(screen.getByRole('button', { name: 'Checkout' })).toBeEnabled()); }
+
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
+
+function open() {
+  render(<MemoryRouter><App /></MemoryRouter>);
+}
+
+async function ready() {
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Checkout' })).toBeEnabled());
+}
 
 // [PD-0021-R1] 상품 목록의 가격을 합산하지 않고 서버 견적 합계를 표시한다.
 test('shows the server quote instead of multiplying catalog prices', async () => {
-  open(); await ready();
-  expect(screen.getByText(formatMoney(cart.quote!.total))).toBeInTheDocument();
+  open();
+  await ready();
+  expect(screen.getByText(formatMoney(originalQuote.total))).toBeInTheDocument();
   expect(screen.queryByText(formatMoney({ amount: 1998, currency: 'KRW' }))).not.toBeInTheDocument();
 });
 
@@ -64,7 +165,8 @@ test('shows a cart error instead of a fake empty cart', async () => {
 test('reports committed additions and retries only the failed view lookup', async () => {
   vi.mocked(api.cart).mockResolvedValueOnce(cart).mockRejectedValueOnce(new TypeError('quote offline')).mockResolvedValueOnce(updated);
   vi.mocked(api.addCartItem).mockResolvedValue({ memberId: 'm', version: 6, lines: [{ skuId: 'sku', quantity: 3 }] });
-  open(); await ready();
+  open();
+  await ready();
   fireEvent.click(screen.getByRole('button', { name: 'Add' }));
   expect(await screen.findByText('상품을 담았습니다. 장바구니와 금액을 다시 확인해주세요.')).toBeInTheDocument();
   expect(screen.getByText('3개')).toBeInTheDocument();
@@ -73,12 +175,13 @@ test('reports committed additions and retries only the failed view lookup', asyn
   await ready();
   expect(api.addCartItem).toHaveBeenCalledTimes(1);
   expect(api.cart).toHaveBeenCalledTimes(3);
-  expect(screen.getByText(formatMoney(updated.quote!.total))).toBeInTheDocument();
+  expect(screen.getByText(formatMoney(updatedQuote.total))).toBeInTheDocument();
 });
 
 test('does not simulate a successful addition on an explicit rejection', async () => {
   vi.mocked(api.addCartItem).mockRejectedValue(new ApiError(409, '장바구니가 변경됐습니다.', 'cart_changed'));
-  open(); await ready();
+  open();
+  await ready();
   fireEvent.click(screen.getByRole('button', { name: 'Add' }));
   expect(await screen.findByText('장바구니가 변경됐습니다.')).toBeInTheDocument();
   expect(screen.getByText('2개')).toBeInTheDocument();
@@ -90,7 +193,8 @@ test('does not simulate a successful addition on an explicit rejection', async (
 test('requeries an unknown addition without repeating the command', async () => {
   vi.mocked(api.addCartItem).mockRejectedValue(new TypeError('lost response'));
   vi.mocked(api.cart).mockResolvedValueOnce(cart).mockResolvedValueOnce(updated);
-  open(); await ready();
+  open();
+  await ready();
   fireEvent.click(screen.getByRole('button', { name: 'Add' }));
   expect(await screen.findByText('상품 담기 결과를 확인하지 못했습니다. 장바구니를 다시 확인해주세요.')).toBeInTheDocument();
   await waitFor(() => expect(screen.getByText('3개')).toBeInTheDocument());
@@ -102,13 +206,14 @@ test('requeries an unknown addition without repeating the command', async () => 
 test('requires a new confirmation after a quote conflict', async () => {
   vi.mocked(api.checkout).mockRejectedValue(new ApiError(409, '새 견적을 확인해주세요.', 'quote_changed'));
   vi.mocked(api.cart).mockResolvedValueOnce(cart).mockResolvedValueOnce(updated);
-  open(); await ready();
+  open();
+  await ready();
   fireEvent.click(screen.getByRole('button', { name: 'Checkout' }));
   expect(await screen.findByText('새 견적을 확인해주세요.')).toBeInTheDocument();
   expect(api.checkout).toHaveBeenCalledTimes(1);
   expect(api.checkout).toHaveBeenCalledWith(expect.any(String), 'quote-original');
   expect(session.readPendingCheckout('m')).toBeNull();
-  expect(screen.getByText(formatMoney(updated.quote!.total))).toBeInTheDocument();
+  expect(screen.getByText(formatMoney(updatedQuote.total))).toBeInTheDocument();
 });
 
 // [PD-0021-R6] 새 견적을 조회해도 결과 미확인 주문은 원래 키와 견적으로 회수한다.
@@ -116,14 +221,15 @@ test('recovers an unknown checkout using its original key and quote', async () =
   vi.mocked(api.checkout).mockRejectedValueOnce(new TypeError('lost')).mockRejectedValueOnce(new TypeError('lost'))
     .mockResolvedValueOnce(failedCheckout);
   vi.mocked(api.cart).mockResolvedValueOnce(cart).mockResolvedValueOnce(updated);
-  open(); await ready();
+  open();
+  await ready();
   fireEvent.click(screen.getByRole('button', { name: 'Checkout' }));
   await waitFor(() => expect(api.checkout).toHaveBeenCalledTimes(2));
   const pending = session.readPendingCheckout('m')!;
   expect(pending.quoteId).toBe('quote-original');
   await waitFor(() => expect(screen.getByRole('button', { name: '장바구니 다시 확인' })).toBeEnabled());
   fireEvent.click(screen.getByRole('button', { name: '장바구니 다시 확인' }));
-  await waitFor(() => expect(screen.getByText(formatMoney(updated.quote!.total))).toBeInTheDocument());
+  await waitFor(() => expect(screen.getByText(formatMoney(updatedQuote.total))).toBeInTheDocument());
   await ready();
   fireEvent.click(screen.getByRole('button', { name: 'Checkout' }));
   await waitFor(() => expect(api.checkout).toHaveBeenCalledTimes(3));

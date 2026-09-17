@@ -53,10 +53,17 @@ export type CartLine = {
   informationAvailable?: boolean;
 };
 
+export type PurchaseQuoteLine = {
+  skuId: string;
+  quantity: number;
+  unitPrice: Money;
+  lineTotal: Money;
+};
+
 export type PurchaseQuote = {
   id: string;
   cartVersion: number;
-  lines: { skuId: string; quantity: number; unitPrice: Money; lineTotal: Money }[];
+  lines: PurchaseQuoteLine[];
   total: Money;
 };
 

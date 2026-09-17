@@ -15,6 +15,7 @@ import { Link } from 'react-router-dom';
 import { ApiError, UnauthorizedError, api, fallback } from './api';
 import { CartSummary } from './CartSummary';
 import { session } from './session';
+import type { PendingCheckout } from './session';
 import { formatMoney } from './format';
 import { orderStatusText } from './orderPresentation';
 import { productImages } from './mockData';
@@ -70,6 +71,28 @@ function noticeFor(mode: ApiMode, degraded: string[]): string {
     return 'Demo mode';
   }
   return `Partial — demo: ${degraded.join(', ')}`;
+}
+
+async function requestPendingCheckout(pending: PendingCheckout): Promise<Checkout> {
+  if (pending.orderId) {
+    return api.checkoutResult(pending.orderId);
+  }
+  if (!pending.quoteId) {
+    throw new Error('새 견적을 확인하고 다시 결제해주세요.');
+  }
+  return api.checkout(pending.idempotencyKey, pending.quoteId);
+}
+
+async function requestCheckoutWithRecovery(pending: PendingCheckout): Promise<Checkout> {
+  try {
+    return await requestPendingCheckout(pending);
+  } catch (error) {
+    if (error instanceof UnauthorizedError || (error instanceof ApiError && error.status < 500)) {
+      throw error;
+    }
+    // 결과 미확인은 새 주문을 만들지 않고 원래 키와 견적으로 한 번 더 확인한다.
+    return requestPendingCheckout(pending);
+  }
 }
 
 export function App() {
@@ -187,14 +210,20 @@ export function App() {
       return true;
     } catch (error) {
       setCartUnavailable(true);
-      if (error instanceof UnauthorizedError) handleExpiredSession();
+      if (error instanceof UnauthorizedError) {
+        handleExpiredSession();
+      }
       return false;
     }
   }
 
   async function retryCart() {
     setBusy('cart');
-    try { await loadCart(); } finally { setBusy(null); }
+    try {
+      await loadCart();
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function submitAuth() {
@@ -246,7 +275,9 @@ export function App() {
 
   async function addToCart(product: Product) {
     const skuId = selectedSku[product.id] ?? product.skus[0]?.id;
-    if (!skuId) return;
+    if (!skuId) {
+      return;
+    }
     if (!member) {
       setAuthNotice('장바구니를 쓰려면 로그인해주세요.');
       return;
@@ -280,36 +311,31 @@ export function App() {
       return;
     }
     const existing = session.readPendingCheckout(member.id);
-    if (!existing && (cartUnavailable || !cart.checkoutAllowed || !cart.quote)) {
-      setNotice('장바구니와 견적·재고를 다시 확인해주세요.');
-      return;
+    let pending = existing;
+    if (!pending) {
+      const quote = cart.quote;
+      if (cartUnavailable || !cart.checkoutAllowed || !quote) {
+        setNotice('장바구니와 견적·재고를 다시 확인해주세요.');
+        return;
+      }
+      pending = { idempotencyKey: crypto.randomUUID(), quoteId: quote.id };
     }
-    const pending = existing ?? { idempotencyKey: crypto.randomUUID(), quoteId: cart.quote!.id };
     if (!pending.quoteId && !pending.orderId) {
       session.clearPendingCheckout(member.id);
       setNotice('새 견적을 확인하고 다시 결제해주세요.');
       await loadCart();
       return;
     }
-    if (cart.lines.length === 0 && !session.readPendingCheckout(member.id)) {
+    if (cart.lines.length === 0 && !existing) {
       setNotice('Cart is empty');
       return;
     }
     setBusy('checkout');
     session.writePendingCheckout(member.id, pending);
     try {
-      let result: Checkout;
-      try {
-        result = pending.orderId ? await api.checkoutResult(pending.orderId) : await api.checkout(pending.idempotencyKey, pending.quoteId!);
-      } catch (first) {
-        if (first instanceof UnauthorizedError || (first instanceof ApiError && first.status < 500)) throw first;
-        result = pending.orderId ? await api.checkoutResult(pending.orderId) : await api.checkout(pending.idempotencyKey, pending.quoteId!);
-      }
-      try {
-        await loadCart();
-      } catch {
-        // 주문 접수 결과는 이미 받았다. 장바구니 조회 실패가 그 결과를 뒤집지는 않는다.
-      }
+      const result = await requestCheckoutWithRecovery(pending);
+      // loadCart는 실패를 화면 상태에 기록한다. 주문 접수 결과는 계속 처리한다.
+      await loadCart();
       await acceptCheckoutResult(result, member.id, pending.idempotencyKey);
     } catch (error) {
       if (error instanceof UnauthorizedError) {
@@ -330,16 +356,16 @@ export function App() {
 
   async function resumePendingCheckout(memberId: string) {
     const pending = session.readPendingCheckout(memberId);
-    if (!pending) return;
+    if (!pending) {
+      return;
+    }
     if (!pending.orderId && !pending.quoteId) {
       session.clearPendingCheckout(memberId);
       setNotice('새 견적을 확인하고 다시 결제해주세요.');
       return;
     }
     try {
-      const result = pending.orderId
-        ? await api.checkoutResult(pending.orderId)
-        : await api.checkout(pending.idempotencyKey, pending.quoteId!);
+      const result = await requestPendingCheckout(pending);
       await acceptCheckoutResult(result, memberId, pending.idempotencyKey);
     } catch (error) {
       if (error instanceof UnauthorizedError) {
