@@ -113,7 +113,7 @@ const failedCheckout: Checkout = {
 beforeEach(() => {
   localStorage.clear();
   session.clear();
-  vi.spyOn(api, 'me').mockResolvedValue({ id: 'm', name: 'Member', email: 'm@example.test', status: 'ACTIVE', addresses: [] });
+  vi.spyOn(api, 'me').mockResolvedValue({ id: 'm', name: 'Member', email: 'm@example.test', status: 'ACTIVE', addressBookVersion: 1, addresses: [{ ...failedCheckout.order.shippingAddress, confirmationToken: 'address-token' }] });
   vi.spyOn(api, 'home').mockResolvedValue({ title: 'Home', subtitle: 'Storefront', sections: [] });
   vi.spyOn(api, 'products').mockResolvedValue([product]);
   vi.spyOn(api, 'stock').mockResolvedValue([]);
@@ -289,7 +289,7 @@ test('ignores an older failed lookup after a newer successful refresh', async ()
 test('does not apply a previous members cart after logout and another login', async () => {
   let resolveOld!: (value: Cart) => void;
   const old = new Promise<Cart>(resolve => { resolveOld = resolve; });
-  const nextMember = { id: 'next', name: 'Next member', email: 'next@example.test', status: 'ACTIVE', addresses: [] };
+  const nextMember = { id: 'next', name: 'Next member', email: 'next@example.test', status: 'ACTIVE', addressBookVersion: 1, addresses: [{ ...failedCheckout.order.shippingAddress, confirmationToken: 'address-token' }] };
   const nextCart = { ...updated, memberId: 'next', lines: [{ ...updated.lines[0], productName: 'Next cart product' }] };
   vi.mocked(api.cart).mockResolvedValueOnce(cart).mockReturnValueOnce(old).mockResolvedValueOnce(nextCart);
   vi.spyOn(api, 'logout').mockResolvedValue();
@@ -368,7 +368,7 @@ test('keeps authenticated purchase data outside the demo fallback status', async
 test('ignores bootstrap identity arriving after a newer login', async () => {
   let resolveOld!: (value: Awaited<ReturnType<typeof api.me>>) => void;
   const old = new Promise<Awaited<ReturnType<typeof api.me>>>(resolve => { resolveOld = resolve; });
-  const nextMember = { id: 'next', name: 'Next member', email: 'next@example.test', status: 'ACTIVE', addresses: [] };
+  const nextMember = { id: 'next', name: 'Next member', email: 'next@example.test', status: 'ACTIVE', addressBookVersion: 1, addresses: [{ ...failedCheckout.order.shippingAddress, confirmationToken: 'address-token' }] };
   const nextCart = { ...updated, memberId: 'next', lines: [{ ...updated.lines[0], productName: 'Next cart product' }] };
   vi.mocked(api.me).mockReturnValueOnce(old).mockResolvedValue(nextMember);
   vi.mocked(api.cart).mockResolvedValue(nextCart);
@@ -378,7 +378,7 @@ test('ignores bootstrap identity arriving after a newer login', async () => {
   fireEvent.click(screen.getByRole('button', { name: '로그인' }));
   await screen.findByText('Next cart product');
   await act(async () => {
-    resolveOld({ id: 'm', name: 'Member', email: 'm@example.test', status: 'ACTIVE', addresses: [] });
+    resolveOld({ id: 'm', name: 'Member', email: 'm@example.test', status: 'ACTIVE', addressBookVersion: 1, addresses: [{ ...failedCheckout.order.shippingAddress, confirmationToken: 'address-token' }] });
   });
   expect(screen.getByRole('heading', { name: 'Next member' })).toBeInTheDocument();
   expect(screen.queryByRole('heading', { name: 'Member' })).not.toBeInTheDocument();

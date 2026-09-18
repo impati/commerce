@@ -153,21 +153,16 @@ export type Notification = {
 };
 
 
+export type AddressChoice = Address & { confirmationToken: string };
+export type AddressInput = Omit<Address, 'id'>;
+
 export type Member = {
+  addressBookVersion: number;
   id: string;
   email: string;
   name: string;
   status: string;
-  addresses: {
-    id: string;
-    alias: string;
-    recipient: string;
-    phone: string;
-    line1: string;
-    city: string;
-    postalCode: string;
-    defaultAddress: boolean;
-  }[];
+  addresses: AddressChoice[];
 };
 
 export type IssuedAccessToken = {

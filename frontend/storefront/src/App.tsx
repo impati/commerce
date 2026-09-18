@@ -677,6 +677,7 @@ export function App() {
         </div>
         <div className="topbar-actions">
           <Link className="order-link" to="/orders">주문 내역</Link>
+          <Link className="order-link" to="/addresses">배송지 관리</Link>
           <span className={`connection ${connectionMode}`}>
             {connectionMode !== 'demo' ? <Wifi size={16} /> : <WifiOff size={16} />}
             {connectionNotice}

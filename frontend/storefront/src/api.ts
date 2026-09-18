@@ -8,6 +8,8 @@ import {
 } from './mockData';
 import { session } from './session';
 import type {
+  Address,
+  AddressInput,
   Cart,
   Checkout,
   DisplayHome,
@@ -24,6 +26,11 @@ const apiBase = import.meta.env.VITE_API_BASE_URL ?? '/api';
 const cartRequestTimeoutMs = Number(import.meta.env.VITE_CART_REQUEST_TIMEOUT_MS ?? 10000);
 if (!Number.isFinite(cartRequestTimeoutMs) || cartRequestTimeoutMs <= 0) {
   throw new Error('VITE_CART_REQUEST_TIMEOUT_MS must be positive');
+}
+
+export const addressRequestTimeoutMs = Number(import.meta.env.VITE_ADDRESS_REQUEST_TIMEOUT_MS ?? 10000);
+if (!Number.isFinite(addressRequestTimeoutMs) || addressRequestTimeoutMs <= 0) {
+  throw new Error('VITE_ADDRESS_REQUEST_TIMEOUT_MS must be positive');
 }
 
 export class ApiUnavailableError extends Error {
@@ -183,7 +190,32 @@ export const api = {
   },
 
   me(): Promise<Member> {
-    return request<Member>('/me');
+    return request<Member>('/me', { cache: 'no-store' }, addressRequestTimeoutMs);
+  },
+
+  addAddress(address: AddressInput, expectedVersion: number): Promise<Address> {
+    return request<Address>('/me/addresses', {
+      method: 'POST', body: JSON.stringify({ ...address, expectedVersion })
+    }, addressRequestTimeoutMs);
+  },
+
+  updateAddress(addressId: string, address: AddressInput, expectedVersion: number): Promise<Member> {
+    const { defaultAddress: _defaultAddress, ...fields } = address;
+    return request<Member>(`/me/addresses/${encodeURIComponent(addressId)}`, {
+      method: 'PUT', body: JSON.stringify({ ...fields, expectedVersion })
+    }, addressRequestTimeoutMs);
+  },
+
+  removeAddress(addressId: string, expectedVersion: number): Promise<Member> {
+    return request<Member>(`/me/addresses/${encodeURIComponent(addressId)}?expectedVersion=${expectedVersion}`, {
+      method: 'DELETE'
+    }, addressRequestTimeoutMs);
+  },
+
+  setDefaultAddress(addressId: string, expectedVersion: number): Promise<Member> {
+    return request<Member>(`/me/addresses/${encodeURIComponent(addressId)}/default`, {
+      method: 'PUT', body: JSON.stringify({ expectedVersion })
+    }, addressRequestTimeoutMs);
   },
 
   home(): Promise<DisplayHome> {

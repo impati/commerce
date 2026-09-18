@@ -8,7 +8,7 @@ import { CommerceRoutes } from './CommerceRoutes';
 import { orderStatusText, timelineText } from './orderPresentation';
 import type { Member, OrderDetail, OrderSummary } from './types';
 
-const member: Member = { id: 'mem_owner', email: 'owner@example.test', name: 'Owner', status: 'ACTIVE', addresses: [] };
+const member: Member = { id: 'mem_owner', email: 'owner@example.test', name: 'Owner', status: 'ACTIVE', addressBookVersion: 0, addresses: [] };
 const summary: OrderSummary = { id: 'ord_a', orderedAt: '2026-09-16T03:00:00Z', representativeProductName: 'Snapshot product',
   representativeSkuName: 'Ivory / M', additionalProductCount: 1, totalQuantity: 3, total: { amount: 25000, currency: 'KRW' },
   checkoutResult: 'SUCCEEDED', orderStatus: 'FULFILLING' };
