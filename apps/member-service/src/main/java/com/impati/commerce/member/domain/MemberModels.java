@@ -99,7 +99,7 @@ public final class MemberModels {
             return defaultAddress;
         }
 
-        public void markDefault(boolean value) {
+        private void markDefault(boolean value) {
             this.defaultAddress = value;
         }
     }
@@ -243,6 +243,10 @@ public final class MemberModels {
         private final PasswordHash passwordHash;
         private String status;
         private final List<Address> addresses = new ArrayList<>();
+        private long addressBookVersion;
+        private long savedAddressBookVersion;
+        private boolean persisted;
+        private boolean addressesChanged;
 
         public Member(String email, String name, PasswordHash passwordHash) {
             this(Ids.newId("mem"), email, name, passwordHash);
@@ -279,7 +283,53 @@ public final class MemberModels {
             var member = new Member(id, email, name, passwordHash);
             member.status = status;
             member.addresses.addAll(addresses);
+            member.persisted = true;
             return member;
+        }
+
+        public static Member restore(String id, String email, String name, PasswordHash passwordHash,
+                                     String status, List<Address> addresses, long addressBookVersion) {
+            var member = restore(id, email, name, passwordHash, status, addresses);
+            member.addressBookVersion = addressBookVersion;
+            member.savedAddressBookVersion = addressBookVersion;
+            return member;
+        }
+
+        public long addressBookVersion() {
+            return addressBookVersion;
+        }
+
+        public long savedAddressBookVersion() {
+            return savedAddressBookVersion;
+        }
+
+        public boolean persisted() {
+            return persisted;
+        }
+
+        public boolean addressesChanged() {
+            return addressesChanged;
+        }
+
+        /** 저장소가 저장 성공 후 추적 상태를 맞춘다. */
+        public void markSaved() {
+            persisted = true;
+            savedAddressBookVersion = addressBookVersion;
+            addressesChanged = false;
+        }
+
+        public void requireAddressBookVersion(long expectedVersion) {
+            if (expectedVersion < 0) {
+                throw DomainException.validation("address book version must be nonnegative");
+            }
+            if (addressBookVersion != expectedVersion) {
+                throw DomainException.addressBookChanged("주소록이 변경됐습니다. 최신 목록을 확인하고 다시 조작해주세요.");
+            }
+        }
+
+        private void changedAddresses() {
+            addressBookVersion = Math.incrementExact(addressBookVersion);
+            addressesChanged = true;
         }
 
         public String id() {
@@ -321,6 +371,7 @@ public final class MemberModels {
                 address.markDefault(true);
             }
             addresses.add(address);
+            changedAddresses();
         }
 
         public Address address(String addressId) {

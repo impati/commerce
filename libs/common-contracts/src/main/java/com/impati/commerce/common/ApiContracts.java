@@ -41,8 +41,27 @@ public final class ApiContracts {
             String line1,
             String city,
             String postalCode,
-            boolean defaultAddress
+            boolean defaultAddress,
+            BigDecimal expectedVersion
     ) {
+        public long expectedVersionAsLong() {
+            return addressVersion(expectedVersion);
+        }
+    }
+
+    private static long addressVersion(BigDecimal value) {
+        if (value == null) {
+            throw DomainException.validation("address book version is required");
+        }
+        try {
+            var version = value.longValueExact();
+            if (version < 0) {
+                throw DomainException.validation("address book version must be nonnegative");
+            }
+            return version;
+        } catch (ArithmeticException invalidNumber) {
+            throw DomainException.validation("address book version must be a representable integer");
+        }
     }
 
     public record MemberResponse(
@@ -50,8 +69,12 @@ public final class ApiContracts {
             String email,
             String name,
             String status,
-            List<AddressResponse> addresses
+            List<AddressResponse> addresses,
+            long addressBookVersion
     ) {
+        public MemberResponse(String id, String email, String name, String status, List<AddressResponse> addresses) {
+            this(id, email, name, status, addresses, 0);
+        }
     }
 
     public record SkuResponse(

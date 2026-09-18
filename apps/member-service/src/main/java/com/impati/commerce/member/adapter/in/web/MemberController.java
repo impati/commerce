@@ -40,6 +40,6 @@ public class MemberController {
             @RequestBody AddAddressRequest request
     ) {
         return MemberResponseMapper.from(
-                memberUseCase.addAddress(memberId, MemberResponseMapper.toNewAddress(request)));
+                memberUseCase.addAddress(memberId, MemberResponseMapper.toNewAddress(request), request.expectedVersionAsLong()));
     }
 }

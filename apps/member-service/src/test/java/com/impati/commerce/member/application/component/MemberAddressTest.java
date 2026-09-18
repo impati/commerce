@@ -52,7 +52,7 @@ class MemberAddressTest {
                 "city-value",
                 "postal-value",
                 true
-        ));
+        ), 0);
 
         assertThat(address.alias()).isEqualTo("alias-value");
         assertThat(address.recipient()).isEqualTo("recipient-value");
@@ -68,8 +68,8 @@ class MemberAddressTest {
     void addedAddressIsVisibleOnTheMember() {
         var member = registrationUseCase.register("visible@impati.dev", "Visible", "visible-pw12");
 
-        memberUseCase.addAddress(member.id(), request("home"));
-        memberUseCase.addAddress(member.id(), request("office"));
+        memberUseCase.addAddress(member.id(), request("home"), 0);
+        memberUseCase.addAddress(member.id(), request("office"), 1);
 
         assertThat(memberUseCase.get(member.id()).addresses())
                 .extracting(MemberAddress::alias)
@@ -79,7 +79,7 @@ class MemberAddressTest {
     /** 없는 회원에게는 배송지를 붙일 수 없다. */
     @Test
     void rejectsUnknownMember() {
-        assertThatThrownBy(() -> memberUseCase.addAddress("mem_never_saved", request("home")))
+        assertThatThrownBy(() -> memberUseCase.addAddress("mem_never_saved", request("home"), 0))
                 .isInstanceOf(DomainException.class)
                 .hasMessageContaining("member not found");
     }

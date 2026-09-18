@@ -30,6 +30,10 @@ public class DomainException extends RuntimeException {
         return new DomainException("conflict", message, 409);
     }
 
+    public static DomainException addressBookChanged(String message) {
+        return new DomainException("address_book_changed", message, 409);
+    }
+
     public static DomainException paymentDeclined(String message) {
         return new DomainException("payment_declined", message, 402);
     }

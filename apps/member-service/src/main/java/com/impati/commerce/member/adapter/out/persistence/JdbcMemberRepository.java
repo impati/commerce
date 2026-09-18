@@ -22,11 +22,11 @@ import java.util.Optional;
 public class JdbcMemberRepository implements MemberRepository {
     private static final String UX_MEMBERS_EMAIL = "ux_members_email";
 
-    private static final String MEMBER_COLUMNS = "id, email, name, status, password_hash";
+    private static final String MEMBER_COLUMNS = "id, email, name, status, password_hash, address_book_version";
 
     private static final String INSERT_MEMBER = """
-            insert into members (id, email, name, status, password_hash)
-            values (:id, :email, :name, :status, :password_hash)
+            insert into members (id, email, name, status, password_hash, address_book_version)
+            values (:id, :email, :name, :status, :password_hash, :version)
             """;
 
     private static final String UPDATE_MEMBER = """
@@ -36,6 +36,11 @@ public class JdbcMemberRepository implements MemberRepository {
                    status = :status,
                    password_hash = :password_hash
              where id = :id
+            """;
+
+    private static final String UPDATE_ADDRESS_VERSION = """
+            update members set address_book_version = :version
+             where id = :id and address_book_version = :expected_version
             """;
 
     private static final String SELECT_BY_ID = "select " + MEMBER_COLUMNS + " from members where id = :id";
@@ -83,8 +88,10 @@ public class JdbcMemberRepository implements MemberRepository {
                 .addValue("email", member.email())
                 .addValue("name", member.name())
                 .addValue("status", member.status())
-                .addValue("password_hash", member.passwordHash().value());
-        if (jdbc.update(UPDATE_MEMBER, params) == 0) {
+                .addValue("password_hash", member.passwordHash().value())
+                .addValue("version", member.addressBookVersion())
+                .addValue("expected_version", member.savedAddressBookVersion());
+        if (!member.persisted()) {
             try {
                 jdbc.update(INSERT_MEMBER, params);
             } catch (DuplicateKeyException e) {
@@ -93,8 +100,15 @@ public class JdbcMemberRepository implements MemberRepository {
                 }
                 throw e;
             }
+        } else if (member.addressesChanged()) {
+            if (jdbc.update(UPDATE_ADDRESS_VERSION, params) != 1) {
+                throw DomainException.addressBookChanged("주소록이 변경됐습니다. 최신 목록을 확인하고 다시 조작해주세요.");
+            }
+        } else {
+            // 인증 상태 저장은 주소록의 조회 사본을 다시 쓰지 않는다.
+            jdbc.update(UPDATE_MEMBER, params);
+            return;
         }
-
         jdbc.update(DELETE_ADDRESSES, new MapSqlParameterSource("member_id", member.id()));
         var addresses = member.addresses();
         for (var index = 0; index < addresses.size(); index++) {
@@ -111,6 +125,7 @@ public class JdbcMemberRepository implements MemberRepository {
                     .addValue("postal_code", address.postalCode())
                     .addValue("default_address", address.defaultAddress()));
         }
+        member.markSaved();
     }
 
     private boolean isDuplicateKeyFor(final DuplicateKeyException e, final String keyName) {
@@ -145,7 +160,8 @@ public class JdbcMemberRepository implements MemberRepository {
                 rs.getString("name"),
                 new PasswordHash(rs.getString("password_hash")),
                 rs.getString("status"),
-                findAddresses(rs.getString("id"))
+                findAddresses(rs.getString("id")),
+                rs.getLong("address_book_version")
         );
     }
 

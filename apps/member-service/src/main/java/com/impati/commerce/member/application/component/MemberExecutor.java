@@ -33,9 +33,10 @@ public class MemberExecutor implements MemberUseCase {
      */
     @Transactional
     @Override
-    public MemberAddress addAddress(String memberId, NewAddress request) {
+    public MemberAddress addAddress(String memberId, NewAddress request, long expectedVersion) {
         var member = memberRepository.findById(memberId)
                 .orElseThrow(() -> DomainException.notFound("member not found"));
+        member.requireAddressBookVersion(expectedVersion);
         var address = MemberMapper.toAddress(request);
         member.addAddress(address);
         memberRepository.save(member);

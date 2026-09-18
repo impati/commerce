@@ -52,7 +52,8 @@ final class MemberResponseMapper {
                 member.email(),
                 member.name(),
                 member.status(),
-                member.addresses().stream().map(MemberResponseMapper::from).toList()
+                member.addresses().stream().map(MemberResponseMapper::from).toList(),
+                member.addressBookVersion()
         );
     }
 

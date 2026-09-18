@@ -47,7 +47,8 @@ final class MemberMapper {
                 member.email(),
                 member.name(),
                 member.status(),
-                member.addresses().stream().map(MemberMapper::toDetails).toList()
+                member.addresses().stream().map(MemberMapper::toDetails).toList(),
+                member.addressBookVersion()
         );
     }
 }
