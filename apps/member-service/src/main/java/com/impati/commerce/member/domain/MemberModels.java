@@ -44,12 +44,12 @@ public final class MemberModels {
                 boolean defaultAddress
         ) {
             this.id = id;
-            this.alias = required(alias, "address alias is required");
-            this.recipient = required(recipient, "recipient is required");
-            this.phone = required(phone, "phone is required");
-            this.line1 = required(line1, "address line is required");
-            this.city = required(city, "city is required");
-            this.postalCode = required(postalCode, "postal code is required");
+            this.alias = addressField(alias, "address alias is required", 64);
+            this.recipient = addressField(recipient, "recipient is required", 128);
+            this.phone = addressField(phone, "phone is required", 64);
+            this.line1 = addressField(line1, "address line is required", 255);
+            this.city = addressField(city, "city is required", 128);
+            this.postalCode = addressField(postalCode, "postal code is required", 32);
             this.defaultAddress = defaultAddress;
         }
 
@@ -489,6 +489,14 @@ public final class MemberModels {
         private void discardToken() {
             this.token = null;
         }
+    }
+
+    private static String addressField(String value, String message, int maximum) {
+        var validated = required(value, message);
+        if (validated.codePointCount(0, validated.length()) > maximum) {
+            throw DomainException.validation("address field exceeds maximum length " + maximum);
+        }
+        return validated;
     }
 
     private static String required(String value, String message) {
