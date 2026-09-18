@@ -38,3 +38,4 @@
 | [0018](pd-0018-cart-checkout-snapshot.md) | 장바구니와 구매 스냅샷 |
 | [0020](pd-0020-order-history-visibility.md) | 주문 내역 노출과 진행 이력 |
 | [0021](pd-0021-purchase-confirmation.md) | 확인한 구매 내용과 금액으로 주문 |
+| [0022](pd-0022-shipping-address-management-and-selection.md) | 배송지 관리와 주문 선택 |

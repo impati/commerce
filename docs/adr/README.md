@@ -43,10 +43,9 @@
 | [0020](0020-browser-session-cookie.md) | 브라우저 세션을 HttpOnly 쿠키로 운반한다 | 승인됨 |
 | [0021](0021-translate-service-call-failures.md) | 서비스 간 호출 실패를 호출자 문맥으로 번역한다 | 승인됨 |
 | [0022](0022-member-order-history.md) | 회원 주문 내역을 복합 커서와 고객용 조회 모델로 제공한다 | 승인됨 |
-
 | [0023](0023-storefront-bff.md) | Storefront BFF가 화면 데이터를 조합한다 | 승인됨 |
-
 | [0024](0024-cart-line-management.md) | 확인한 장바구니 버전으로 줄을 수정한다 | 승인됨 |
+| [0025](0025-versioned-shipping-address-management.md) | 주소록 버전으로 관리하고 확인한 배송 정보로 주문한다 | 승인됨 |
 
 ## ADR이 없는 합의
 
