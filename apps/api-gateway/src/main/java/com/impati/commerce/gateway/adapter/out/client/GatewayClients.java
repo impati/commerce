@@ -2,6 +2,8 @@ package com.impati.commerce.gateway.adapter.out.client;
 
 import com.impati.commerce.common.ApiContracts.AccessTokenResponse;
 import com.impati.commerce.common.ApiContracts.AddAddressRequest;
+import com.impati.commerce.common.ApiContracts.UpdateAddressRequest;
+import com.impati.commerce.common.ApiContracts.SetDefaultAddressRequest;
 import com.impati.commerce.common.ApiContracts.AddressResponse;
 import com.impati.commerce.common.ApiContracts.CartItemRequest;
 import com.impati.commerce.common.ApiContracts.CartResponse;
@@ -184,6 +186,33 @@ public class GatewayClients {
                 .body(request)
                 .retrieve()
                 .body(AddressResponse.class);
+    }
+
+    public MemberResponse updateAddress(String memberId, String addressId, UpdateAddressRequest request) {
+        return members.put()
+                .uri("/members/me/addresses/{addressId}", addressId)
+                .header(MEMBER_ID_HEADER, memberId)
+                .body(request)
+                .retrieve()
+                .body(MemberResponse.class);
+    }
+
+    public MemberResponse removeAddress(String memberId, String addressId, long expectedVersion) {
+        return members.delete()
+                .uri(builder -> builder.path("/members/me/addresses/{addressId}")
+                        .queryParam("expectedVersion", expectedVersion).build(addressId))
+                .header(MEMBER_ID_HEADER, memberId)
+                .retrieve()
+                .body(MemberResponse.class);
+    }
+
+    public MemberResponse setDefaultAddress(String memberId, String addressId, SetDefaultAddressRequest request) {
+        return members.put()
+                .uri("/members/me/addresses/{addressId}/default", addressId)
+                .header(MEMBER_ID_HEADER, memberId)
+                .body(request)
+                .retrieve()
+                .body(MemberResponse.class);
     }
 
     public StorefrontCartResponse cart(String memberId) {

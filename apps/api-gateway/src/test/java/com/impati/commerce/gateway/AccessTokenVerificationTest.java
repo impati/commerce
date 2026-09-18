@@ -25,11 +25,18 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Date;
+import java.util.List;
+import org.springframework.http.HttpMethod;
 
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 
@@ -68,6 +75,51 @@ class AccessTokenVerificationTest {
     @BeforeEach
     void resetStubs() {
         restClientCustomizer.getServer().reset();
+    }
+
+    /** [PD-0022-R1] 위조한 신원 헤더만으로 배송지 관리 API를 호출할 수 없다. */
+    @Test
+    void addressManagementRequiresAuthentication() throws Exception {
+        for (var request : List.of(post("/me/addresses").content("{}"),
+                put("/me/addresses/a").content("{}"),
+                put("/me/addresses/a/default").content("{}"),
+                delete("/me/addresses/a").param("expectedVersion", "0"))) {
+            mockMvc.perform(request.header("X-Member-Id", "forged").contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isUnauthorized());
+        }
+        restClientCustomizer.getServer().verify();
+    }
+
+    /** [PD-0022-R1, PD-0022-R4] 새 주소 관리 경로도 서명 토큰의 신원과 예상 버전만 전달한다. */
+    @Test
+    void forwardsAddressManagementWithAuthenticatedIdentityAndVersion() throws Exception {
+        var authorization = bearer(token("mem_local", Duration.ofMinutes(5)));
+        var addressBody = "{\"alias\":\"home\",\"recipient\":\"Owner\",\"phone\":\"010\",\"line1\":\"Road\","
+                + "\"city\":\"Seoul\",\"postalCode\":\"00000\",\"expectedVersion\":4}";
+        var server = restClientCustomizer.getServer();
+        server.expect(requestTo("http://localhost:8101/members/me/addresses/a"))
+                .andExpect(method(HttpMethod.PUT))
+                .andExpect(header("X-Member-Id", "mem_local"))
+                .andExpect(content().json(addressBody))
+                .andRespond(withSuccess("{\"id\":\"mem_local\",\"addresses\":[],\"addressBookVersion\":5}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo("http://localhost:8101/members/me/addresses/a/default"))
+                .andExpect(method(HttpMethod.PUT))
+                .andExpect(header("X-Member-Id", "mem_local"))
+                .andExpect(content().json("{\"expectedVersion\":5}"))
+                .andRespond(withSuccess("{\"id\":\"mem_local\",\"addresses\":[],\"addressBookVersion\":6}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo("http://localhost:8101/members/me/addresses/a?expectedVersion=6"))
+                .andExpect(method(HttpMethod.DELETE))
+                .andExpect(header("X-Member-Id", "mem_local"))
+                .andRespond(withSuccess("{\"id\":\"mem_local\",\"addresses\":[],\"addressBookVersion\":7}", MediaType.APPLICATION_JSON));
+        mockMvc.perform(put("/me/addresses/a").header("Authorization", authorization).header("X-Member-Id", "forged")
+                .contentType(MediaType.APPLICATION_JSON).content(addressBody))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.addressBookVersion").value(5));
+        mockMvc.perform(put("/me/addresses/a/default").header("Authorization", authorization)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"expectedVersion\":5}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(delete("/me/addresses/a").header("Authorization", authorization).param("expectedVersion", "6"))
+                .andExpect(status().isOk());
+        server.verify();
     }
 
     /** [PD-0020-R9] 주문 URL이나 위조한 신원 헤더만으로는 주문 내역을 조회하지 못한다. */

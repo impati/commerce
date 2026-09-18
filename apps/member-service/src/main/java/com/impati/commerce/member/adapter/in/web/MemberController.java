@@ -3,6 +3,13 @@ package com.impati.commerce.member.adapter.in.web;
 import com.impati.commerce.common.ApiContracts.AddAddressRequest;
 import com.impati.commerce.common.ApiContracts.AddressResponse;
 import com.impati.commerce.common.ApiContracts.MemberResponse;
+import com.impati.commerce.common.ApiContracts.UpdateAddressRequest;
+import com.impati.commerce.common.ApiContracts.SetDefaultAddressRequest;
+import com.impati.commerce.member.application.port.in.NewAddress;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
 import com.impati.commerce.member.application.port.in.MemberUseCase;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -32,6 +39,28 @@ public class MemberController {
     @GetMapping("/me")
     MemberResponse me(@RequestHeader("X-Member-Id") String memberId) {
         return MemberResponseMapper.from(memberUseCase.get(memberId));
+    }
+
+    @PutMapping("/me/addresses/{addressId}")
+    MemberResponse updateAddress(@RequestHeader("X-Member-Id") String memberId,
+                                 @PathVariable String addressId, @RequestBody UpdateAddressRequest request) {
+        var address = new NewAddress(request.alias(), request.recipient(), request.phone(), request.line1(),
+                request.city(), request.postalCode(), false);
+        return MemberResponseMapper.from(memberUseCase.updateAddress(memberId, addressId, address,
+                request.expectedVersionAsLong()));
+    }
+
+    @DeleteMapping("/me/addresses/{addressId}")
+    MemberResponse removeAddress(@RequestHeader("X-Member-Id") String memberId,
+                                 @PathVariable String addressId, @RequestParam long expectedVersion) {
+        return MemberResponseMapper.from(memberUseCase.removeAddress(memberId, addressId, expectedVersion));
+    }
+
+    @PutMapping("/me/addresses/{addressId}/default")
+    MemberResponse setDefaultAddress(@RequestHeader("X-Member-Id") String memberId,
+                                     @PathVariable String addressId, @RequestBody SetDefaultAddressRequest request) {
+        return MemberResponseMapper.from(memberUseCase.setDefaultAddress(memberId, addressId,
+                request.expectedVersionAsLong()));
     }
 
     @PostMapping("/me/addresses")

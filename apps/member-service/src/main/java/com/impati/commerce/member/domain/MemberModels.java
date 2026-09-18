@@ -374,6 +374,43 @@ public final class MemberModels {
             changedAddresses();
         }
 
+        public void updateAddress(String addressId, Address replacement, long expectedVersion) {
+            requireAddressBookVersion(expectedVersion);
+            var existing = ownAddress(addressId);
+            var updated = Address.restore(existing.id(), replacement.alias(), replacement.recipient(),
+                    replacement.phone(), replacement.line1(), replacement.city(), replacement.postalCode(),
+                    existing.defaultAddress());
+            addresses.set(addresses.indexOf(existing), updated);
+            changedAddresses();
+        }
+
+        public void removeAddress(String addressId, long expectedVersion) {
+            requireAddressBookVersion(expectedVersion);
+            var existing = ownAddress(addressId);
+            addresses.remove(existing);
+            if (existing.defaultAddress() && !addresses.isEmpty()) {
+                addresses.getFirst().markDefault(true);
+            }
+            changedAddresses();
+        }
+
+        public void setDefaultAddress(String addressId, long expectedVersion) {
+            requireAddressBookVersion(expectedVersion);
+            var selected = ownAddress(addressId);
+            if (!selected.defaultAddress()) {
+                addresses.forEach(address -> address.markDefault(address == selected));
+                changedAddresses();
+            }
+        }
+
+        private Address ownAddress(String addressId) {
+            if (addressId == null || addressId.isBlank()) {
+                throw DomainException.validation("address id is required");
+            }
+            return addresses.stream().filter(address -> address.id().equals(addressId)).findFirst()
+                    .orElseThrow(() -> DomainException.notFound("배송지를 찾을 수 없습니다."));
+        }
+
         public Address address(String addressId) {
             if (addressId == null || addressId.isBlank()) {
                 return addresses.stream()

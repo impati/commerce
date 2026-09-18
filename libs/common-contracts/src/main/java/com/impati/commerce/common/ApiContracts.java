@@ -49,6 +49,21 @@ public final class ApiContracts {
         }
     }
 
+    /** PUT /me/addresses/{addressId}: 배송 정보 편집이며 기본 지정은 별도 명령이다. */
+    public record UpdateAddressRequest(String alias, String recipient, String phone, String line1,
+                                       String city, String postalCode, BigDecimal expectedVersion) {
+        public long expectedVersionAsLong() {
+            return addressVersion(expectedVersion);
+        }
+    }
+
+    /** PUT /me/addresses/{addressId}/default */
+    public record SetDefaultAddressRequest(BigDecimal expectedVersion) {
+        public long expectedVersionAsLong() {
+            return addressVersion(expectedVersion);
+        }
+    }
+
     private static long addressVersion(BigDecimal value) {
         if (value == null) {
             throw DomainException.validation("address book version is required");

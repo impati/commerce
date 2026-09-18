@@ -1,6 +1,7 @@
 package com.impati.commerce.member.application.component;
 
 import com.impati.commerce.common.DomainException;
+import com.impati.commerce.member.domain.MemberModels.Member;
 import com.impati.commerce.member.application.port.in.MemberAddress;
 import com.impati.commerce.member.application.port.in.MemberDetails;
 import com.impati.commerce.member.application.port.in.MemberUseCase;
@@ -41,6 +42,40 @@ public class MemberExecutor implements MemberUseCase {
         member.addAddress(address);
         memberRepository.save(member);
         return MemberMapper.toDetails(address);
+    }
+
+    @Transactional
+    @Override
+    public MemberDetails updateAddress(String memberId, String addressId, NewAddress request, long expectedVersion) {
+        var member = findMember(memberId);
+        member.updateAddress(addressId, MemberMapper.toAddress(request), expectedVersion);
+        memberRepository.save(member);
+        return MemberMapper.toDetails(member);
+    }
+
+    @Transactional
+    @Override
+    public MemberDetails removeAddress(String memberId, String addressId, long expectedVersion) {
+        var member = findMember(memberId);
+        member.removeAddress(addressId, expectedVersion);
+        memberRepository.save(member);
+        return MemberMapper.toDetails(member);
+    }
+
+    @Transactional
+    @Override
+    public MemberDetails setDefaultAddress(String memberId, String addressId, long expectedVersion) {
+        var member = findMember(memberId);
+        member.setDefaultAddress(addressId, expectedVersion);
+        if (member.addressesChanged()) {
+            memberRepository.save(member);
+        }
+        return MemberMapper.toDetails(member);
+    }
+
+    private Member findMember(String memberId) {
+        return memberRepository.findById(memberId)
+                .orElseThrow(() -> DomainException.notFound("member not found"));
     }
 
     @Transactional(readOnly = true)

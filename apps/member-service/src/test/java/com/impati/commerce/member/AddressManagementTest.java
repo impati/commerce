@@ -39,7 +39,7 @@ class AddressManagementTest {
     @Autowired
     private ObjectMapper objectMapper;
 
-    /** [PD-0022-R4] 같은 버전의 추가 요청을 반복해도 주소가 중복 생성되지 않는다. */
+    /** [PD-0022-R1, PD-0022-R2, PD-0022-R3, PD-0022-R4] HTTP 계약부터 실제 DB의 관리 결과까지 확인한다. */
     @Test
     void managesAddressesWithRequiredVersionsAndRejectsDuplicateAddition() throws Exception {
         var member = member("http");
@@ -50,6 +50,43 @@ class AddressManagementTest {
         mvc.perform(post("/members/me/addresses").header("X-Member-Id", member.id())
                 .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isConflict()).andExpect(jsonPath("code").value("address_book_changed"));
+        var addressId = memberRepository.findById(member.id()).orElseThrow().addresses().getFirst().id();
+        mvc.perform(put("/members/me/addresses/{id}", addressId).header("X-Member-Id", member.id())
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(fields(1))))
+                .andExpect(status().isOk()).andExpect(jsonPath("addressBookVersion").value(2));
+        mvc.perform(put("/members/me/addresses/{id}/default", addressId).header("X-Member-Id", member.id())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"expectedVersion\":2}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("addresses[0].defaultAddress").value(true));
+        mvc.perform(delete("/members/me/addresses/{id}", addressId).header("X-Member-Id", member.id())
+                .param("expectedVersion", "2"))
+                .andExpect(status().isOk()).andExpect(jsonPath("addresses").isEmpty());
+        mvc.perform(get("/members/me").header("X-Member-Id", member.id()))
+                .andExpect(status().isOk()).andExpect(jsonPath("addressBookVersion").value(3));
+    }
+
+    /** [PD-0022-R1, PD-0022-R8] 남의 주소와 누락·소수 버전을 HTTP 경계에서 거절한다. */
+    @Test
+    void rejectsForeignAddressesAndMalformedVersions() throws Exception {
+        var owner = member("owner");
+        owner.addAddress(address("home"));
+        memberRepository.save(owner);
+        var other = member("other");
+        var id = owner.addresses().getFirst().id();
+        mvc.perform(delete("/members/me/addresses/{id}", id).header("X-Member-Id", other.id())
+                .param("expectedVersion", "0"))
+                .andExpect(status().isNotFound());
+        mvc.perform(put("/members/me/addresses/{id}/default", id).header("X-Member-Id", other.id())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"expectedVersion\":0}"))
+                .andExpect(status().isNotFound());
+        mvc.perform(put("/members/me/addresses/{id}", id).header("X-Member-Id", other.id())
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(fields(0))))
+                .andExpect(status().isNotFound());
+        for (var version : new String[]{"null", "-1", "0.5", "9223372036854775808"}) {
+            mvc.perform(put("/members/me/addresses/{id}/default", id).header("X-Member-Id", owner.id())
+                    .contentType(MediaType.APPLICATION_JSON).content("{\"expectedVersion\":" + version + "}"))
+                    .andExpect(status().isBadRequest());
+        }
+        assertThat(memberRepository.findById(owner.id()).orElseThrow().addresses()).hasSize(1);
     }
 
     /** [PD-0022-R4] 실제로 경합한 두 저장 중 하나만 성공하며 주소록 변경이 유실되지 않는다. */
