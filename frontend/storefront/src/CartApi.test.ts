@@ -17,10 +17,10 @@ test('sends the confirmed quote with the original request key', async () => {
   const fetch = vi.fn().mockResolvedValue(response);
   vi.stubGlobal('fetch', fetch);
 
-  await api.checkout('key', 'quote');
+  await api.checkout('key', 'quote', 'address', 'address-token');
 
   expect(fetch).toHaveBeenCalledWith('/api/checkout', expect.objectContaining({
-    body: JSON.stringify({ paymentToken: 'card_test_success', quoteId: 'quote' }),
+    body: JSON.stringify({ paymentToken: 'card_test_success', quoteId: 'quote', addressId: 'address', addressConfirmationToken: 'address-token' }),
     headers: expect.objectContaining({ 'Idempotency-Key': 'key' })
   }));
 });
@@ -32,7 +32,7 @@ test('preserves actionable quote errors from the BFF', async () => {
   );
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response));
 
-  await expect(api.checkout('key', 'quote')).rejects.toMatchObject({
+  await expect(api.checkout('key', 'quote', 'address', 'address-token')).rejects.toMatchObject({
     status: 409,
     code: 'quote_changed',
     message: 'Review'

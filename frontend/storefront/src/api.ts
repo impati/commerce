@@ -254,11 +254,11 @@ export const api = {
     });
   },
 
-  checkout(idempotencyKey: string, quoteId: string): Promise<Checkout> {
+  checkout(idempotencyKey: string, quoteId: string, addressId?: string, addressConfirmationToken?: string): Promise<Checkout> {
     return request<Checkout>('/checkout', {
       method: 'POST',
       headers: { 'Idempotency-Key': idempotencyKey },
-      body: JSON.stringify({ paymentToken: 'card_test_success', quoteId })
+      body: JSON.stringify({ paymentToken: 'card_test_success', quoteId, addressId, addressConfirmationToken })
     });
   },
 

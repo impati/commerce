@@ -15,12 +15,13 @@ import { Link } from 'react-router-dom';
 import { ApiError, UnauthorizedError, api, fallback } from './api';
 import { CartRequestTracker } from './CartRequestTracker';
 import { CartSummary } from './CartSummary';
+import { ShippingAddressSelector } from './ShippingAddressSelector';
 import { session } from './session';
 import type { PendingCheckout } from './session';
 import { formatMoney } from './format';
 import { orderStatusText } from './orderPresentation';
 import { productImages } from './mockData';
-import type { Cart, Checkout, DisplayHome, Member, Notification, Product, Shipment, Stock } from './types';
+import type { AddressChoice, Cart, Checkout, DisplayHome, Member, Notification, Product, Shipment, Stock } from './types';
 
 type ApiMode = 'live' | 'partial' | 'demo';
 type BusyAction = 'load' | 'cart' | 'checkout' | 'ship' | 'deliver' | null;
@@ -92,7 +93,7 @@ async function requestPendingCheckout(pending: PendingCheckout): Promise<Checkou
   if (!pending.quoteId) {
     throw new Error('새 견적을 확인하고 다시 결제해주세요.');
   }
-  return api.checkout(pending.idempotencyKey, pending.quoteId);
+  return api.checkout(pending.idempotencyKey, pending.quoteId, pending.addressId, pending.addressConfirmationToken);
 }
 
 async function requestCheckoutWithRecovery(pending: PendingCheckout): Promise<Checkout> {
@@ -136,6 +137,8 @@ export function App() {
   const [apiMode, setApiMode] = useState<ApiMode>('live');
   const [busy, setBusy] = useState<BusyAction>('load');
   const [notice, setNotice] = useState('Ready');
+  const [selectedAddress, setSelectedAddress] = useState<AddressChoice | null>(null);
+  const [addressRevision, setAddressRevision] = useState(0);
   const [member, setMember] = useState<Member | null>(null);
   const [authView, setAuthView] = useState<'login' | 'register'>('login');
   const [authEmail, setAuthEmail] = useState('demo@impati.test');
@@ -147,6 +150,7 @@ export function App() {
   function changeMember(current: Member | null) {
     cartRequests.current.changeMember(current?.id ?? null);
     setMember(current);
+    setSelectedAddress(null);
     setQuantityDrafts({ memberId: '', version: -1, values: {} });
     setBusy(null);
     setCart({ memberId: current?.id ?? '', lines: [], version: 0 });
@@ -469,9 +473,14 @@ export function App() {
         setNotice('장바구니와 견적·재고를 다시 확인해주세요.');
         return;
       }
-      pending = { idempotencyKey: crypto.randomUUID(), quoteId: quote.id };
+      if (!selectedAddress || session.addressChangePending(member.id)) {
+        setNotice('주문할 배송지를 확인해주세요.');
+        return;
+      }
+      pending = { idempotencyKey: crypto.randomUUID(), quoteId: quote.id,
+        addressId: selectedAddress.id, addressConfirmationToken: selectedAddress.confirmationToken };
     }
-    if (!pending.quoteId && !pending.orderId) {
+    if (!pending.orderId && !pending.quoteId) {
       session.clearPendingCheckout(member.id);
       setNotice('새 견적을 확인하고 다시 결제해주세요.');
       await loadCart();
@@ -504,6 +513,10 @@ export function App() {
       }
       if (error instanceof ApiError && error.status < 500) {
         session.clearPendingCheckout(member.id);
+        if (error.code === 'address_changed') {
+          setSelectedAddress(null);
+          setAddressRevision(value => value + 1);
+        }
         await loadCart();
         setNotice(error.message);
       } else {
@@ -858,6 +871,8 @@ export function App() {
               onRemove={removeCartItem}
               onRetry={retryCart}
             />
+            <ShippingAddressSelector key={member.id} member={member} revision={addressRevision}
+              disabled={busy === 'checkout'} onChange={setSelectedAddress} onExpired={handleExpiredSession} />
             {hasQuantityDraft && <p role="status">수량 변경을 적용해주세요.</p>}
 
             <button
@@ -865,6 +880,7 @@ export function App() {
               type="button"
               onClick={runCheckout}
               disabled={busy !== null || cartCommandBusy || hasQuantityDraft || checkout?.order.checkoutStatus === 'PROCESSING'
+                || (!selectedAddress && !session.readPendingCheckout(member.id))
                 || ((!cart.checkoutAllowed || cartUnavailable || !cart.quote) && !(member && session.readPendingCheckout(member.id)))}
             >
               {busy === 'checkout' ? <Loader2 className="spin" size={18} /> : <CreditCard size={18} />}

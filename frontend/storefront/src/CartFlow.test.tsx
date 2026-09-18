@@ -211,7 +211,7 @@ test('requires a new confirmation after a quote conflict', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Checkout' }));
   expect(await screen.findByText('새 견적을 확인해주세요.')).toBeInTheDocument();
   expect(api.checkout).toHaveBeenCalledTimes(1);
-  expect(api.checkout).toHaveBeenCalledWith(expect.any(String), 'quote-original');
+  expect(api.checkout).toHaveBeenCalledWith(expect.any(String), 'quote-original', 'address', 'address-token');
   expect(session.readPendingCheckout('m')).toBeNull();
   expect(screen.getByText(formatMoney(updatedQuote.total))).toBeInTheDocument();
 });
@@ -227,13 +227,15 @@ test('recovers an unknown checkout using its original key and quote', async () =
   await waitFor(() => expect(api.checkout).toHaveBeenCalledTimes(2));
   const pending = session.readPendingCheckout('m')!;
   expect(pending.quoteId).toBe('quote-original');
+  expect(pending.addressId).toBe('address');
+  expect(pending.addressConfirmationToken).toBe('address-token');
   await waitFor(() => expect(screen.getByRole('button', { name: '장바구니 다시 확인' })).toBeEnabled());
   fireEvent.click(screen.getByRole('button', { name: '장바구니 다시 확인' }));
   await waitFor(() => expect(screen.getByText(formatMoney(updatedQuote.total))).toBeInTheDocument());
   await ready();
   fireEvent.click(screen.getByRole('button', { name: 'Checkout' }));
   await waitFor(() => expect(api.checkout).toHaveBeenCalledTimes(3));
-  expect(api.checkout).toHaveBeenNthCalledWith(3, pending.idempotencyKey, 'quote-original');
+  expect(api.checkout).toHaveBeenNthCalledWith(3, pending.idempotencyKey, 'quote-original', 'address', 'address-token');
   await waitFor(() => expect(session.readPendingCheckout('m')).toBeNull());
 });
 
@@ -512,4 +514,56 @@ test('clears unapplied quantities when logging back into the same account', asyn
   await ready();
   expect(screen.getByRole('textbox', { name: 'Cart product 수량' })).toHaveValue('2');
   expect(screen.queryByText('수량 변경을 적용해주세요.')).not.toBeInTheDocument();
+});
+
+// [PD-0022-R3] 배송지가 없으면 구매 견적이 있어도 새 주문을 시작하지 않는다.
+test('blocks a new checkout when the member has no delivery address', async () => {
+  vi.mocked(api.me).mockResolvedValue({ id: 'm', name: 'Member', email: 'm@example.test', status: 'ACTIVE',
+    addressBookVersion: 0, addresses: [] });
+  open();
+  await screen.findByText('Cart product');
+  expect(screen.getByRole('button', { name: 'Checkout' })).toBeDisabled();
+  expect(api.checkout).not.toHaveBeenCalled();
+});
+
+// [PD-0022-R6] 서버가 발견한 주소 변경은 최신 값 조회와 명시적 확인으로 이어진다.
+test('blocks checkout after address_changed until the updated address is acknowledged', async () => {
+  const original = { ...failedCheckout.order.shippingAddress, confirmationToken: 'address-token' };
+  const latest = { ...original, line1: 'Updated road', confirmationToken: 'updated-address-token' };
+  const identity = { id: 'm', name: 'Member', email: 'm@example.test', status: 'ACTIVE', addressBookVersion: 1 };
+  vi.mocked(api.me).mockResolvedValueOnce({ ...identity, addresses: [original] })
+    .mockResolvedValue({ ...identity, addressBookVersion: 2, addresses: [latest] });
+  vi.mocked(api.checkout).mockRejectedValueOnce(new ApiError(409, '배송지가 변경됐습니다.', 'address_changed'))
+    .mockResolvedValueOnce(failedCheckout);
+  open();
+  await ready();
+  fireEvent.click(screen.getByRole('button', { name: 'Checkout' }));
+  const acknowledgement = await screen.findByRole('button', { name: '변경된 배송지 확인' });
+  expect(screen.getByRole('button', { name: 'Checkout' })).toBeDisabled();
+  expect(session.readPendingCheckout('m')).toBeNull();
+  expect(api.checkout).toHaveBeenCalledTimes(1);
+  fireEvent.click(acknowledgement);
+  await ready();
+  fireEvent.click(screen.getByRole('button', { name: 'Checkout' }));
+  await waitFor(() => expect(api.checkout).toHaveBeenCalledTimes(2));
+  expect(api.checkout).toHaveBeenLastCalledWith(expect.any(String), 'quote-original', 'address', 'updated-address-token');
+});
+
+// [PD-0022-R7] 다른 주소를 선택해도 미확인 주문은 원래 주소 확인값으로 회수한다.
+test('recovers the original address even after another address is chosen on the screen', async () => {
+  const original = { ...failedCheckout.order.shippingAddress, confirmationToken: 'address-token' };
+  const office = { ...original, id: 'office', alias: 'office', defaultAddress: false, confirmationToken: 'office-token' };
+  vi.mocked(api.me).mockResolvedValue({ id: 'm', name: 'Member', email: 'm@example.test', status: 'ACTIVE',
+    addressBookVersion: 2, addresses: [original, office] });
+  vi.mocked(api.checkout).mockRejectedValueOnce(new TypeError('lost')).mockRejectedValueOnce(new TypeError('lost'))
+    .mockResolvedValueOnce(failedCheckout);
+  open();
+  await ready();
+  fireEvent.click(screen.getByRole('button', { name: 'Checkout' }));
+  await waitFor(() => expect(api.checkout).toHaveBeenCalledTimes(2));
+  await ready();
+  fireEvent.click(screen.getByRole('radio', { name: /office/ }));
+  fireEvent.click(screen.getByRole('button', { name: 'Checkout' }));
+  await waitFor(() => expect(api.checkout).toHaveBeenCalledTimes(3));
+  expect(api.checkout).toHaveBeenLastCalledWith(expect.any(String), 'quote-original', 'address', 'address-token');
 });

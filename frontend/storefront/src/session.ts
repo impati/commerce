@@ -5,6 +5,8 @@ export type PendingCheckout = {
   idempotencyKey: string;
   orderId?: string;
   quoteId?: string;
+  addressId?: string;
+  addressConfirmationToken?: string;
 };
 
 type AddressChange = { key: string; phase: 'sending' | 'checking'; deadline: number };
