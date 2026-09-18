@@ -20,9 +20,10 @@ public class PurchaseExecutor implements PurchaseUseCase {
             String idempotencyKey,
             String paymentToken,
             String addressId,
-            String quoteId
+            String quoteId,
+            String addressConfirmationToken
     ) {
-        var request = new ConfirmedCheckoutRequest(paymentToken, addressId, quoteId);
+        var request = new ConfirmedCheckoutRequest(paymentToken, addressId, quoteId, addressConfirmationToken);
         return orderClient.checkout(memberId, idempotencyKey, request);
     }
 }

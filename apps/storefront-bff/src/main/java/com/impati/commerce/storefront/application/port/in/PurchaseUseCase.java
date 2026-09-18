@@ -8,6 +8,7 @@ public interface PurchaseUseCase {
             String idempotencyKey,
             String paymentToken,
             String addressId,
-            String quoteId
+            String quoteId,
+            String addressConfirmationToken
     );
 }

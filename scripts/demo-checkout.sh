@@ -34,8 +34,12 @@ echo
 echo "4. checkout"
 cart_view="$(curl -sS -H "Authorization: Bearer ${TOKEN}" "${BASE_URL}/cart")"
 quote_id="$(printf '%s' "$cart_view" | jq -r '.quote.id')"
+member_view="$(curl -sS -H "Authorization: Bearer ${TOKEN}" "${BASE_URL}/me")"
+address_id="$(printf '%s' "$member_view" | jq -r '.addresses[] | select(.defaultAddress) | .id')"
+address_confirmation="$(printf '%s' "$member_view" | jq -r '.addresses[] | select(.defaultAddress) | .confirmationToken')"
 CHECKOUT_KEY="demo-$(date +%s)-${RANDOM}"
-checkout_body="$(jq -n --arg quote "$quote_id" '{paymentToken:"card_test_success",quoteId:$quote}')"
+checkout_body="$(jq -n --arg quote "$quote_id" --arg address "$address_id" --arg confirmation "$address_confirmation" \
+  '{paymentToken:"card_test_success",quoteId:$quote,addressId:$address,addressConfirmationToken:$confirmation}')"
 checkout_response="$(json_post "/checkout" "$checkout_body")"
 echo "$checkout_response"
 echo

@@ -85,7 +85,7 @@ class StorefrontRoutingTest {
     @Test
     void forwardsTheOriginalKeyAndQuoteToBffAndPreservesErrors() throws Exception {
         var checkoutRequest = """
-                {"paymentToken":"card","quoteId":"quote"}
+                {"paymentToken":"card","quoteId":"quote","addressId":"a","addressConfirmationToken":"token"}
                 """;
         server.expect(requestTo("http://localhost:8110/checkout"))
                 .andExpect(header("X-Member-Id", "m"))

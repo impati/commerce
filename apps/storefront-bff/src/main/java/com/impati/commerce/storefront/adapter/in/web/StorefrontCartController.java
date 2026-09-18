@@ -57,7 +57,7 @@ public class StorefrontCartController {
             @RequestBody ConfirmedCheckoutRequest request
     ) {
         var result = purchaseUseCase.checkout(
-                memberId, key, request.paymentToken(), request.addressId(), request.quoteId());
+                memberId, key, request.paymentToken(), request.addressId(), request.quoteId(), request.addressConfirmationToken());
         var response = new CheckoutResponse(result.order(), result.payment(), result.shipment());
         return switch (result.acceptance()) {
             case PROCESSING -> ResponseEntity.accepted().body(response);

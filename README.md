@@ -90,12 +90,15 @@ POST /login
 
 ```http
 GET  /me
-POST /me/addresses
+POST /me/addresses               expectedVersion 필수
+PUT  /me/addresses/{addressId}    배송 정보와 expectedVersion으로 수정
+PUT  /me/addresses/{addressId}/default
+DELETE /me/addresses/{addressId}?expectedVersion=...
 GET  /cart                       BFF 상품·수량·재고·서버 견적
 POST /cart/items
 PUT  /cart/items/{skuId}          최종 수량과 expectedVersion으로 변경
 DELETE /cart/items/{skuId}?expectedVersion=...
-POST /checkout                   quoteId와 Idempotency-Key 필수
+POST /checkout                   quoteId·addressId·addressConfirmationToken·Idempotency-Key 필수
 GET  /orders?cursor={cursor}&size=20
 GET  /orders/{orderId}
 GET  /orders/{orderId}/checkout-result
@@ -103,6 +106,8 @@ GET  /notifications
 POST /shipments/{shipmentId}/ship
 POST /shipments/{shipmentId}/deliver
 ```
+
+`GET /me`는 배송지 목록과 `addressBookVersion`을 반환합니다. 배송지 관리 요청은 이 버전을 전달하며, 다른 탭의 변경이 있으면 `address_book_changed`로 거절합니다. 첫 주소는 자동으로 기본 지정하고 기본 주소 삭제 시 가장 먼저 등록한 남은 주소를 지정합니다. 마지막 주소도 삭제할 수 있지만 새 주소를 등록하기 전에는 주문할 수 없습니다. 프론트의 `/addresses` 화면에서 배송지를 관리합니다 ([PD-0022](docs/policy/pd-0022-shipping-address-management-and-selection.md)).
 
 주문 목록은 `{ items, nextCursor }`를 응답합니다. 기본 크기는 20건이며 1~100건을 허용합니다. `nextCursor`는 마지막 주문의 UTC 생성 시각과 ID를 함께 담은 불투명한 값이며 다음 요청에 그대로 전달합니다. `null`이면 마지막 페이지입니다. 생성 시각 내림차순, 동일 시각에서는 ID 내림차순으로 조회합니다.
 
@@ -131,6 +136,8 @@ POST /logout                     세션 폐기
 
 주문 요청의 `quoteId`는 확인한 장바구니 버전과 구매 금액을 식별합니다. 상품·수량 또는 금액이 달라지면 `quote_changed`로 거절하고 새 견적 확인을 요구합니다. 견적은 가격·재고 예약이 아니며 주문 접수 때 다시 계산하고 검증합니다. 결과를 잃은 요청은 같은 키와 같은 본문을 반복합니다. ([ADR-0023](docs/adr/0023-storefront-bff.md), [PD-0021](docs/policy/pd-0021-purchase-confirmation.md))
 
+주문에는 선택한 배송지의 `id`와 `confirmationToken`을 각각 `addressId`, `addressConfirmationToken`으로 전달합니다. 최신 배송 정보가 확인값과 다르거나 삭제됐으면 `address_changed`로 거절하고 재확인을 요구합니다. 별칭·기본 지정만 바뀌면 확인값이 유지됩니다. 접수한 주문과 같은 요청의 재시도는 저장된 배송지 사본을 사용합니다 ([ADR-0025](docs/adr/0025-versioned-shipping-address-management.md)).
+
 ## Checkout 예시
 
 ```bash
@@ -143,12 +150,16 @@ curl -X POST http://localhost:8080/cart/items \
   -d '{"skuId":"sku_tee_white_m","quantity":2}'
 
 QUOTE_ID=$(curl -sS http://localhost:8080/cart -H "Authorization: Bearer $TOKEN" | jq -r '.quote.id')
+ADDRESS=$(curl -sS http://localhost:8080/me -H "Authorization: Bearer $TOKEN" | jq '.addresses[] | select(.defaultAddress)')
+ADDRESS_ID=$(printf '%s' "$ADDRESS" | jq -r '.id')
+ADDRESS_CONFIRMATION=$(printf '%s' "$ADDRESS" | jq -r '.confirmationToken')
 CHECKOUT_KEY=$(uuidgen)
 
 curl -X POST http://localhost:8080/checkout \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -H "Idempotency-Key: $CHECKOUT_KEY" \
-  -d "$(jq -n --arg quote "$QUOTE_ID" '{paymentToken:"card_test_success",quoteId:$quote}')"
+  -d "$(jq -n --arg quote "$QUOTE_ID" --arg address "$ADDRESS_ID" --arg confirmation "$ADDRESS_CONFIRMATION" \
+    '{paymentToken:"card_test_success",quoteId:$quote,addressId:$address,addressConfirmationToken:$confirmation}')"
 
 ```
 

@@ -23,7 +23,8 @@ public interface OrderUseCase {
             IdempotencyKey key,
             String paymentToken,
             String addressId,
-            String quoteId
+            String quoteId,
+            String addressConfirmationToken
     );
 
     /**

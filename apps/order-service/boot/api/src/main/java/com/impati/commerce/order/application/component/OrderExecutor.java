@@ -77,11 +77,12 @@ public class OrderExecutor implements OrderUseCase {
             IdempotencyKey idempotencyKey,
             String paymentToken,
             String addressId,
-            String quoteId
+            String quoteId,
+            String addressConfirmationToken
     ) {
         validateQuoteId(quoteId);
         validatePaymentToken(paymentToken);
-        var fingerprint = confirmedRequestFingerprint(paymentToken, addressId, quoteId);
+        var fingerprint = confirmedRequestFingerprint(paymentToken, addressId, quoteId, addressConfirmationToken);
         var existing = progressRepository.findByMemberAndKey(memberId, idempotencyKey);
         if (existing.isPresent()) {
             ensureSameRequest(existing.get(), fingerprint);
@@ -96,7 +97,11 @@ public class OrderExecutor implements OrderUseCase {
         var orderLines = loadPricedOrderLines(cart);
         ensureQuoteMatches(memberId, cart.version(), orderLines, quoteId);
         var member = memberClient.member(memberId);
-        var address = OrderMapper.toAddress(selectAddress(member.addresses(), addressId));
+        var selected = selectAddress(member.addresses(), addressId);
+        if (addressConfirmationToken == null || !addressConfirmationToken.equals(selected.confirmationToken())) {
+            throw DomainException.addressChanged("배송지가 변경됐습니다. 배송 정보를 다시 확인해주세요.");
+        }
+        var address = OrderMapper.toAddress(selected);
         var orderId = Ids.newId("ord");
         var order = Order.create(orderId, memberId, orderLines, address, clock);
         var progress = new CheckoutProgress(orderId, memberId, idempotencyKey, fingerprint, paymentToken, cart.version());
@@ -146,10 +151,16 @@ public class OrderExecutor implements OrderUseCase {
     private static CheckoutRequestFingerprint confirmedRequestFingerprint(
             String paymentToken,
             String addressId,
-            String quoteId
+            String quoteId,
+            String addressConfirmationToken
     ) {
         var paymentAndAddress = CheckoutRequestFingerprint.from(paymentToken, addressId);
-        return CheckoutRequestFingerprint.from(paymentAndAddress.value(), quoteId);
+        var withQuote = CheckoutRequestFingerprint.from(paymentAndAddress.value(), quoteId);
+        // 배포 전 접수된 요청도 기존 지문으로 결과를 회수한다. 새 접수는 이후 주소 확인에서 거절한다.
+        if (addressConfirmationToken == null) {
+            return withQuote;
+        }
+        return CheckoutRequestFingerprint.from(withQuote.value(), addressConfirmationToken);
     }
 
     private static void ensureQuoteMatches(
@@ -210,14 +221,11 @@ public class OrderExecutor implements OrderUseCase {
     }
 
     private AddressResponse selectAddress(List<AddressResponse> addresses, String addressId) {
-        if (addresses.isEmpty()) {
-            throw DomainException.validation("member has no delivery address");
-        }
         if (addressId == null || addressId.isBlank()) {
-            return addresses.stream().filter(AddressResponse::defaultAddress).findFirst().orElse(addresses.getFirst());
+            throw DomainException.addressChanged("주문할 배송지를 선택하고 확인해주세요.");
         }
         return addresses.stream().filter(address -> address.id().equals(addressId)).findFirst()
-                .orElseThrow(() -> DomainException.validation("address does not belong to member"));
+                .orElseThrow(() -> DomainException.addressChanged("배송지를 사용할 수 없습니다. 다시 선택해주세요."));
     }
 
     private Order order(String orderId) {

@@ -44,7 +44,7 @@ public class OrderController {
             @RequestBody ConfirmedCheckoutRequest request
     ) {
         var result = orderUseCase.checkoutConfirmed(
-                memberId, new IdempotencyKey(key), request.paymentToken(), request.addressId(), request.quoteId());
+                memberId, new IdempotencyKey(key), request.paymentToken(), request.addressId(), request.quoteId(), request.addressConfirmationToken());
         var response = OrderResponseMapper.from(result);
         if ("PROCESSING".equals(result.order().checkoutStatus())) {
             return ResponseEntity.accepted().body(response);

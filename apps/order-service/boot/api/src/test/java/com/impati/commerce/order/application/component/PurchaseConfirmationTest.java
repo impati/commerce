@@ -74,7 +74,7 @@ class PurchaseConfirmationTest {
         when(catalogClient.sku("sku")).thenReturn(sku(changedPrice));
 
         assertThatThrownBy(() -> executor.checkoutConfirmed(
-                "m", new IdempotencyKey("key"), "card", null, quote.id()))
+                "m", new IdempotencyKey("key"), "card", "a", quote.id(), address().confirmationToken()))
                 .isInstanceOfSatisfying(DomainException.class,
                         error -> assertThat(error.code()).isEqualTo("quote_changed"));
 
@@ -87,7 +87,7 @@ class PurchaseConfirmationTest {
     void rejectsAChangedCartVersionEvenWithIdenticalContents() {
         var quote = executor.quote("m", 5);
         when(cartClient.cart("m")).thenReturn(new CartResponse("m", List.of(new CartLineResponse("sku", 2)), 7));
-        assertThatThrownBy(() -> executor.checkoutConfirmed("m", new IdempotencyKey("key"), "card", null, quote.id()))
+        assertThatThrownBy(() -> executor.checkoutConfirmed("m", new IdempotencyKey("key"), "card", "a", quote.id(), address().confirmationToken()))
                 .isInstanceOfSatisfying(DomainException.class, error -> assertThat(error.code()).isEqualTo("quote_changed"));
         assertThatThrownBy(() -> executor.quote("m", 5)).isInstanceOf(DomainException.class);
         verifyNoInteractions(orderRepository, checkoutChanges, memberClient);
@@ -95,9 +95,57 @@ class PurchaseConfirmationTest {
 
     @Test
     void rejectsMissingQuoteWithoutReadingOtherServices() {
-        assertThatThrownBy(() -> executor.checkoutConfirmed("m", new IdempotencyKey("key"), "card", null, null))
+        assertThatThrownBy(() -> executor.checkoutConfirmed("m", new IdempotencyKey("key"), "card", "a", null, address().confirmationToken()))
                 .isInstanceOf(DomainException.class);
         verifyNoInteractions(cartClient, catalogClient, memberClient, checkoutChanges);
+    }
+
+    /** [PD-0022-R6] 화면의 확인값과 다른 배송 정보를 접수 전에 거절한다. */
+    @Test
+    void rejectsChangedDeliveryInformationBeforeCreatingAnOrder() {
+        var quote = executor.quote("m", 5);
+        var changed = new AddressResponse("a", "home", "Different recipient", "010-0000-0000",
+                "Road", "Seoul", "00000", true);
+        when(memberClient.member("m")).thenReturn(new MemberResponse("m", "m@example.test", "Member", "ACTIVE", List.of(changed)));
+        assertThatThrownBy(() -> executor.checkoutConfirmed("m", new IdempotencyKey("key"), "card",
+                "a", quote.id(), address().confirmationToken()))
+                .isInstanceOfSatisfying(DomainException.class, error -> assertThat(error.code()).isEqualTo("address_changed"));
+        verifyNoInteractions(checkoutChanges, orderRepository);
+    }
+
+    /** [PD-0022-R1, PD-0022-R3, PD-0022-R6] 삭제·타인 배송지·누락 확인값은 새 주문에 사용할 수 없다. */
+    @Test
+    void rejectsDeletedForeignAndUnconfirmedAddresses() {
+        var quote = executor.quote("m", 5);
+        for (var id : new String[]{"foreign", "deleted", "", null}) {
+            assertThatThrownBy(() -> executor.checkoutConfirmed("m", new IdempotencyKey("key"), "card",
+                    id, quote.id(), address().confirmationToken())).isInstanceOf(DomainException.class);
+        }
+        assertThatThrownBy(() -> executor.checkoutConfirmed("m", new IdempotencyKey("key"), "card",
+                "a", quote.id(), null)).isInstanceOf(DomainException.class);
+        when(memberClient.member("m")).thenReturn(new MemberResponse("m", "m@example.test", "Member", "ACTIVE", List.of()));
+        assertThatThrownBy(() -> executor.checkoutConfirmed("m", new IdempotencyKey("key"), "card",
+                "a", quote.id(), address().confirmationToken())).isInstanceOf(DomainException.class);
+        verifyNoInteractions(checkoutChanges, orderRepository);
+    }
+
+    /** [PD-0022-R6] 확인값은 배송 필드 각각에 반응하고 별칭·기본 지정은 무시한다. */
+    @Test
+    void confirmationTokenTracksOnlyDeliveryFieldsAndIdentity() {
+        var original = address();
+        var metadata = new AddressResponse("a", "renamed", "Member", "010-0000-0000", "Road", "Seoul", "00000", false);
+        assertThat(metadata.confirmationToken()).isEqualTo(original.confirmationToken());
+        var values = new String[]{"a", "Member", "010-0000-0000", "Road", "Seoul", "00000"};
+        for (var index = 0; index < values.length; index++) {
+            var changed = values.clone();
+            changed[index] += "changed";
+            var candidate = new AddressResponse(changed[0], "home", changed[1], changed[2], changed[3], changed[4], changed[5], true);
+            assertThat(candidate.confirmationToken()).isNotEqualTo(original.confirmationToken());
+        }
+    }
+
+    private AddressResponse address() {
+        return new AddressResponse("a", "home", "Member", "010-0000-0000", "Road", "Seoul", "00000", true);
     }
 
     private SkuResponse sku(long price) {

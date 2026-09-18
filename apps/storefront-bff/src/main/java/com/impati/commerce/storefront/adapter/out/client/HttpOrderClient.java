@@ -51,6 +51,9 @@ public class HttpOrderClient implements OrderClient {
                 .body(request)
                 .retrieve()
                 .toEntity(CheckoutResponse.class), error -> {
+            if (error.hasCode("address_changed")) {
+                throw DomainException.addressChanged("배송지가 변경됐습니다. 배송 정보를 다시 확인해주세요.");
+            }
             if (error.hasCode("quote_changed")) {
                 throw DomainException.quoteChanged("구매 내용이나 금액이 변경됐습니다. 새 견적을 확인해주세요.");
             }

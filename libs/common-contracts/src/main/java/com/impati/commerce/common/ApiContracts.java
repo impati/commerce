@@ -1,6 +1,11 @@
 package com.impati.commerce.common;
 
 import java.math.BigDecimal;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
@@ -26,8 +31,37 @@ public final class ApiContracts {
             String line1,
             String city,
             String postalCode,
-            boolean defaultAddress
+            boolean defaultAddress,
+            String confirmationToken
     ) {
+        public AddressResponse {
+            // 확인값은 실제 배송 정보에서 유도한다. 별칭과 기본 지정은 포함하지 않는다.
+            confirmationToken = addressConfirmation(id, recipient, phone, line1, city, postalCode);
+        }
+
+        public AddressResponse(String id, String alias, String recipient, String phone, String line1,
+                               String city, String postalCode, boolean defaultAddress) {
+            this(id, alias, recipient, phone, line1, city, postalCode, defaultAddress, null);
+        }
+    }
+
+    private static String addressConfirmation(String... values) {
+        try {
+            var digest = MessageDigest.getInstance("SHA-256");
+            for (var value : values) {
+                if (value == null) {
+                    digest.update((byte) 0);
+                } else {
+                    var bytes = value.getBytes(StandardCharsets.UTF_8);
+                    digest.update((byte) 1);
+                    digest.update(ByteBuffer.allocate(Integer.BYTES).putInt(bytes.length).array());
+                    digest.update(bytes);
+                }
+            }
+            return HexFormat.of().formatHex(digest.digest());
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException(impossible);
+        }
     }
 
     /** POST /members */
@@ -287,7 +321,8 @@ public final class ApiContracts {
     public record ConfirmedCheckoutRequest(
             String paymentToken,
             String addressId,
-            String quoteId
+            String quoteId,
+            String addressConfirmationToken
     ) {
     }
 

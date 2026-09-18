@@ -21,6 +21,7 @@ import com.impati.commerce.common.ApiContracts.ShipmentResponse;
 import com.impati.commerce.common.ApiContracts.SkuResponse;
 import com.impati.commerce.order.application.port.in.CheckoutRecoveryUseCase;
 import com.impati.commerce.order.domain.OrderModels.OrderLine;
+import com.impati.commerce.order.domain.CheckoutRequestFingerprint;
 import com.impati.commerce.order.domain.PurchasePricing;
 import com.impati.commerce.test.RequiresDatabase;
 import java.net.SocketTimeoutException;
@@ -177,7 +178,7 @@ class CheckoutSagaTest {
         mockMvc.perform(post("/checkouts/confirmed")
                         .header("X-Member-Id", MEMBER_ID)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(new ConfirmedCheckoutRequest("card_success", "addr_demo", confirmedQuoteId()))))
+                        .content(json(new ConfirmedCheckoutRequest("card_success", "addr_demo", confirmedQuoteId(), address().confirmationToken()))))
                 .andExpect(status().isBadRequest());
     }
 
@@ -271,7 +272,7 @@ class CheckoutSagaTest {
                 .andExpect(jsonPath("$.order.status").value("CANCELLED"));
     }
 
-    /** [PD-0021-R1, PD-0021-R6] 확인된 견적 접수와 결과 회수는 최신 장바구니 조회를 반복하지 않는다. */
+    /** [PD-0021-R1, PD-0021-R6, PD-0022-R7] 재접수는 최신 주소록을 조회하지 않고 저장된 사본을 반환한다. */
     @Test
     void confirmedCheckoutCompletesOnceAndRecoversTheOriginalResult() throws Exception {
         stubCheckoutInputs();
@@ -281,8 +282,8 @@ class CheckoutSagaTest {
         stubShipmentCreation();
         stubCapture();
         stubCommitReservation();
-        stubSuccessDecoration(2);
-        var request = new ConfirmedCheckoutRequest("card_success", "addr_demo", confirmedQuoteId());
+        stubSuccessDecoration(3);
+        var request = new ConfirmedCheckoutRequest("card_success", "addr_demo", confirmedQuoteId(), address().confirmationToken());
         var first = mockMvc.perform(post("/checkouts/confirmed")
                 .header("X-Member-Id", MEMBER_ID)
                 .header("Idempotency-Key", "confirmed-key")
@@ -296,13 +297,24 @@ class CheckoutSagaTest {
                 .header("Idempotency-Key", "confirmed-key")
                 .contentType(MediaType.APPLICATION_JSON).content(json(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.order.id").value(id));
-        var changed = new ConfirmedCheckoutRequest("card_success", "addr_demo", "a".repeat(64));
+                .andExpect(jsonPath("$.order.id").value(id))
+                .andExpect(jsonPath("$.order.shippingAddress.recipient").value(address().recipient()))
+                .andExpect(jsonPath("$.order.shippingAddress.line1").value(address().line1()));
+        var changed = new ConfirmedCheckoutRequest("card_success", "addr_demo", "a".repeat(64), address().confirmationToken());
         mockMvc.perform(post("/checkouts/confirmed")
                 .header("X-Member-Id", MEMBER_ID)
                 .header("Idempotency-Key", "confirmed-key")
                 .contentType(MediaType.APPLICATION_JSON).content(json(changed)))
                 .andExpect(status().isConflict());
+        // 이전 배포의 주소 확인값 없는 접수 기록도 원래 본문으로 회수한다.
+        var oldFingerprint = CheckoutRequestFingerprint.from(
+                CheckoutRequestFingerprint.from("card_success", null).value(), confirmedQuoteId()).value();
+        jdbc.update("update checkout_progress set request_fingerprint = ? where order_id = ?", oldFingerprint, id);
+        mockMvc.perform(post("/checkouts/confirmed").header("X-Member-Id", MEMBER_ID)
+                .header("Idempotency-Key", "confirmed-key").contentType(MediaType.APPLICATION_JSON)
+                .content(json(new ConfirmedCheckoutRequest("card_success", null, confirmedQuoteId(), null))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.order.id").value(id))
+                .andExpect(jsonPath("$.order.shippingAddress.line1").value(address().line1()));
         assertThat(jdbc.queryForObject("select count(*) from orders", Integer.class)).isEqualTo(1);
     }
 
@@ -314,7 +326,7 @@ class CheckoutSagaTest {
                 .header("X-Member-Id", MEMBER_ID)
                 .header("Idempotency-Key", "stale-confirmed-key")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(json(new ConfirmedCheckoutRequest("card_success", "addr_demo", confirmedQuoteId()))))
+                .content(json(new ConfirmedCheckoutRequest("card_success", "addr_demo", confirmedQuoteId(), address().confirmationToken()))))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("quote_changed"));
         assertThat(jdbc.queryForObject("select count(*) from orders", Integer.class)).isZero();
@@ -329,6 +341,33 @@ class CheckoutSagaTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(confirmedQuoteId()))
                 .andExpect(jsonPath("$.total.amount").value(UNIT_PRICE * QUANTITY));
+        assertThat(jdbc.queryForObject("select count(*) from orders", Integer.class)).isZero();
+    }
+
+    /** [PD-0022-R6] 주소 변경을 HTTP부터 DB 접수 이전까지 거절한다. */
+    @Test
+    void rejectsChangedDeliveryAddressWithoutCreatingAnOrder() throws Exception {
+        stubQuoteInputs(CART_VERSION);
+        var changed = new AddressResponse("addr_demo", "home", "Changed recipient", "010-0000-0000",
+                "Changed road", "Busan", "99999", true);
+        server.expect(requestTo(MEMBER_URL + "/internal/members/" + MEMBER_ID))
+                .andRespond(withSuccess(json(new MemberResponse(MEMBER_ID, "demo@impati.dev", "Demo Customer",
+                        "ACTIVE", List.of(changed))), MediaType.APPLICATION_JSON));
+        mockMvc.perform(checkout("changed-address", "card_success"))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("address_changed"));
+        assertThat(jdbc.queryForObject("select count(*) from orders", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("select count(*) from checkout_progress", Integer.class)).isZero();
+    }
+
+    /** [PD-0022-R3, PD-0022-R6] 삭제된 주소로 주문을 접수하지 않는다. */
+    @Test
+    void rejectsADeletedAddressWithoutCreatingAnOrder() throws Exception {
+        stubQuoteInputs(CART_VERSION);
+        server.expect(requestTo(MEMBER_URL + "/internal/members/" + MEMBER_ID))
+                .andRespond(withSuccess(json(new MemberResponse(MEMBER_ID, "demo@impati.dev", "Demo Customer",
+                        "ACTIVE", List.of())), MediaType.APPLICATION_JSON));
+        mockMvc.perform(checkout("deleted-address", "card_success"))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("address_changed"));
         assertThat(jdbc.queryForObject("select count(*) from orders", Integer.class)).isZero();
     }
 
@@ -354,7 +393,7 @@ class CheckoutSagaTest {
                 .header("X-Member-Id", MEMBER_ID)
                 .header("Idempotency-Key", key)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(json(new ConfirmedCheckoutRequest(token, "addr_demo", confirmedQuoteId())));
+                .content(json(new ConfirmedCheckoutRequest(token, "addr_demo", confirmedQuoteId(), address().confirmationToken())));
     }
 
     private void stubCheckoutInputs() {

@@ -118,7 +118,7 @@ class StorefrontBffTest {
                 .andExpect(header("X-Member-Id", "m"))
                 .andExpect(header("Idempotency-Key", "key"))
                 .andExpect(content().json("""
-                        {"paymentToken":"card","addressId":"address","quoteId":"quote"}
+                        {"paymentToken":"card","addressId":"address","quoteId":"quote","addressConfirmationToken":"address-token"}
                         """))
                 .andRespond(withStatus(HttpStatus.valueOf(acceptanceStatus))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -132,11 +132,23 @@ class StorefrontBffTest {
                         .header("Idempotency-Key", "key")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"paymentToken":"card","addressId":"address","quoteId":"quote"}
+                                {"paymentToken":"card","addressId":"address","quoteId":"quote","addressConfirmationToken":"address-token"}
                                 """))
                 .andExpect(status().is(acceptanceStatus))
                 .andExpect(jsonPath("$.order.id").value("ord_original"))
                 .andExpect(jsonPath("$.order.checkoutStatus").value(checkoutStatus));
+    }
+
+    /** [PD-0022-R6] 주소 변경 거절을 고객이 재확인할 수 있는 코드로 전달한다. */
+    @Test
+    void preservesAddressChangedAsAnActionableError() throws Exception {
+        server.expect(requestTo("http://localhost:8108/checkouts/confirmed"))
+                .andRespond(withStatus(HttpStatus.CONFLICT).contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"code\":\"address_changed\",\"message\":\"internal\"}"));
+        mvc.perform(post("/checkout").header("X-Member-Id", "m").header("Idempotency-Key", "key")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"paymentToken\":\"card\",\"addressId\":\"a\",\"quoteId\":\"q\",\"addressConfirmationToken\":\"t\"}"))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("address_changed"));
     }
 
     @Test
