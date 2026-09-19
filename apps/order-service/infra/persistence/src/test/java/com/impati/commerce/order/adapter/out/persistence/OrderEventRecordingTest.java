@@ -48,6 +48,10 @@ class OrderEventRecordingTest {
 
         assertThat(typesOf(order.id())).containsExactly("ORDER_CREATED");
         assertThat(payloadOf(order.id(), "ORDER_CREATED"))
+                .contains("\"productAmount\":\"" + (58_000 + 87_000) + "\"")
+                .contains("\"productCurrency\":\"KRW\"")
+                .contains("\"shippingFeeAmount\":\"0\"")
+                .contains("\"shippingFeeCurrency\":\"KRW\"")
                 .contains("\"totalAmount\":\"" + (58_000 + 87_000) + "\"")
                 .contains("\"totalCurrency\":\"KRW\"");
     }

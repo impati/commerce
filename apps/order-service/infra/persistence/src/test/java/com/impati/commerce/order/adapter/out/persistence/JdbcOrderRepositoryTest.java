@@ -6,6 +6,7 @@ import com.impati.commerce.order.application.port.out.OrderRepository;
 import com.impati.commerce.order.domain.OrderModels.Address;
 import com.impati.commerce.order.domain.OrderModels.Order;
 import com.impati.commerce.order.domain.OrderModels.OrderLine;
+import com.impati.commerce.order.domain.PriceBreakdown;
 import com.impati.commerce.test.RequiresDatabase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,6 +51,8 @@ class JdbcOrderRepositoryTest {
         assertThat(loaded.status()).isEqualTo("CREATED");
         assertThat(loaded.inventoryReservationId()).isEqualTo("rsv_round");
         assertThat(loaded.total()).isEqualTo(Money.krw(58_000 + 87_000));
+        assertThat(loaded.priceBreakdown()).isEqualTo(new PriceBreakdown(
+                Money.krw(58_000 + 87_000), Money.krw(0), Money.krw(58_000 + 87_000)));
         assertThat(loaded.lines()).hasSize(2);
         assertThat(loaded.lines().getFirst().skuId()).isEqualTo("sku_tee_white_m");
         assertThat(loaded.lines().getFirst().unitPrice()).isEqualTo(Money.krw(29_000));
@@ -118,6 +121,10 @@ class JdbcOrderRepositoryTest {
         assertThat(column(order.id(), "member_id")).isEqualTo("mem_demo");
         assertThat(column(order.id(), "status")).isEqualTo("PAID");
         assertThat(column(order.id(), "payment_id")).isEqualTo("pay_column");
+        assertThat(column(order.id(), "product_amount")).isEqualTo("145000");
+        assertThat(column(order.id(), "shipping_fee_amount")).isEqualTo("0");
+        assertThat(column(order.id(), "total_amount")).isEqualTo("145000");
+        assertThat(column(order.id(), "amount_currency")).isEqualTo("KRW");
     }
 
     @Test

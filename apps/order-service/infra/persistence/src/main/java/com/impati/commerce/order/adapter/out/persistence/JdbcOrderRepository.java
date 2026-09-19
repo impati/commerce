@@ -7,6 +7,7 @@ import com.impati.commerce.order.application.port.out.OrderWriter;
 import com.impati.commerce.order.domain.OrderModels.Address;
 import com.impati.commerce.order.domain.OrderModels.Order;
 import com.impati.commerce.order.domain.OrderModels.OrderLine;
+import com.impati.commerce.order.domain.PriceBreakdown;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -25,7 +26,8 @@ public class JdbcOrderRepository implements OrderRepository, OrderWriter {
     private static final String ORDER_COLUMNS = """
             id, member_id, status, payment_id, shipment_id, inventory_reservation_id,
             ship_address_id, ship_alias, ship_recipient, ship_phone,
-            ship_line1, ship_city, ship_postal_code, ship_default_address, created_at
+            ship_line1, ship_city, ship_postal_code, ship_default_address, created_at,
+            product_amount, shipping_fee_amount, total_amount, amount_currency
             """;
     private static final String UPDATE_ORDER = """
             update orders
@@ -34,18 +36,22 @@ public class JdbcOrderRepository implements OrderRepository, OrderWriter {
                    ship_address_id = :ship_address_id, ship_alias = :ship_alias,
                    ship_recipient = :ship_recipient, ship_phone = :ship_phone,
                    ship_line1 = :ship_line1, ship_city = :ship_city,
-                   ship_postal_code = :ship_postal_code, ship_default_address = :ship_default_address
+                   ship_postal_code = :ship_postal_code, ship_default_address = :ship_default_address,
+                   product_amount = :product_amount, shipping_fee_amount = :shipping_fee_amount,
+                   total_amount = :total_amount, amount_currency = :amount_currency
              where id = :id
             """;
     private static final String INSERT_ORDER = """
             insert into orders (
                 id, member_id, status, payment_id, shipment_id, inventory_reservation_id,
                 ship_address_id, ship_alias, ship_recipient, ship_phone,
-                ship_line1, ship_city, ship_postal_code, ship_default_address, created_at
+                ship_line1, ship_city, ship_postal_code, ship_default_address, created_at,
+                product_amount, shipping_fee_amount, total_amount, amount_currency
             ) values (
                 :id, :member_id, :status, :payment_id, :shipment_id, :inventory_reservation_id,
                 :ship_address_id, :ship_alias, :ship_recipient, :ship_phone,
-                :ship_line1, :ship_city, :ship_postal_code, :ship_default_address, :created_at
+                :ship_line1, :ship_city, :ship_postal_code, :ship_default_address, :created_at,
+                :product_amount, :shipping_fee_amount, :total_amount, :amount_currency
             )
             """;
     private static final String INSERT_LINE = """
@@ -70,6 +76,11 @@ public class JdbcOrderRepository implements OrderRepository, OrderWriter {
             """;
     private static final RowMapper<OrderRow> ORDER_ROW_MAPPER = (rs, rowNum) -> new OrderRow(
             rs.getString("id"), rs.getString("member_id"),
+            new PriceBreakdown(
+                    new Money(rs.getLong("product_amount"), rs.getString("amount_currency")),
+                    new Money(rs.getLong("shipping_fee_amount"), rs.getString("amount_currency")),
+                    new Money(rs.getLong("total_amount"), rs.getString("amount_currency"))
+            ),
             new Address(rs.getString("ship_address_id"), rs.getString("ship_alias"),
                     rs.getString("ship_recipient"), rs.getString("ship_phone"), rs.getString("ship_line1"),
                     rs.getString("ship_city"), rs.getString("ship_postal_code"), rs.getBoolean("ship_default_address")),
@@ -142,6 +153,7 @@ public class JdbcOrderRepository implements OrderRepository, OrderWriter {
 
     private MapSqlParameterSource orderParams(Order order) {
         var address = order.shippingAddress();
+        var priceBreakdown = order.priceBreakdown();
         return new MapSqlParameterSource()
                 .addValue("id", order.id()).addValue("member_id", order.memberId()).addValue("status", order.status())
                 .addValue("payment_id", order.paymentId()).addValue("shipment_id", order.shipmentId())
@@ -150,7 +162,11 @@ public class JdbcOrderRepository implements OrderRepository, OrderWriter {
                 .addValue("ship_recipient", address.recipient()).addValue("ship_phone", address.phone())
                 .addValue("ship_line1", address.line1()).addValue("ship_city", address.city())
                 .addValue("ship_postal_code", address.postalCode()).addValue("ship_default_address", address.defaultAddress())
-                .addValue("created_at", order.createdAt());
+                .addValue("created_at", order.createdAt())
+                .addValue("product_amount", priceBreakdown.productAmount().amount())
+                .addValue("shipping_fee_amount", priceBreakdown.shippingFee().amount())
+                .addValue("total_amount", priceBreakdown.totalAmount().amount())
+                .addValue("amount_currency", priceBreakdown.totalAmount().currency());
     }
 
     private MapSqlParameterSource lineParams(String orderId, int lineNo, OrderLine line) {
@@ -163,10 +179,12 @@ public class JdbcOrderRepository implements OrderRepository, OrderWriter {
 
     private record OrderLineRow(String orderId, OrderLine line) { }
 
-    private record OrderRow(String id, String memberId, Address address, String status, String paymentId,
+    private record OrderRow(String id, String memberId, PriceBreakdown priceBreakdown, Address address,
+            String status, String paymentId,
             String shipmentId, String reservationId, LocalDateTime createdAt) {
         Order toOrder(List<OrderLine> lines, Clock clock) {
-            return Order.restore(id, memberId, lines, address, status, paymentId, shipmentId, reservationId, createdAt, clock);
+            return Order.restore(id, memberId, lines, priceBreakdown, address, status, paymentId, shipmentId,
+                    reservationId, createdAt, clock);
         }
     }
 }
