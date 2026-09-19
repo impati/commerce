@@ -403,7 +403,7 @@ public final class OrderModels {
         /**
          * 승인된 결제를 붙인다. 청구가 아직 확정되지 않았으므로 상태는 그대로다 (PD-0011-R1).
          *
-         * <p>주문이 결제됨으로 넘어가는 것은 매입 시점이다 (PD-0003-R1).
+         * <p>주문이 결제됨으로 넘어가는 것은 매입 시점이다 (PD-0023-R1).
          */
         public void attachPayment(String paymentId) {
             this.paymentId = paymentId;

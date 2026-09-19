@@ -27,7 +27,6 @@
 | # | 정책 |
 | --- | --- |
 | [0001](pd-0001-signup-and-email-verification.md) | 가입과 이메일 소유 확인 |
-| [0003](pd-0003-order-lifecycle-and-cancellation.md) | 주문 생애주기와 취소 |
 | [0005](pd-0005-inventory-reservation.md) | 재고 예약과 가용 수량 |
 | [0007](pd-0007-product-exposure-and-search.md) | 상품 노출과 검색 |
 | [0011](pd-0011-payment-authorization-and-capture.md) | 결제 승인과 매입 |
@@ -39,3 +38,4 @@
 | [0020](pd-0020-order-history-visibility.md) | 주문 내역 노출과 진행 이력 |
 | [0021](pd-0021-purchase-confirmation.md) | 확인한 구매 내용과 금액으로 주문 |
 | [0022](pd-0022-shipping-address-management-and-selection.md) | 배송지 관리와 주문 선택 |
+| [0023](pd-0023-order-lifecycle-price-and-cancellation.md) | 주문 생애주기, 금액 구성과 취소 |

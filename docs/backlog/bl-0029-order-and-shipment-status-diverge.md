@@ -11,10 +11,10 @@
 
 주문 취소도 마찬가지다. 주문을 취소해도 배송 취소를 자동으로 호출하지 않는다. 배송 자체는 준비 상태에서 취소할 수 있지만([PD-0013-R5](../policy/pd-0013-shipment-progress-and-cancellation.md)), 호출 경로가 이어지지 않아 취소된 주문의 물건이 그대로 배송될 수 있다.
 
-주문이 배송을 거치지 않고 결제됨에서 바로 완료로 갈 수 있다는 점도([PD-0003-R3](../policy/pd-0003-order-lifecycle-and-cancellation.md)) 두 상태가 독립적이라는 전제 위에 있다.
+주문이 배송을 거치지 않고 결제됨에서 바로 완료로 갈 수 있다는 점도([PD-0023-R3](../policy/pd-0023-order-lifecycle-price-and-cancellation.md)) 두 상태가 독립적이라는 전제 위에 있다.
 
 ## 목표
 
 주문과 배송 중 어느 쪽이 배송 진행의 진실인지 정해져 있고, 다른 쪽은 그것을 따라간다. 취소된 주문의 배송을 멈출 수 있으며, 멈출 수 없는 시점이 언제부터인지도 정해져 있다.
 
-두 정책의 규칙이 함께 바뀌므로 [PD-0003](../policy/pd-0003-order-lifecycle-and-cancellation.md)과 [PD-0013](../policy/pd-0013-shipment-progress-and-cancellation.md)을 각각 새 번호로 바꾸고 기존 문서를 삭제한다.
+두 정책의 규칙이 함께 바뀌므로 [PD-0023](../policy/pd-0023-order-lifecycle-price-and-cancellation.md)과 [PD-0013](../policy/pd-0013-shipment-progress-and-cancellation.md)을 각각 새 번호로 바꾸고 기존 문서를 삭제한다.

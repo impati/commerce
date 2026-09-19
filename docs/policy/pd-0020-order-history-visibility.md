@@ -68,5 +68,5 @@
 
 ## 관련 정책
 
-- [PD-0003](pd-0003-order-lifecycle-and-cancellation.md)은 주문의 상태 전이와 소유자가 아닌 요청의 조회 거절을 정한다.
+- [PD-0023](pd-0023-order-lifecycle-price-and-cancellation.md)은 주문의 상태 전이, 금액 구성과 소유자가 아닌 요청의 조회 거절을 정한다.
 - [PD-0017](pd-0017-checkout-execution-and-recovery.md)은 체크아웃의 실행·복구와 요청 직후 고객에게 반환하는 처리 결과를 정한다.
