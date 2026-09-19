@@ -129,6 +129,26 @@ class AccessTokenVerificationTest {
                 .andExpect(status().isUnauthorized());
         mockMvc.perform(get("/orders/ord_known").header("X-Member-Id", "mem_forged"))
                 .andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/orders/ord_known/cancellation").header("X-Member-Id", "mem_forged"))
+                .andExpect(status().isUnauthorized());
+        restClientCustomizer.getServer().verify();
+    }
+
+    /** [PD-0024-R1][PD-0024-R10] 취소 요청도 토큰 소유자의 신원만 하위 서비스에 전달한다. */
+    @Test
+    void forwardsOrderCancellationWithAuthenticatedMemberOnly() throws Exception {
+        restClientCustomizer.getServer()
+                .expect(requestTo("http://localhost:8108/orders/ord_owned/cancellation"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Member-Id", "mem_local"))
+                .andRespond(withSuccess("{\"orderId\":\"ord_owned\",\"status\":\"PROCESSING\"}",
+                        MediaType.APPLICATION_JSON));
+
+        mockMvc.perform(post("/orders/ord_owned/cancellation")
+                        .header("Authorization", bearer(token("mem_local", Duration.ofMinutes(5))))
+                        .header("X-Member-Id", "mem_forged"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PROCESSING"));
         restClientCustomizer.getServer().verify();
     }
 

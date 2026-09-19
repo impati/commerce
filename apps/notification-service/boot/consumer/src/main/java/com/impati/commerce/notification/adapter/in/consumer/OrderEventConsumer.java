@@ -77,9 +77,12 @@ public class OrderEventConsumer {
                 case "ORDER_DELIVERED" -> Optional.of(new Wording("OrderDelivered",
                         "Order delivered",
                         "Order " + message.orderId() + " was delivered."));
+                case "CHECKOUT_FAILED" -> Optional.of(new Wording("CheckoutFailed",
+                        "Purchase failed",
+                        "Purchase for order " + message.orderId() + " could not be completed."));
                 case "ORDER_CANCELLED" -> Optional.of(new Wording("OrderCancelled",
-                        "Order cancelled",
-                        "Order " + message.orderId() + " was cancelled: " + payload(message, "reason")));
+                        "Order cancellation completed",
+                        "Order " + message.orderId() + " was cancelled and refunded."));
                 // 주문 접수는 아직 알리지 않는다.
                 //
                 // 모르는 종류도 여기로 온다. 발행자가 새 사건을 추가하는 것이 소비자를 깨뜨리면

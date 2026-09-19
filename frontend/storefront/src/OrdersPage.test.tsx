@@ -14,8 +14,9 @@ const summary: OrderSummary = { id: 'ord_a', orderedAt: '2026-09-16T03:00:00Z', 
   representativeSkuName: 'Ivory / M', additionalProductCount: 1, totalQuantity: 3, total: { amount: 25000, currency: 'KRW' },
   priceBreakdown: { productAmount: { amount: 22000, currency: 'KRW' }, shippingFee: { amount: 3000, currency: 'KRW' },
     totalAmount: { amount: 25000, currency: 'KRW' } },
-  checkoutResult: 'SUCCEEDED', orderStatus: 'FULFILLING' };
+  checkoutResult: 'SUCCEEDED', orderStatus: 'FULFILLING', cancellationStatus: 'NONE' };
 const detail: OrderDetail = { id: 'ord_a', orderedAt: summary.orderedAt, checkoutResult: 'SUCCEEDED', orderStatus: 'FULFILLING',
+  cancellationStatus: 'NONE', cancellable: true,
   lines: [{ skuId: 'sku_a', productId: 'prd_a', productName: 'Snapshot product', skuName: 'Ivory / M', quantity: 2,
     unitPrice: { amount: 10000, currency: 'KRW' }, lineTotal: { amount: 20000, currency: 'KRW' } }], total: summary.total,
   priceBreakdown: summary.priceBreakdown,
@@ -27,6 +28,7 @@ beforeEach(() => {
   vi.spyOn(api, 'me').mockResolvedValue(member);
   vi.spyOn(api, 'orders').mockResolvedValue({ items: [summary], nextCursor: null });
   vi.spyOn(api, 'order').mockResolvedValue(detail);
+  vi.spyOn(api, 'cancelOrder').mockResolvedValue({ orderId: detail.id, status: 'COMPLETED' });
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); });
 
@@ -69,6 +71,28 @@ test('loads detail from a direct URL and supports refresh', async () => {
   fireEvent.click(screen.getByRole('button', { name: '새로고침' }));
   await waitFor(() => expect(api.order).toHaveBeenCalledTimes(2));
   expect(await screen.findByText('Snapshot Recipient')).toBeInTheDocument();
+});
+
+// [PD-0024-R1, PD-0024-R5, PD-0024-R10] 상세에서만 전액 환불을 확인하고 취소를 접수한다.
+test('confirms and requests cancellation from eligible order detail', async () => {
+  vi.spyOn(window, 'confirm').mockReturnValue(true);
+  vi.mocked(api.order)
+    .mockResolvedValueOnce(detail)
+    .mockResolvedValueOnce({ ...detail, orderStatus: 'CANCELLED', cancellationStatus: 'COMPLETED', cancellable: false });
+  open('/orders/ord_a');
+  fireEvent.click(await screen.findByRole('button', { name: '주문 취소' }));
+  expect(window.confirm).toHaveBeenCalledWith(
+    '상품 금액과 배송비를 포함한 최종 결제 금액 전액이 환불됩니다. 주문을 취소할까요?'
+  );
+  await waitFor(() => expect(api.cancelOrder).toHaveBeenCalledWith('ord_a'));
+  expect(await screen.findByText('주문 취소와 전액 환불이 완료되었습니다.')).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: '주문 취소' })).not.toBeInTheDocument();
+});
+
+test('does not expose cancellation action on the order list', async () => {
+  open();
+  expect(await screen.findByText('Snapshot product 외 1개 상품')).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: '주문 취소' })).not.toBeInTheDocument();
 });
 
 test('supports list-to-detail navigation and browser back', async () => {
@@ -134,6 +158,11 @@ test('uses customer labels rather than raw internal statuses', () => {
   expect(orderStatusText('CHECKING', 'CANCELLED')).toBe('확인 중');
   expect(orderStatusText('FAILED', null)).toBe('구매 실패');
   expect(orderStatusText('SUCCEEDED', 'UNEXPECTED_INTERNAL_STATE')).toBe('주문 완료');
+  expect(orderStatusText('SUCCEEDED', 'FULFILLING', 'PROCESSING')).toBe('주문 취소 처리 중');
+  expect(orderStatusText('SUCCEEDED', 'FULFILLING', 'CHECKING')).toBe('주문 취소 확인 중');
+  expect(orderStatusText('SUCCEEDED', 'CANCELLED', 'COMPLETED')).toBe('주문 취소 완료');
+  expect(timelineText('CHECKOUT_FAILED')).toBe('구매가 실패했습니다');
+  expect(timelineText('ORDER_CANCELLED')).toBe('주문 취소가 완료되었습니다');
   expect(timelineText('INTERNAL_RETRY')).toBe('주문 상태가 변경되었습니다');
 });
 
