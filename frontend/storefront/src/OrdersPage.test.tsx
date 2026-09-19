@@ -5,16 +5,20 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { MemoryRouter, useNavigate } from 'react-router-dom';
 import { ApiError, UnauthorizedError, api } from './api';
 import { CommerceRoutes } from './CommerceRoutes';
+import { formatMoney } from './format';
 import { orderStatusText, timelineText } from './orderPresentation';
 import type { Member, OrderDetail, OrderSummary } from './types';
 
 const member: Member = { id: 'mem_owner', email: 'owner@example.test', name: 'Owner', status: 'ACTIVE', addressBookVersion: 0, addresses: [] };
 const summary: OrderSummary = { id: 'ord_a', orderedAt: '2026-09-16T03:00:00Z', representativeProductName: 'Snapshot product',
   representativeSkuName: 'Ivory / M', additionalProductCount: 1, totalQuantity: 3, total: { amount: 25000, currency: 'KRW' },
+  priceBreakdown: { productAmount: { amount: 22000, currency: 'KRW' }, shippingFee: { amount: 3000, currency: 'KRW' },
+    totalAmount: { amount: 25000, currency: 'KRW' } },
   checkoutResult: 'SUCCEEDED', orderStatus: 'FULFILLING' };
 const detail: OrderDetail = { id: 'ord_a', orderedAt: summary.orderedAt, checkoutResult: 'SUCCEEDED', orderStatus: 'FULFILLING',
   lines: [{ skuId: 'sku_a', productId: 'prd_a', productName: 'Snapshot product', skuName: 'Ivory / M', quantity: 2,
     unitPrice: { amount: 10000, currency: 'KRW' }, lineTotal: { amount: 20000, currency: 'KRW' } }], total: summary.total,
+  priceBreakdown: summary.priceBreakdown,
   shippingAddress: { recipient: 'Snapshot Recipient', phone: '010-1234-5678', line1: 'Snapshot road', city: 'Seoul', postalCode: '12345' },
   trackingNumber: 'TRK-visible', timeline: [{ type: 'ORDER_CREATED', occurredAt: summary.orderedAt },
     { type: 'ORDER_PAID', occurredAt: '2026-09-16T03:05:00Z' }] };
@@ -34,7 +38,7 @@ function open(path = '/orders') {
   return render(<MemoryRouter initialEntries={[path]}><Back /><CommerceRoutes /></MemoryRouter>);
 }
 
-// [PD-0020-R5, PD-0020-R6] 요약 정보와 다음 커서를 사용한다. DB 경계는 서버 테스트가 검증한다.
+// [PD-0020-R5, PD-0020-R6, PD-0023-R8] 요약과 금액 구성, 다음 커서를 사용한다. DB 경계는 서버 테스트가 검증한다.
 test('shows summaries and appends the next cursor page', async () => {
   vi.mocked(api.orders).mockResolvedValueOnce({ items: [summary], nextCursor: 'opaque-cursor' })
     .mockResolvedValueOnce({ items: [{ ...summary, id: 'ord_b', representativeProductName: 'Older product' }], nextCursor: null });
@@ -42,19 +46,25 @@ test('shows summaries and appends the next cursor page', async () => {
   expect(await screen.findByText('Snapshot product 외 1개 상품')).toBeInTheDocument();
   expect(screen.getByText('Ivory / M · 총 3개')).toBeInTheDocument();
   expect(screen.getByText('배송 준비·진행 중')).toBeInTheDocument();
+  expect(screen.getByText(formatMoney(summary.priceBreakdown.productAmount))).toBeInTheDocument();
+  expect(screen.getByText(formatMoney(summary.priceBreakdown.shippingFee))).toBeInTheDocument();
+  expect(screen.getByText(formatMoney(summary.priceBreakdown.totalAmount))).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: '더 보기' }));
   expect(await screen.findByText('Older product 외 1개 상품')).toBeInTheDocument();
   expect(api.orders).toHaveBeenNthCalledWith(2, 'opaque-cursor');
   expect(screen.queryByRole('button', { name: '더 보기' })).not.toBeInTheDocument();
 });
 
-// [PD-0020-R7, PD-0020-R8] 직접 진입해도 전체 구매 내용과 사실 시각이 표시된다.
+// [PD-0020-R7, PD-0020-R8, PD-0023-R8] 직접 진입해도 전체 구매 내용, 금액 구성과 사실 시각이 표시된다.
 test('loads detail from a direct URL and supports refresh', async () => {
   open('/orders/ord_a');
   expect(await screen.findByText('Snapshot Recipient')).toBeInTheDocument();
   expect(screen.getByText('TRK-visible')).toBeInTheDocument();
   expect(screen.getByText('주문이 접수되었습니다')).toBeInTheDocument();
   expect(screen.getByText('결제가 완료되었습니다')).toBeInTheDocument();
+  expect(screen.getByText(formatMoney(detail.priceBreakdown.productAmount))).toBeInTheDocument();
+  expect(screen.getByText(formatMoney(detail.priceBreakdown.shippingFee))).toBeInTheDocument();
+  expect(screen.getByText(formatMoney(detail.priceBreakdown.totalAmount))).toBeInTheDocument();
   expect(document.querySelector('time[datetime="2026-09-16T03:05:00Z"]')).not.toBeNull();
   fireEvent.click(screen.getByRole('button', { name: '새로고침' }));
   await waitFor(() => expect(api.order).toHaveBeenCalledTimes(2));

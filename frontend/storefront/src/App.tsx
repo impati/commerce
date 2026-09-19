@@ -15,6 +15,7 @@ import { Link } from 'react-router-dom';
 import { ApiError, UnauthorizedError, api, fallback } from './api';
 import { CartRequestTracker } from './CartRequestTracker';
 import { CartSummary } from './CartSummary';
+import { PriceBreakdownView } from './PriceBreakdownView';
 import { ShippingAddressSelector } from './ShippingAddressSelector';
 import { session } from './session';
 import type { PendingCheckout } from './session';
@@ -909,10 +910,12 @@ export function App() {
             </div>
 
             {checkout && (
-              <div className="order-meta">
-                <Link className="order-link" to={`/orders/${encodeURIComponent(checkout.order.id)}`}>{checkout.order.id} · 상세 보기</Link>
-                <strong>{formatMoney(checkout.order.total)}</strong>
-              </div>
+              <>
+                <div className="order-meta">
+                  <Link className="order-link" to={`/orders/${encodeURIComponent(checkout.order.id)}`}>{checkout.order.id} · 상세 보기</Link>
+                </div>
+                <PriceBreakdownView value={checkout.order.priceBreakdown} />
+              </>
             )}
 
             <div className="action-row">

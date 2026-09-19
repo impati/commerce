@@ -36,7 +36,12 @@ const originalQuote = {
     unitPrice: { amount: 100, currency: 'KRW' },
     lineTotal: { amount: 200, currency: 'KRW' }
   }],
-  total: { amount: 200, currency: 'KRW' }
+  total: { amount: 3200, currency: 'KRW' },
+  priceBreakdown: {
+    productAmount: { amount: 200, currency: 'KRW' },
+    shippingFee: { amount: 3000, currency: 'KRW' },
+    totalAmount: { amount: 3200, currency: 'KRW' }
+  }
 };
 
 const cart: Cart = {
@@ -64,7 +69,12 @@ const updatedQuote = {
     quantity: 3,
     lineTotal: { amount: 300, currency: 'KRW' }
   }],
-  total: { amount: 300, currency: 'KRW' }
+  total: { amount: 3300, currency: 'KRW' },
+  priceBreakdown: {
+    productAmount: { amount: 300, currency: 'KRW' },
+    shippingFee: { amount: 3000, currency: 'KRW' },
+    totalAmount: { amount: 3300, currency: 'KRW' }
+  }
 };
 
 const updated: Cart = {
@@ -104,7 +114,8 @@ const failedCheckout: Checkout = {
     paymentCleanupStatus: 'DONE',
     failureCode: 'out_of_stock',
     status: 'CANCELLED',
-    total: originalQuote.total
+    total: originalQuote.total,
+    priceBreakdown: originalQuote.priceBreakdown
   },
   shipment: null,
   payment: null
@@ -136,12 +147,31 @@ async function ready() {
   await waitFor(() => expect(screen.getByRole('button', { name: 'Checkout' })).toBeEnabled());
 }
 
-// [PD-0021-R1] 상품 목록의 가격을 합산하지 않고 서버 견적 합계를 표시한다.
-test('shows the server quote instead of multiplying catalog prices', async () => {
+// [PD-0021-R1, PD-0023-R8] 상품 목록의 가격을 합산하지 않고 서버 견적의 금액 구성을 표시한다.
+test('shows the server quote breakdown instead of multiplying catalog prices', async () => {
   open();
   await ready();
+  expect(screen.getByText('상품 금액')).toBeInTheDocument();
+  expect(screen.getByText(formatMoney(originalQuote.priceBreakdown.productAmount))).toBeInTheDocument();
+  expect(screen.getByText('배송비')).toBeInTheDocument();
+  expect(screen.getByText(formatMoney(originalQuote.priceBreakdown.shippingFee))).toBeInTheDocument();
+  expect(screen.getByText('최종 결제 금액')).toBeInTheDocument();
   expect(screen.getByText(formatMoney(originalQuote.total))).toBeInTheDocument();
   expect(screen.queryByText(formatMoney({ amount: 1998, currency: 'KRW' }))).not.toBeInTheDocument();
+});
+
+// [PD-0023-R8] 결제 결과도 주문에 확정된 금액 구성을 그대로 표시한다.
+test('shows the confirmed price breakdown in the checkout result', async () => {
+  vi.mocked(api.checkout).mockResolvedValue(failedCheckout);
+  open();
+  await ready();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Checkout' }));
+
+  expect(await screen.findByRole('link', { name: 'order-original · 상세 보기' })).toBeInTheDocument();
+  expect(screen.getAllByText(formatMoney(failedCheckout.order.priceBreakdown.productAmount))).toHaveLength(2);
+  expect(screen.getAllByText(formatMoney(failedCheckout.order.priceBreakdown.shippingFee))).toHaveLength(2);
+  expect(screen.getAllByText(formatMoney(failedCheckout.order.priceBreakdown.totalAmount))).toHaveLength(2);
 });
 
 // [PD-0021-R4] 견적 미확인은 0원으로 바뀌지 않으며 결제할 수 없다.

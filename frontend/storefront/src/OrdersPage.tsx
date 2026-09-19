@@ -4,6 +4,7 @@ import { ApiError, UnauthorizedError, api } from './api';
 import { session } from './session';
 import { formatMoney } from './format';
 import { orderDate, orderStatusText, timelineText } from './orderPresentation';
+import { PriceBreakdownView } from './PriceBreakdownView';
 import type { Member, OrderCustomerState, OrderDetail, OrderSummary } from './types';
 
 export function OrdersPage() {
@@ -181,7 +182,8 @@ function SummaryCard({ item }: { item: OrderSummary }) {
     <p className="order-id">{item.id}</p>
     <h3>{item.representativeProductName}{item.additionalProductCount > 0 && ` 외 ${item.additionalProductCount}개 상품`}</h3>
     <p>{item.representativeSkuName} · 총 {item.totalQuantity}개</p>
-    <div className="order-card-head"><strong>{formatMoney(item.total)}</strong><Link className="order-link" to={`/orders/${encodeURIComponent(item.id)}`}>주문 상세 →</Link></div>
+    <PriceBreakdownView value={item.priceBreakdown} />
+    <div className="order-card-head"><Link className="order-link" to={`/orders/${encodeURIComponent(item.id)}`}>주문 상세 →</Link></div>
   </article>;
 }
 
@@ -197,7 +199,7 @@ function DetailView({ detail }: { detail: OrderDetail }) {
     <section className="panel"><h2>주문 상품</h2><ul className="order-lines">{detail.lines.map((line, index) => <li key={`${line.skuId}-${index}`}>
       <div><strong>{line.productName}</strong><p>{line.skuName}</p><span>{formatMoney(line.unitPrice)} × {line.quantity}개</span></div>
       <strong>{formatMoney(line.lineTotal)}</strong>
-    </li>)}</ul><div className="total-row"><span>주문 총금액</span><strong>{formatMoney(detail.total)}</strong></div></section>
+    </li>)}</ul><PriceBreakdownView value={detail.priceBreakdown} /></section>
     <section className="panel"><h2>배송 정보</h2><dl className="order-address">
       <dt>수령인</dt><dd>{address.recipient}</dd><dt>연락처</dt><dd>{address.phone}</dd>
       <dt>주소</dt><dd>{address.line1}, {address.city} ({address.postalCode})</dd>

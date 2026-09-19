@@ -478,6 +478,32 @@ button:disabled {
   border-top: 1px solid #e5e3dc;
 }
 
+.price-breakdown {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 14px 16px;
+  border-top: 1px solid #e5e3dc;
+}
+
+.price-breakdown div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.price-breakdown dt,
+.price-breakdown dd {
+  margin: 0;
+}
+
+.price-breakdown-total {
+  padding-top: 8px;
+  border-top: 1px solid #e5e3dc;
+  font-weight: 800;
+}
+
 .checkout-button {
   width: calc(100% - 32px);
   margin: 0 16px 16px;

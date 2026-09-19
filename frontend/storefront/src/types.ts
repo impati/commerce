@@ -3,6 +3,12 @@ export type Money = {
   currency: string;
 };
 
+export type PriceBreakdown = {
+  productAmount: Money;
+  shippingFee: Money;
+  totalAmount: Money;
+};
+
 export type Sku = {
   id: string;
   productId: string;
@@ -65,6 +71,7 @@ export type PurchaseQuote = {
   cartVersion: number;
   lines: PurchaseQuoteLine[];
   total: Money;
+  priceBreakdown: PriceBreakdown;
 };
 
 export type Cart = {
@@ -103,6 +110,7 @@ export type Order = {
   status: string;
   lines: OrderLine[];
   total: Money;
+  priceBreakdown: PriceBreakdown;
   shippingAddress: Address;
   paymentId: string | null;
   shipmentId: string | null;
@@ -180,6 +188,7 @@ export type OrderSummary = {
   additionalProductCount: number;
   totalQuantity: number;
   total: Money;
+  priceBreakdown: PriceBreakdown;
   checkoutResult: OrderCustomerState;
   orderStatus: string | null;
 };
@@ -193,6 +202,7 @@ export type OrderDetail = {
   orderStatus: string | null;
   lines: OrderLine[];
   total: Money;
+  priceBreakdown: PriceBreakdown;
   shippingAddress: Pick<Address, 'recipient' | 'phone' | 'line1' | 'city' | 'postalCode'>;
   trackingNumber: string | null;
   timeline: { type: string; occurredAt: string }[];

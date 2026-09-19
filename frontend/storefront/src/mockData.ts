@@ -184,6 +184,11 @@ export function createDemoCheckout(cart: Cart): Checkout {
       status: 'FULFILLING',
       lines,
       total: { amount: total, currency: 'KRW' },
+      priceBreakdown: {
+        productAmount: { amount: total, currency: 'KRW' },
+        shippingFee: { amount: 0, currency: 'KRW' },
+        totalAmount: { amount: total, currency: 'KRW' }
+      },
       shippingAddress: {
         id: 'addr_demo',
         alias: 'home',

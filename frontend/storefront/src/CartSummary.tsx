@@ -1,6 +1,6 @@
 import { PackageOpen } from 'lucide-react';
 import type { Cart, CartLine } from './types';
-import { formatMoney } from './format';
+import { PriceBreakdownView } from './PriceBreakdownView';
 
 type CartSummaryProps = {
   cart: Cart;
@@ -24,7 +24,7 @@ function stockLabel(line: CartLine): string {
   return `구매 가능 ${line.availableQuantity}개`;
 }
 
-function totalLabel(cart: Cart, unavailable: boolean): string {
+function unavailableLabel(cart: Cart, unavailable: boolean): string {
   if (unavailable) {
     return '금액 확인 불가';
   }
@@ -34,7 +34,7 @@ function totalLabel(cart: Cart, unavailable: boolean): string {
   if (!cart.quote) {
     return '금액 확인 불가';
   }
-  return formatMoney(cart.quote.total);
+  return '';
 }
 
 export function CartSummary({
@@ -74,10 +74,9 @@ export function CartSummary({
           ))
         )}
       </div>
-      <div className="total-row">
-        <span>상품 합계</span>
-        <strong>{totalLabel(cart, unavailable)}</strong>
-      </div>
+      {cart.quote && !unavailable
+        ? <PriceBreakdownView value={cart.quote.priceBreakdown} />
+        : <div className="total-row"><span>결제 금액</span><strong>{unavailableLabel(cart, unavailable)}</strong></div>}
       <button className="link-button" type="button" disabled={refreshing} onClick={onRetry}>
         {refreshing ? '확인 중…' : '장바구니 다시 확인'}
       </button>
