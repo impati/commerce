@@ -83,3 +83,4 @@
 - [PD-0020](pd-0020-order-history-visibility.md)은 주문 내역의 노출 시점과 고객에게 보여줄 정보의 경계를 정한다.
 - [PD-0021](pd-0021-purchase-confirmation.md)은 확인한 구매 내용과 금액이 접수 시점과 다를 때 주문을 거절한다.
 - [PD-0022](pd-0022-shipping-address-management-and-selection.md)은 주문 배송지의 선택과 사본 보존을 정한다.
+- [PD-0024](pd-0024-customer-order-cancellation.md)는 고객이 요청하는 취소를 출고 전으로 제한하고 결제와 재고를 되돌리는 결과를 정한다.
