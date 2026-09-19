@@ -5,6 +5,8 @@ import com.impati.commerce.common.ApiContracts.ConfirmedCheckoutRequest;
 import com.impati.commerce.common.ApiContracts.OrderDetailResponse;
 import com.impati.commerce.common.ApiContracts.OrderPageResponse;
 import com.impati.commerce.common.ApiContracts.OrderResponse;
+import com.impati.commerce.common.ApiContracts.OrderCancellationResponse;
+import com.impati.commerce.order.application.port.in.OrderCancellationUseCase;
 import com.impati.commerce.order.application.model.OrderQueryKey;
 import com.impati.commerce.order.application.port.in.OrderHistoryUseCase;
 import com.impati.commerce.order.application.port.in.OrderUseCase;
@@ -31,10 +33,13 @@ public class OrderController {
 
     private final OrderUseCase orderUseCase;
     private final OrderHistoryUseCase orderHistoryUseCase;
+    private final OrderCancellationUseCase orderCancellationUseCase;
 
-    public OrderController(OrderUseCase orderUseCase, OrderHistoryUseCase orderHistoryUseCase) {
+    public OrderController(OrderUseCase orderUseCase, OrderHistoryUseCase orderHistoryUseCase,
+            OrderCancellationUseCase orderCancellationUseCase) {
         this.orderUseCase = orderUseCase;
         this.orderHistoryUseCase = orderHistoryUseCase;
+        this.orderCancellationUseCase = orderCancellationUseCase;
     }
 
     @PostMapping("/checkouts/confirmed")
@@ -74,6 +79,18 @@ public class OrderController {
             @PathVariable String orderId
     ) {
         return OrderResponseMapper.from(orderUseCase.getCheckoutResultOwned(memberId, orderId));
+    }
+
+    @PostMapping("/orders/{orderId}/cancellation")
+    ResponseEntity<OrderCancellationResponse> cancel(
+            @RequestHeader("X-Member-Id") String memberId,
+            @PathVariable String orderId
+    ) {
+        var result = orderCancellationUseCase.cancel(memberId, orderId);
+        var response = new OrderCancellationResponse(result.orderId(), result.status());
+        return "COMPLETED".equals(result.status())
+                ? ResponseEntity.ok(response)
+                : ResponseEntity.accepted().body(response);
     }
 
     /**

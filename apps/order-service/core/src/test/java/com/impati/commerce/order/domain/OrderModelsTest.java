@@ -67,10 +67,10 @@ class OrderModelsTest {
     @Test
     void truncatesLongCancelReason() {
         var order = newOrder();
-        order.cancel("x".repeat(OrderEvent.MAX_REASON_LENGTH + 1_000));
+        order.failCheckout("x".repeat(OrderEvent.MAX_REASON_LENGTH + 1_000));
 
         var event = order.drainPendingEvents().stream()
-                .filter(candidate -> candidate.type() == OrderEventType.ORDER_CANCELLED)
+                .filter(candidate -> candidate.type() == OrderEventType.CHECKOUT_FAILED)
                 .findFirst()
                 .orElseThrow();
         assertThat(event.payload().get("reason")).hasSize(OrderEvent.MAX_REASON_LENGTH);
@@ -80,10 +80,10 @@ class OrderModelsTest {
     @Test
     void keepsShortCancelReasonIntact() {
         var order = newOrder();
-        order.cancel("payment declined");
+        order.failCheckout("payment declined");
 
         var event = order.drainPendingEvents().stream()
-                .filter(candidate -> candidate.type() == OrderEventType.ORDER_CANCELLED)
+                .filter(candidate -> candidate.type() == OrderEventType.CHECKOUT_FAILED)
                 .findFirst()
                 .orElseThrow();
         assertThat(event.payload().get("reason")).isEqualTo("payment declined");

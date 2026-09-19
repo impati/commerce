@@ -18,13 +18,14 @@ final class OrderHistoryResponseMapper {
         return new OrderPageResponse(page.items().stream().map(item -> new OrderSummaryResponse(item.id(),
                 item.orderedAt(), item.representativeProductName(), item.representativeSkuName(),
                 item.additionalProductCount(), item.totalQuantity(), item.total(), priceBreakdown(item.priceBreakdown()),
-                item.checkoutResult(), item.orderStatus()))
+                item.checkoutResult(), item.orderStatus(), item.cancellationStatus()))
                 .toList(), page.nextCursor());
     }
 
     static OrderDetailResponse from(OrderHistoryDetail detail) {
         var address = detail.shippingAddress();
         return new OrderDetailResponse(detail.id(), detail.orderedAt(), detail.checkoutResult(), detail.orderStatus(),
+                detail.cancellationStatus(), detail.cancellable(),
                 detail.lines().stream().map(line -> new OrderLineResponse(line.skuId(), line.productId(),
                         line.productName(), line.skuName(), line.quantity(), line.unitPrice(), line.lineTotal())).toList(),
                 detail.total(), priceBreakdown(detail.priceBreakdown()),

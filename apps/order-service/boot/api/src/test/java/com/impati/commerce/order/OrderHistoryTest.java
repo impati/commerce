@@ -74,7 +74,7 @@ class OrderHistoryTest {
             var order = save(unique("ord"), member, Instant.parse("2026-09-16T03:00:00Z"), stage);
             if (stage.equals("COMPLETED")) {
                 order.attachPayment("pay_private"); order.markPaid(); order.attachShipment("shp_private", "TRK-visible");
-            } else if (!stage.equals("ACCEPTED")) order.cancel("private internal error");
+            } else if (!stage.equals("ACCEPTED")) order.failCheckout("private internal error");
             orderChanges.commit(order);
             progress(order, stage);
             var expected = switch (stage) {
@@ -88,8 +88,8 @@ class OrderHistoryTest {
                     .andExpect(jsonPath("$.orderStatus").value(stage.equals("COMPLETED") ? "FULFILLING" : null))
                     .andReturn().getResponse().getContentAsString();
             assertThat(response).doesNotContain("private internal error", "private error", "PRIVATE_CODE");
-            if (stage.equals("FAILED")) assertThat(response).contains("ORDER_CANCELLED");
-            else assertThat(response).doesNotContain("ORDER_CANCELLED");
+            if (stage.equals("FAILED")) assertThat(response).contains("CHECKOUT_FAILED");
+            else assertThat(response).doesNotContain("CHECKOUT_FAILED");
         }
         mockMvc.perform(get("/orders").header("X-Member-Id", member))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(5));

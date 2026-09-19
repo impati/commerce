@@ -227,7 +227,7 @@ public class CheckoutExecution {
         }
 
         var order = order(progress.orderId());
-        order.cancel(progress.failureCode());
+        order.failCheckout(progress.failureCode());
         progress.fail();
         checkoutChanges.commit(order, progress, progress.leaseGeneration());
     }

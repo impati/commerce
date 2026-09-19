@@ -33,6 +33,8 @@ public final class OrderModels {
         ORDER_PAID,
         SHIPMENT_CREATED,
         ORDER_DELIVERED,
+        ORDER_CANCELLATION_REQUESTED,
+        CHECKOUT_FAILED,
         ORDER_CANCELLED
     }
 
@@ -473,7 +475,7 @@ public final class OrderModels {
          * <p>길면 자른다. 하위 서비스의 예외 메시지가 그대로 들어오므로 길이가 통제되지 않고,
          * 자르지 않으면 사유가 길다는 이유로 <b>취소 자체가 롤백된다</b>.
          */
-        public void cancel(String reason) {
+        public void failCheckout(String reason) {
             if (status.equals("CANCELLED")) {
                 return;
             }
@@ -481,8 +483,28 @@ public final class OrderModels {
                 throw DomainException.conflict("delivered order cannot be cancelled");
             }
             this.status = "CANCELLED";
-            record(OrderEventType.ORDER_CANCELLED, Map.of(
+            record(OrderEventType.CHECKOUT_FAILED, Map.of(
                     "reason", OrderEvent.truncate(reason == null ? "" : reason, OrderEvent.MAX_REASON_LENGTH)));
+        }
+
+        /** [PD-0024-R12] 배송 취소가 확정된 고객 요청을 진행 이력에 남긴다. */
+        public void requestCancellation() {
+            if (status.equals("DELIVERED") || status.equals("CANCELLED")) {
+                throw DomainException.conflict("order cannot enter customer cancellation from current status");
+            }
+            record(OrderEventType.ORDER_CANCELLATION_REQUESTED, Map.of("reason", "CUSTOMER_REQUESTED"));
+        }
+
+        /** [PD-0024-R4][PD-0024-R12] 모든 되돌림이 끝난 고객 취소를 확정한다. */
+        public void cancelByCustomer() {
+            if (status.equals("CANCELLED")) {
+                return;
+            }
+            if (status.equals("DELIVERED")) {
+                throw DomainException.conflict("delivered order cannot be cancelled");
+            }
+            status = "CANCELLED";
+            record(OrderEventType.ORDER_CANCELLED, Map.of("reason", "CUSTOMER_REQUESTED"));
         }
 
         private void record(OrderEventType type, Map<String, String> payload) {

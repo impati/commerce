@@ -11,6 +11,6 @@ public class LoggingOperationalAttention implements OperationalAttention {
 
     @Override
     public void required(String orderId, String stage, String reason) {
-        log.error("checkout_attention_required order={} stage={} reason={}", orderId, stage, reason);
+        log.error("order_attention_required order={} stage={} reason={}", orderId, stage, reason);
     }
 }

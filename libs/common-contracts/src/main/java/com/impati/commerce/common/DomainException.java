@@ -54,6 +54,10 @@ public class DomainException extends RuntimeException {
         return new DomainException("quote_changed", message, 409);
     }
 
+    public static DomainException cancellationNotAllowed(String message) {
+        return new DomainException("cancellation_not_allowed", message, 409);
+    }
+
     public static DomainException outOfStock(String message) {
         return new DomainException("out_of_stock", message, 409);
     }

@@ -6,7 +6,7 @@ import java.time.OffsetDateTime;
 public record OrderSummary(String id, OffsetDateTime orderedAt, String representativeProductName,
         String representativeSkuName, int additionalProductCount, int totalQuantity,
         PriceBreakdownDetails priceBreakdown,
-        String checkoutResult, String orderStatus) {
+        String checkoutResult, String orderStatus, String cancellationStatus) {
     public Money total() {
         return priceBreakdown.totalAmount();
     }
