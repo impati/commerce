@@ -251,7 +251,7 @@ public final class OrderModels {
         }
 
         public Money lineTotal() {
-            return new Money(unitPrice.amount() * quantity, unitPrice.currency());
+            return new Money(Math.multiplyExact(unitPrice.amount(), quantity), unitPrice.currency());
         }
     }
 
@@ -260,6 +260,7 @@ public final class OrderModels {
         private final String id;
         private final String memberId;
         private final List<OrderLine> lines;
+        private final PriceBreakdown priceBreakdown;
         private final Address shippingAddress;
         private String status = "CREATED";
         private String paymentId;
@@ -286,7 +287,8 @@ public final class OrderModels {
         }
 
         public static Order create(String id, String memberId, List<OrderLine> lines, Address shippingAddress, Clock clock) {
-            var order = new Order(id, memberId, lines, shippingAddress, now(clock), clock);
+            var order = new Order(id, memberId, lines, PurchasePricing.priceBreakdown(lines), shippingAddress,
+                    now(clock), clock);
             order.recordCreated();
             return order;
         }
@@ -302,23 +304,33 @@ public final class OrderModels {
 
         private void recordCreated() {
             record(OrderEventType.ORDER_CREATED, Map.of(
+                    "productAmount", String.valueOf(priceBreakdown.productAmount().amount()),
+                    "productCurrency", priceBreakdown.productAmount().currency(),
+                    "shippingFeeAmount", String.valueOf(priceBreakdown.shippingFee().amount()),
+                    "shippingFeeCurrency", priceBreakdown.shippingFee().currency(),
                     "totalAmount", String.valueOf(total().amount()),
                     "totalCurrency", total().currency()
             ));
         }
 
         private Order(String id, String memberId, List<OrderLine> lines, Address shippingAddress, LocalDateTime createdAt) {
-            this(id, memberId, lines, shippingAddress, createdAt, Clock.systemUTC());
+            this(id, memberId, lines, PurchasePricing.priceBreakdown(lines), shippingAddress, createdAt,
+                    Clock.systemUTC());
         }
 
-        private Order(String id, String memberId, List<OrderLine> lines, Address shippingAddress,
+        private Order(String id, String memberId, List<OrderLine> lines, PriceBreakdown priceBreakdown,
+                Address shippingAddress,
                 LocalDateTime createdAt, Clock clock) {
             if (lines.isEmpty()) {
                 throw DomainException.validation("order requires at least one line");
             }
+            if (!PurchasePricing.productAmount(lines).equals(priceBreakdown.productAmount())) {
+                throw DomainException.validation("order lines must match the stored product amount");
+            }
             this.id = id;
             this.memberId = memberId;
             this.lines = new ArrayList<>(lines);
+            this.priceBreakdown = priceBreakdown;
             this.shippingAddress = shippingAddress;
             this.createdAt = Objects.requireNonNull(createdAt).truncatedTo(ChronoUnit.MICROS);
             this.clock = Objects.requireNonNull(clock);
@@ -334,6 +346,7 @@ public final class OrderModels {
                 String id,
                 String memberId,
                 List<OrderLine> lines,
+                PriceBreakdown priceBreakdown,
                 Address shippingAddress,
                 String status,
                 String paymentId,
@@ -341,14 +354,15 @@ public final class OrderModels {
                 String inventoryReservationId,
                 LocalDateTime createdAt
         ) {
-            return restore(id, memberId, lines, shippingAddress, status, paymentId, shipmentId,
+            return restore(id, memberId, lines, priceBreakdown, shippingAddress, status, paymentId, shipmentId,
                     inventoryReservationId, createdAt, Clock.systemUTC());
         }
 
-        public static Order restore(String id, String memberId, List<OrderLine> lines, Address shippingAddress,
+        public static Order restore(String id, String memberId, List<OrderLine> lines, PriceBreakdown priceBreakdown,
+                Address shippingAddress,
                 String status, String paymentId, String shipmentId, String inventoryReservationId,
                 LocalDateTime createdAt, Clock clock) {
-            var order = new Order(id, memberId, lines, shippingAddress, createdAt, clock);
+            var order = new Order(id, memberId, lines, priceBreakdown, shippingAddress, createdAt, clock);
             order.status = status;
             order.paymentId = paymentId;
             order.shipmentId = shipmentId;
@@ -392,8 +406,12 @@ public final class OrderModels {
             return inventoryReservationId;
         }
 
+        public PriceBreakdown priceBreakdown() {
+            return priceBreakdown;
+        }
+
         public Money total() {
-            return PurchasePricing.total(lines);
+            return priceBreakdown.totalAmount();
         }
 
         public void attachReservation(String reservationId) {
