@@ -230,7 +230,10 @@ public class CartPageExecutor implements CartPageUseCase {
         var quote = result.value();
         var lines = quote.lines().stream().map(line -> new CartPage.PriceLine(
                 line.skuId(), line.quantity(), line.unitPrice(), line.lineTotal())).toList();
-        return new CartPage.Quote(quote.id(), quote.cartVersion(), lines, quote.total());
+        var priceBreakdown = quote.priceBreakdown();
+        return new CartPage.Quote(quote.id(), quote.cartVersion(), lines, quote.total(),
+                new CartPage.PriceBreakdown(priceBreakdown.productAmount(), priceBreakdown.shippingFee(),
+                        priceBreakdown.totalAmount()));
     }
 
     private List<String> unavailableAreas(

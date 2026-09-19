@@ -4,6 +4,7 @@ import com.impati.commerce.common.ApiContracts.CartLineResponse;
 import com.impati.commerce.common.ApiContracts.CartResponse;
 import com.impati.commerce.common.ApiContracts.Money;
 import com.impati.commerce.common.ApiContracts.ProductResponse;
+import com.impati.commerce.common.ApiContracts.PriceBreakdownResponse;
 import com.impati.commerce.common.ApiContracts.PurchaseQuoteLineResponse;
 import com.impati.commerce.common.ApiContracts.PurchaseQuoteResponse;
 import com.impati.commerce.common.ApiContracts.SkuResponse;
@@ -49,7 +50,9 @@ class CartPageExecutorTest {
                 "p", "Product", "B", "C", "D", "PUBLISHED", List.of(), List.of()));
         when(inventoryClient.get("sku")).thenReturn(new StockResponse("sku", 3, 0, 3));
         when(orderClient.quote("m", 5)).thenReturn(new PurchaseQuoteResponse("quote", 5,
-                List.of(new PurchaseQuoteLineResponse("sku", 2, Money.krw(100), Money.krw(200))), Money.krw(200)));
+                List.of(new PurchaseQuoteLineResponse("sku", 2, Money.krw(100), Money.krw(200))),
+                Money.krw(3_200),
+                new PriceBreakdownResponse(Money.krw(200), Money.krw(3_000), Money.krw(3_200))));
     }
 
     @AfterEach
@@ -61,7 +64,10 @@ class CartPageExecutorTest {
     @Test
     void assemblesTheCartUsingTheOrderQuote() {
         var page = executor.get("m");
-        assertThat(page.quote().total()).isEqualTo(Money.krw(200));
+        assertThat(page.quote().total()).isEqualTo(Money.krw(3_200));
+        assertThat(page.quote().priceBreakdown().productAmount()).isEqualTo(Money.krw(200));
+        assertThat(page.quote().priceBreakdown().shippingFee()).isEqualTo(Money.krw(3_000));
+        assertThat(page.quote().priceBreakdown().totalAmount()).isEqualTo(Money.krw(3_200));
         assertThat(page.lines().getFirst().productName()).isEqualTo("Product");
         assertThat(page.checkoutAllowed()).isTrue();
         assertThat(page.unavailable()).isEmpty();
@@ -185,7 +191,7 @@ class CartPageExecutorTest {
 
         assertThat(page.lines().getFirst().quantity()).isEqualTo(2);
         assertThat(page.lines().getFirst().productName()).isEqualTo("Product");
-        assertThat(page.quote().total()).isEqualTo(Money.krw(200));
+        assertThat(page.quote().total()).isEqualTo(Money.krw(3_200));
         assertThat(page.unavailable()).containsExactly("inventory:sku");
         assertThat(page.checkoutAllowed()).isFalse();
     }

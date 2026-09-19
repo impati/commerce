@@ -25,8 +25,12 @@ public record CartPage(
             String id,
             long cartVersion,
             List<PriceLine> lines,
-            Money total
+            Money total,
+            PriceBreakdown priceBreakdown
     ) {
+    }
+
+    public record PriceBreakdown(Money productAmount, Money shippingFee, Money totalAmount) {
     }
 
     public record PriceLine(

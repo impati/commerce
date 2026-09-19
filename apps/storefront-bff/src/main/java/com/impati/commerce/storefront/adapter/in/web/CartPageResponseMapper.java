@@ -2,6 +2,7 @@ package com.impati.commerce.storefront.adapter.in.web;
 
 import com.impati.commerce.common.ApiContracts.PurchaseQuoteLineResponse;
 import com.impati.commerce.common.ApiContracts.PurchaseQuoteResponse;
+import com.impati.commerce.common.ApiContracts.PriceBreakdownResponse;
 import com.impati.commerce.common.ApiContracts.StorefrontCartLineResponse;
 import com.impati.commerce.common.ApiContracts.StorefrontCartResponse;
 import com.impati.commerce.storefront.application.model.CartPage;
@@ -27,7 +28,10 @@ final class CartPageResponseMapper {
             return null;
         }
         var lines = quote.lines().stream().map(CartPageResponseMapper::priceLine).toList();
-        return new PurchaseQuoteResponse(quote.id(), quote.cartVersion(), lines, quote.total());
+        var priceBreakdown = quote.priceBreakdown();
+        return new PurchaseQuoteResponse(quote.id(), quote.cartVersion(), lines, quote.total(),
+                new PriceBreakdownResponse(priceBreakdown.productAmount(), priceBreakdown.shippingFee(),
+                        priceBreakdown.totalAmount()));
     }
 
     private static PurchaseQuoteLineResponse priceLine(CartPage.PriceLine line) {
