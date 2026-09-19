@@ -54,6 +54,7 @@ public class JdbcShipmentRepository implements ShipmentRepository {
             """;
 
     private static final String SELECT_BY_ID = "select " + COLUMNS + " from shipments where id = :id";
+    private static final String SELECT_BY_ID_FOR_UPDATE = SELECT_BY_ID + " for update";
     private static final String SELECT_BY_ORDER = "select " + COLUMNS + " from shipments where order_id = :order_id";
     private static final String SELECT_ALL = "select " + COLUMNS + " from shipments";
 
@@ -105,6 +106,14 @@ public class JdbcShipmentRepository implements ShipmentRepository {
     @Transactional(readOnly = true)
     public Optional<Shipment> findById(String shipmentId) {
         return jdbc.query(SELECT_BY_ID, new MapSqlParameterSource("id", shipmentId), ROW_MAPPER)
+                .stream()
+                .findFirst();
+    }
+
+    @Override
+    @Transactional
+    public Optional<Shipment> findByIdForUpdate(String shipmentId) {
+        return jdbc.query(SELECT_BY_ID_FOR_UPDATE, new MapSqlParameterSource("id", shipmentId), ROW_MAPPER)
                 .stream()
                 .findFirst();
     }

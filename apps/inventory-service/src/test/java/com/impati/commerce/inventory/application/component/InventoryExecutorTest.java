@@ -71,6 +71,41 @@ class InventoryExecutorTest {
         assertThat(stockOf(skuId).reserved()).isZero();
     }
 
+    /** [PD-0024-R6][PD-0024-R7] 확정 재고 복원은 전체 수량을 정확히 한 번 되돌린다. */
+    @Test
+    void restoresCommittedReservationOnlyOnce() {
+        var skuId = "sku_restore_committed";
+        inventoryUseCase.addStock(skuId, 10);
+        var reservation = inventoryUseCase.reserve("ord_restore_committed", List.of(new StockLine(skuId, 3)));
+        inventoryUseCase.commit(reservation.id());
+
+        var first = inventoryUseCase.restore(reservation.id());
+        var second = inventoryUseCase.restore(reservation.id());
+
+        assertThat(first.status()).isEqualTo("RESTORED");
+        assertThat(second).isEqualTo(first);
+        assertThat(stockOf(skuId).onHand()).isEqualTo(10);
+        assertThat(stockOf(skuId).reserved()).isZero();
+    }
+
+    /** [PD-0024-R6] 아직 확정되지 않았거나 해제된 예약은 판매 재고 복원 대상이 아니다. */
+    @Test
+    void rejectsRestoreUnlessReservationWasCommitted() {
+        var skuId = "sku_restore_rejected";
+        inventoryUseCase.addStock(skuId, 10);
+        var reserved = inventoryUseCase.reserve("ord_restore_reserved", List.of(new StockLine(skuId, 2)));
+
+        assertThatThrownBy(() -> inventoryUseCase.restore(reserved.id()))
+                .isInstanceOfSatisfying(DomainException.class,
+                        failure -> assertThat(failure.code()).isEqualTo("conflict"));
+
+        var released = inventoryUseCase.reserve("ord_restore_released", List.of(new StockLine(skuId, 2)));
+        inventoryUseCase.release(released.id());
+        assertThatThrownBy(() -> inventoryUseCase.restore(released.id()))
+                .isInstanceOfSatisfying(DomainException.class,
+                        failure -> assertThat(failure.code()).isEqualTo("conflict"));
+    }
+
     @Test
     void repeatingAReservationWithDifferentLinesIsRejected() {
         var skuId = "sku_changed_reservation";

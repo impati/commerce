@@ -15,6 +15,8 @@ public interface ShipmentRepository {
 
     Optional<Shipment> findById(String shipmentId);
 
+    Optional<Shipment> findByIdForUpdate(String shipmentId);
+
     Optional<Shipment> findByOrderId(String orderId);
 
     Collection<Shipment> findAll();

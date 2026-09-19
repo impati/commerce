@@ -12,6 +12,8 @@ public interface InventoryUseCase {
 
     ReservationDetails release(String reservationId);
 
+    ReservationDetails restore(String reservationId);
+
     ReservationDetails reservationForOrder(String orderId);
 
     List<StockDetails> stock();

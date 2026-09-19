@@ -54,6 +54,11 @@ public class InternalInventoryController {
         return InventoryResponseMapper.from(inventoryUseCase.release(reservationId));
     }
 
+    @PostMapping("/reservations/{reservationId}/restore")
+    ReservationResponse restore(@PathVariable String reservationId) {
+        return InventoryResponseMapper.from(inventoryUseCase.restore(reservationId));
+    }
+
     @GetMapping("/reservations/orders/{orderId}")
     ReservationResponse reservationForOrder(@PathVariable String orderId) {
         return InventoryResponseMapper.from(inventoryUseCase.reservationForOrder(orderId));

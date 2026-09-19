@@ -86,6 +86,14 @@ public final class InventoryModels {
             }
             reserved -= quantity;
         }
+
+        /** [PD-0024-R6] 확정된 판매를 취소해 보유 수량으로 되돌린다. */
+        public void restore(int quantity) {
+            if (quantity <= 0) {
+                throw DomainException.validation("restored stock quantity must be positive");
+            }
+            onHand += quantity;
+        }
     }
 
     public static final class Reservation {
@@ -147,6 +155,17 @@ public final class InventoryModels {
             }
             ensureReserved();
             status = "RELEASED";
+        }
+
+        /** [PD-0024-R6][PD-0024-R7] 확정된 예약만 한 번 복원한다. */
+        public void restore() {
+            if (status.equals("RESTORED")) {
+                return;
+            }
+            if (!status.equals("COMMITTED")) {
+                throw DomainException.conflict("only committed reservation can be restored");
+            }
+            status = "RESTORED";
         }
 
         private void ensureReserved() {

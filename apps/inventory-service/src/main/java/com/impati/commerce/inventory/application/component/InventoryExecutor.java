@@ -119,6 +119,28 @@ public class InventoryExecutor implements InventoryUseCase {
         return InventoryMapper.toDetails(reservation);
     }
 
+    @Transactional
+    @Override
+    public ReservationDetails restore(String reservationId) {
+        var reservation = inventoryRepository.findReservationForUpdate(reservationId)
+                .orElseThrow(() -> DomainException.notFound("reservation not found"));
+        if (reservation.status().equals("RESTORED")) {
+            return InventoryMapper.toDetails(reservation);
+        }
+        if (!reservation.status().equals("COMMITTED")) {
+            throw DomainException.conflict("only committed reservation can be restored");
+        }
+        var locked = lockFor(reservation.lines());
+        for (var line : reservation.lines()) {
+            var stock = requireStock(locked, line.skuId());
+            stock.restore(line.quantity());
+            inventoryRepository.saveStock(stock);
+        }
+        reservation.restore();
+        inventoryRepository.saveReservation(reservation);
+        return InventoryMapper.toDetails(reservation);
+    }
+
     @Transactional(readOnly = true)
     @Override
     public List<StockDetails> stock() {

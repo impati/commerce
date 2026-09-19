@@ -13,6 +13,11 @@ import org.springframework.boot.test.context.SpringBootTest;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+
 /**
  * 배송 상태 전이 규칙을 고정한다 (PD-0013).
  *
@@ -137,6 +142,47 @@ class ShippingExecutorTest {
         var shipment = create("ord_direct_deliver");
 
         assertThat(shippingUseCase.deliver(shipment.id()).status()).isEqualTo("DELIVERED");
+    }
+
+    /** [PD-0024-R3] 출고와 취소가 겹치면 저장소에서 먼저 확정된 전이 하나만 성공한다. */
+    @Test
+    void shippingAndCancellationRaceHasOneWinner() throws Exception {
+        var shipment = create("ord_ship_cancel_race");
+        var start = new CountDownLatch(1);
+        var executor = Executors.newFixedThreadPool(2);
+        try {
+            var results = List.of(
+                    executor.submit(() -> transition(start, () -> shippingUseCase.ship(shipment.id()))),
+                    executor.submit(() -> transition(start, () -> shippingUseCase.cancel(shipment.id())))
+            );
+            start.countDown();
+
+            var outcomes = results.stream().map(future -> {
+                try {
+                    return future.get(10, TimeUnit.SECONDS);
+                } catch (Exception failure) {
+                    throw new RuntimeException(failure);
+                }
+            }).toList();
+
+            assertThat(outcomes).containsExactlyInAnyOrder("SUCCEEDED", "CONFLICT");
+            assertThat(shippingUseCase.get(shipment.id()).status()).isIn("IN_TRANSIT", "CANCELLED");
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    private static String transition(CountDownLatch start, Runnable action) {
+        try {
+            start.await();
+            action.run();
+            return "SUCCEEDED";
+        } catch (DomainException conflict) {
+            return conflict.code().equals("conflict") ? "CONFLICT" : conflict.code();
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(interrupted);
+        }
     }
 
     private ShipmentDetails create(String orderId) {
