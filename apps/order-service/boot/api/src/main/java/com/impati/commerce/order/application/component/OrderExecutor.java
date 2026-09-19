@@ -130,7 +130,7 @@ public class OrderExecutor implements OrderUseCase {
                 PurchasePricing.quoteId(memberId, cart.version(), lines),
                 cart.version(),
                 quoteLines,
-                PurchasePricing.total(lines)
+                OrderMapper.toDetails(PurchasePricing.priceBreakdown(lines))
         );
     }
 

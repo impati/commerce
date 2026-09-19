@@ -4,6 +4,7 @@ import com.impati.commerce.common.ApiContracts.AddressResponse;
 import com.impati.commerce.common.ApiContracts.CheckoutResponse;
 import com.impati.commerce.common.ApiContracts.OrderLineResponse;
 import com.impati.commerce.common.ApiContracts.OrderResponse;
+import com.impati.commerce.common.ApiContracts.PriceBreakdownResponse;
 import com.impati.commerce.order.application.model.CheckoutResult;
 import com.impati.commerce.order.application.model.OrderAddress;
 import com.impati.commerce.order.application.model.OrderDetails;
@@ -30,6 +31,7 @@ final class OrderResponseMapper {
                 order.status(),
                 order.lines().stream().map(OrderResponseMapper::from).toList(),
                 order.total(),
+                priceBreakdown(order),
                 from(order.shippingAddress()),
                 order.paymentId(),
                 order.shipmentId(),
@@ -38,6 +40,12 @@ final class OrderResponseMapper {
                 order.paymentCleanupStatus(),
                 order.failureCode()
         );
+    }
+
+    private static PriceBreakdownResponse priceBreakdown(OrderDetails order) {
+        var priceBreakdown = order.priceBreakdown();
+        return new PriceBreakdownResponse(
+                priceBreakdown.productAmount(), priceBreakdown.shippingFee(), priceBreakdown.totalAmount());
     }
 
     private static OrderLineResponse from(OrderLineDetails line) {

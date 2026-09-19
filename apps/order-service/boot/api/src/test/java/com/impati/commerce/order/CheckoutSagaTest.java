@@ -77,7 +77,10 @@ class CheckoutSagaTest {
     private static final String PAYMENT_ID = "pay_seed";
     private static final String SHIPMENT_ID = "shp_seed";
     private static final int QUANTITY = 2;
-    private static final long UNIT_PRICE = 29_000L;
+    private static final long UNIT_PRICE = 20_000L;
+    private static final long PRODUCT_AMOUNT = UNIT_PRICE * QUANTITY;
+    private static final long SHIPPING_FEE = 3_000L;
+    private static final long TOTAL_AMOUNT = PRODUCT_AMOUNT + SHIPPING_FEE;
     private static final long CART_VERSION = 7L;
 
     @TestConfiguration
@@ -141,6 +144,10 @@ class CheckoutSagaTest {
                 .andExpect(jsonPath("$.order.checkoutStatus").value("SUCCEEDED"))
                 .andExpect(jsonPath("$.order.status").value("FULFILLING"))
                 .andExpect(jsonPath("$.order.paymentId").value(PAYMENT_ID))
+                .andExpect(jsonPath("$.order.total.amount").value(TOTAL_AMOUNT))
+                .andExpect(jsonPath("$.order.priceBreakdown.productAmount.amount").value(PRODUCT_AMOUNT))
+                .andExpect(jsonPath("$.order.priceBreakdown.shippingFee.amount").value(SHIPPING_FEE))
+                .andExpect(jsonPath("$.order.priceBreakdown.totalAmount.amount").value(TOTAL_AMOUNT))
                 .andReturn();
         var acceptedOrderId = objectMapper.readTree(first.getResponse().getContentAsString())
                 .path("order").path("id").asText();
@@ -340,7 +347,10 @@ class CheckoutSagaTest {
                 .header("X-Member-Id", MEMBER_ID).param("cartVersion", String.valueOf(CART_VERSION)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(confirmedQuoteId()))
-                .andExpect(jsonPath("$.total.amount").value(UNIT_PRICE * QUANTITY));
+                .andExpect(jsonPath("$.total.amount").value(TOTAL_AMOUNT))
+                .andExpect(jsonPath("$.priceBreakdown.productAmount.amount").value(PRODUCT_AMOUNT))
+                .andExpect(jsonPath("$.priceBreakdown.shippingFee.amount").value(SHIPPING_FEE))
+                .andExpect(jsonPath("$.priceBreakdown.totalAmount.amount").value(TOTAL_AMOUNT));
         assertThat(jdbc.queryForObject("select count(*) from orders", Integer.class)).isZero();
     }
 
@@ -449,6 +459,7 @@ class CheckoutSagaTest {
                     var body = readBody(request, AuthorizePaymentRequest.class);
                     assertThat(body.orderId()).isEqualTo(orderId.get());
                     assertThat(body.paymentToken()).isEqualTo(token);
+                    assertThat(body.amount()).isEqualTo(Money.krw(TOTAL_AMOUNT));
                     return withSuccess(json(payment("AUTHORIZED")), MediaType.APPLICATION_JSON)
                             .createResponse(request);
                 });
@@ -554,7 +565,7 @@ class CheckoutSagaTest {
 
     private PaymentResponse payment(String paymentStatus) {
         return new PaymentResponse(PAYMENT_ID, orderId.get(), MEMBER_ID,
-                Money.krw(UNIT_PRICE * QUANTITY), "CARD", paymentStatus);
+                Money.krw(TOTAL_AMOUNT), "CARD", paymentStatus);
     }
 
     private ShipmentResponse shipment(String shipmentStatus) {

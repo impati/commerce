@@ -4,6 +4,10 @@ import com.impati.commerce.common.ApiContracts.Money;
 import java.time.OffsetDateTime;
 
 public record OrderSummary(String id, OffsetDateTime orderedAt, String representativeProductName,
-        String representativeSkuName, int additionalProductCount, int totalQuantity, Money total,
+        String representativeSkuName, int additionalProductCount, int totalQuantity,
+        PriceBreakdownDetails priceBreakdown,
         String checkoutResult, String orderStatus) {
+    public Money total() {
+        return priceBreakdown.totalAmount();
+    }
 }

@@ -4,10 +4,12 @@ import com.impati.commerce.common.ApiContracts.AddressResponse;
 import com.impati.commerce.order.application.model.OrderAddress;
 import com.impati.commerce.order.application.model.OrderDetails;
 import com.impati.commerce.order.application.model.OrderLineDetails;
+import com.impati.commerce.order.application.model.PriceBreakdownDetails;
 import com.impati.commerce.order.domain.OrderModels.Address;
 import com.impati.commerce.order.domain.OrderModels.Order;
 import com.impati.commerce.order.domain.OrderModels.OrderLine;
 import com.impati.commerce.order.domain.CheckoutProgress;
+import com.impati.commerce.order.domain.PriceBreakdown;
 
 /**
  * 도메인 모델을 유스케이스 결과로 옮긴다. 도메인은 결과 타입을 모른다.
@@ -59,7 +61,7 @@ final class OrderMapper {
                 order.memberId(),
                 order.status(),
                 order.lines().stream().map(OrderMapper::toDetails).toList(),
-                order.total(),
+                toDetails(order.priceBreakdown()),
                 new OrderAddress(
                         address.id(),
                         address.alias(),
@@ -88,6 +90,14 @@ final class OrderMapper {
                 line.quantity(),
                 line.unitPrice(),
                 line.lineTotal()
+        );
+    }
+
+    static PriceBreakdownDetails toDetails(PriceBreakdown priceBreakdown) {
+        return new PriceBreakdownDetails(
+                priceBreakdown.productAmount(),
+                priceBreakdown.shippingFee(),
+                priceBreakdown.totalAmount()
         );
     }
 }

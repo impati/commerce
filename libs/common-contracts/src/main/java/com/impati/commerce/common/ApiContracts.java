@@ -20,6 +20,13 @@ public final class ApiContracts {
         }
     }
 
+    /** 주문 견적과 주문 조회가 제공하는 확정 금액 구성. */
+    public record PriceBreakdownResponse(Money productAmount, Money shippingFee, Money totalAmount) {
+        public static PriceBreakdownResponse productOnly(Money total) {
+            return new PriceBreakdownResponse(total, new Money(0, total.currency()), total);
+        }
+    }
+
     public record ErrorResponse(String code, String message) {
     }
 
@@ -276,6 +283,7 @@ public final class ApiContracts {
             String status,
             List<OrderLineResponse> lines,
             Money total,
+            PriceBreakdownResponse priceBreakdown,
             AddressResponse shippingAddress,
             String paymentId,
             String shipmentId,
@@ -295,8 +303,8 @@ public final class ApiContracts {
                 String shipmentId,
                 String inventoryReservationId
         ) {
-            this(id, memberId, status, lines, total, shippingAddress, paymentId, shipmentId,
-                    inventoryReservationId, null, null, null);
+            this(id, memberId, status, lines, total, PriceBreakdownResponse.productOnly(total), shippingAddress,
+                    paymentId, shipmentId, inventoryReservationId, null, null, null);
         }
     }
 
@@ -305,8 +313,12 @@ public final class ApiContracts {
             String id,
             long cartVersion,
             List<PurchaseQuoteLineResponse> lines,
-            Money total
+            Money total,
+            PriceBreakdownResponse priceBreakdown
     ) {
+        public PurchaseQuoteResponse(String id, long cartVersion, List<PurchaseQuoteLineResponse> lines, Money total) {
+            this(id, cartVersion, lines, total, PriceBreakdownResponse.productOnly(total));
+        }
     }
 
     public record PurchaseQuoteLineResponse(
@@ -353,7 +365,7 @@ public final class ApiContracts {
     /** GET /orders — 고객용 주문 목록 요약. 체크아웃 내부 식별자와 복구 정보는 포함하지 않는다. */
     public record OrderSummaryResponse(String id, OffsetDateTime orderedAt, String representativeProductName,
             String representativeSkuName, int additionalProductCount, int totalQuantity, Money total,
-            String checkoutResult, String orderStatus) { }
+            PriceBreakdownResponse priceBreakdown, String checkoutResult, String orderStatus) { }
 
     /** GET /orders — nextCursor가 null이면 마지막 페이지다. */
     public record OrderPageResponse(List<OrderSummaryResponse> items, String nextCursor) { }
@@ -367,7 +379,8 @@ public final class ApiContracts {
 
     /** GET /orders/{orderId} — 기존 체크아웃 응답과 별개인 고객용 주문 상세. */
     public record OrderDetailResponse(String id, OffsetDateTime orderedAt, String checkoutResult, String orderStatus,
-            List<OrderLineResponse> lines, Money total, OrderShippingAddressResponse shippingAddress,
+            List<OrderLineResponse> lines, Money total, PriceBreakdownResponse priceBreakdown,
+            OrderShippingAddressResponse shippingAddress,
             String trackingNumber, List<OrderTimelineResponse> timeline) { }
 
     /**

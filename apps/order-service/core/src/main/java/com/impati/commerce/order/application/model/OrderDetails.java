@@ -1,7 +1,6 @@
 package com.impati.commerce.order.application.model;
 
 import com.impati.commerce.common.ApiContracts.Money;
-
 import java.util.List;
 
 /**
@@ -15,7 +14,7 @@ public record OrderDetails(
         String memberId,
         String status,
         List<OrderLineDetails> lines,
-        Money total,
+        PriceBreakdownDetails priceBreakdown,
         OrderAddress shippingAddress,
         String paymentId,
         String shipmentId,
@@ -24,4 +23,7 @@ public record OrderDetails(
         String paymentCleanupStatus,
         String failureCode
 ) {
+    public Money total() {
+        return priceBreakdown.totalAmount();
+    }
 }

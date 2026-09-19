@@ -66,7 +66,7 @@ public class OrderHistoryExecutor implements OrderHistoryUseCase {
                 .reduce((first, last) -> last).orElse(null);
         var details = OrderMapper.toDetails(order);
         return new OrderHistoryDetail(order.id(), order.createdAt().atOffset(ZoneOffset.UTC), state,
-                customerOrderStatus(order, state), details.lines(), order.total(), details.shippingAddress(),
+                customerOrderStatus(order, state), details.lines(), details.priceBreakdown(), details.shippingAddress(),
                 trackingNumber, timeline);
     }
 
@@ -76,7 +76,8 @@ public class OrderHistoryExecutor implements OrderHistoryUseCase {
         var quantity = order.lines().stream().mapToInt(line -> line.quantity()).sum();
         var state = customerState(order, progress);
         return new OrderSummary(order.id(), order.createdAt().atOffset(ZoneOffset.UTC), representative.productName(),
-                representative.skuName(), additional, quantity, order.total(), state, customerOrderStatus(order, state));
+                representative.skuName(), additional, quantity, OrderMapper.toDetails(order.priceBreakdown()), state,
+                customerOrderStatus(order, state));
     }
 
     private static String customerState(Order order, CheckoutProgress progress) {

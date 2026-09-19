@@ -102,7 +102,7 @@ class OrderHistoryTest {
         var created = Instant.parse("2026-09-16T03:00:00.123456Z");
         var order = save(unique("ord"), member, created, "Snapshot product");
         // 복원한 주문도 주입된 시계로 실제 전이 시각을 기록해야 한다.
-        order = Order.restore(order.id(), member, order.lines(), order.shippingAddress(), order.status(),
+        order = Order.restore(order.id(), member, order.lines(), order.priceBreakdown(), order.shippingAddress(), order.status(),
                 null, null, null, order.createdAt(), Clock.fixed(created.plusSeconds(60), ZoneOffset.UTC));
         order.attachReservation("rsv_private"); order.attachPayment("pay_private"); order.markPaid();
         order.attachShipment("shp_private", "TRK-visible"); orderChanges.commit(order);
@@ -115,6 +115,10 @@ class OrderHistoryTest {
                 .andExpect(jsonPath("$.lines[0].productName").value("Snapshot product"))
                 .andExpect(jsonPath("$.lines[0].quantity").value(2))
                 .andExpect(jsonPath("$.lines[0].lineTotal.amount").value(20_000))
+                .andExpect(jsonPath("$.priceBreakdown.productAmount.amount").value(25_000))
+                .andExpect(jsonPath("$.priceBreakdown.shippingFee.amount").value(3_000))
+                .andExpect(jsonPath("$.priceBreakdown.totalAmount.amount").value(28_000))
+                .andExpect(jsonPath("$.total.amount").value(28_000))
                 .andExpect(jsonPath("$.shippingAddress.recipient").value("Snapshot Recipient"))
                 .andExpect(jsonPath("$.trackingNumber").value("TRK-visible"))
                 .andExpect(jsonPath("$.timeline[0].type").value("ORDER_CREATED"))
@@ -132,9 +136,12 @@ class OrderHistoryTest {
         mockMvc.perform(get("/orders").header("X-Member-Id", member))
                 .andExpect(jsonPath("$.items[0].totalQuantity").value(3))
                 .andExpect(jsonPath("$.items[0].additionalProductCount").value(1))
-                .andExpect(jsonPath("$.items[0].total.amount").value(25_000));
+                .andExpect(jsonPath("$.items[0].priceBreakdown.productAmount.amount").value(25_000))
+                .andExpect(jsonPath("$.items[0].priceBreakdown.shippingFee.amount").value(3_000))
+                .andExpect(jsonPath("$.items[0].priceBreakdown.totalAmount.amount").value(28_000))
+                .andExpect(jsonPath("$.items[0].total.amount").value(28_000));
 
-        order = Order.restore(order.id(), member, order.lines(), order.shippingAddress(), order.status(),
+        order = Order.restore(order.id(), member, order.lines(), order.priceBreakdown(), order.shippingAddress(), order.status(),
                 order.paymentId(), order.shipmentId(), order.inventoryReservationId(), order.createdAt(),
                 Clock.fixed(created.plusSeconds(120), ZoneOffset.UTC));
         order.markDelivered();

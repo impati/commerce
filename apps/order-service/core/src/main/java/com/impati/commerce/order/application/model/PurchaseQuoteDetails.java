@@ -7,8 +7,12 @@ public record PurchaseQuoteDetails(
         String id,
         long cartVersion,
         List<Line> lines,
-        Money total
+        PriceBreakdownDetails priceBreakdown
 ) {
+    public Money total() {
+        return priceBreakdown.totalAmount();
+    }
+
     public record Line(
             String skuId,
             int quantity,
