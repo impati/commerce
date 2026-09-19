@@ -77,8 +77,8 @@ test('sets another address as default with the viewed version', async () => {
   expect(api.setDefaultAddress).toHaveBeenCalledWith('b', 4);
 });
 
-// [PD-0022-R4] 충돌은 입력을 보존하고 최신 목록을 표시하며 자동 재적용하지 않는다.
-test('retains the input and reloads after a version conflict without retrying the mutation', async () => {
+// [PD-0022-R4, PD-0022-R10] 충돌은 최신 목록으로 입력을 초기화하며 자동 재적용하지 않는다.
+test('resets the input after a version conflict without retrying the mutation', async () => {
   await open();
   fill();
   vi.mocked(api.addAddress).mockRejectedValue(new ApiError(409, '주소록이 변경됐습니다.', 'address_book_changed'));
@@ -86,8 +86,62 @@ test('retains the input and reloads after a version conflict without retrying th
   fireEvent.click(screen.getByRole('button', { name: '배송지 저장' }));
   await screen.findByText('주소록이 변경됐습니다.');
   expect(screen.getByRole('heading', { name: '변경된 집 · 기본 배송지' })).toBeInTheDocument();
-  expect(screen.getByRole('textbox', { name: '별칭' })).toHaveValue('회사');
+  expect(screen.getByRole('textbox', { name: '별칭' })).toHaveValue('');
   expect(api.addAddress).toHaveBeenCalledTimes(1);
+});
+
+// [PD-0022-R10] 다른 곳의 주소록 변경은 편집 중인 배송지를 서버 최신 값으로 초기화한다.
+test('resets an edited address to the latest values after an external book change', async () => {
+  const latest = { ...member, addressBookVersion: 5,
+    addresses: [{ ...address, recipient: '다른 탭 수령인', line1: '다른 탭 주소' }] };
+  vi.mocked(api.me).mockResolvedValueOnce(member).mockResolvedValueOnce(latest);
+  await open();
+  fireEvent.click(screen.getByRole('button', { name: '집 수정' }));
+  fill();
+  window.dispatchEvent(new StorageEvent('storage', { key: `impati.address-change.${member.id}.external` }));
+  await screen.findByText('다른 곳에서 주소록이 변경되어 작성 중인 입력을 최신 내용으로 초기화했습니다.');
+  expect(screen.getByRole('textbox', { name: '수령인' })).toHaveValue('다른 탭 수령인');
+  expect(screen.getByRole('textbox', { name: '주소' })).toHaveValue('다른 탭 주소');
+  expect(screen.getByRole('heading', { name: '배송지 수정' })).toBeInTheDocument();
+});
+
+// [PD-0022-R10] 편집 대상이 삭제됐으면 편집을 끝내고 새 배송지 입력으로 돌아간다.
+test('ends editing when an external book change deletes the edited address', async () => {
+  vi.mocked(api.me).mockResolvedValueOnce(member).mockResolvedValueOnce({
+    ...member, addressBookVersion: 5, addresses: []
+  });
+  await open();
+  fireEvent.click(screen.getByRole('button', { name: '집 수정' }));
+  window.dispatchEvent(new StorageEvent('storage', { key: `impati.address-change.${member.id}.external` }));
+  await screen.findByText('다른 곳에서 주소록이 변경되어 작성 중인 입력을 최신 내용으로 초기화했습니다.');
+  expect(screen.getByRole('heading', { name: '배송지 추가' })).toBeInTheDocument();
+  expect(screen.getByRole('textbox', { name: '별칭' })).toHaveValue('');
+});
+
+// [PD-0022-R10] 새 배송지 초안도 주소록 갱신 시 버리고 최신 목록을 기준으로 다시 작성한다.
+test('clears a new-address draft after an external book change', async () => {
+  vi.mocked(api.me).mockResolvedValueOnce(member).mockResolvedValueOnce({
+    ...member, addressBookVersion: 5, addresses: [address]
+  });
+  await open();
+  fill();
+  window.dispatchEvent(new StorageEvent('storage', { key: `impati.address-change.${member.id}.external` }));
+  await screen.findByText('다른 곳에서 주소록이 변경되어 작성 중인 입력을 최신 내용으로 초기화했습니다.');
+  expect(screen.getByRole('textbox', { name: '별칭' })).toHaveValue('');
+});
+
+// [PD-0022-R10] 같은 화면의 다른 관리 조작도 입력을 초기화하고 그 사실을 알린다.
+test('clears a draft and explains the reset after setting another default address', async () => {
+  const second = { ...address, id: 'b', alias: '회사', defaultAddress: false };
+  vi.mocked(api.me).mockResolvedValueOnce({ ...member, addresses: [address, second] }).mockResolvedValueOnce({
+    ...member, addressBookVersion: 5,
+    addresses: [{ ...address, defaultAddress: false }, { ...second, defaultAddress: true }]
+  });
+  await open();
+  fill();
+  fireEvent.click(screen.getByRole('button', { name: '회사 기본 지정' }));
+  await screen.findByText('기본 배송지를 지정했습니다. 작성 중인 입력은 최신 주소록에 맞춰 초기화했습니다.');
+  expect(screen.getByRole('textbox', { name: '별칭' })).toHaveValue('');
 });
 
 // [PD-0022-R9] 결과 미확인과 조회 실패 동안 입력을 보존하고 조작을 잠근다.

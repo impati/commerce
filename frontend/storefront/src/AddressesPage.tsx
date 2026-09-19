@@ -30,8 +30,27 @@ export function AddressesPage() {
   const operation = useRef(false);
   const generation = useRef(0);
   const clearDraftAfterCheck = useRef(false);
+  const loadedMemberId = useRef<string | null>(null);
+  const loadedBookVersion = useRef<number | null>(null);
+  const editingIdRef = useRef<string | null>(null);
 
-  async function reload(expectedMemberId?: string): Promise<boolean> {
+  function clearEditor() {
+    editingIdRef.current = null;
+    setEditingId(null);
+    setDraft(emptyAddress);
+  }
+
+  function resetEditorFrom(latest: Member) {
+    const edited = latest.addresses.find(address => address.id === editingIdRef.current);
+    if (!edited) {
+      clearEditor();
+      return;
+    }
+    setDraft({ alias: edited.alias, recipient: edited.recipient, phone: edited.phone,
+      line1: edited.line1, city: edited.city, postalCode: edited.postalCode, defaultAddress: false });
+  }
+
+  async function reload(expectedMemberId?: string, announceRefresh = false): Promise<boolean> {
     const request = ++generation.current;
     setLoading(true);
     try {
@@ -42,16 +61,26 @@ export function AddressesPage() {
       if (expectedMemberId && latest.id !== expectedMemberId) {
         session.clear();
         setMember(null);
-        setDraft(emptyAddress);
-        setEditingId(null);
+        clearEditor();
+        loadedMemberId.current = null;
+        loadedBookVersion.current = null;
         setError('로그인 계정이 변경됐습니다. 쇼핑 화면에서 다시 로그인해주세요.');
         return false;
       }
+      const bookChanged = loadedMemberId.current === latest.id
+        && loadedBookVersion.current !== null
+        && loadedBookVersion.current !== latest.addressBookVersion;
+      loadedMemberId.current = latest.id;
+      loadedBookVersion.current = latest.addressBookVersion;
       setMember(latest);
       if (clearDraftAfterCheck.current) {
-        setDraft(emptyAddress);
-        setEditingId(null);
+        clearEditor();
         clearDraftAfterCheck.current = false;
+      } else if (bookChanged) {
+        resetEditorFrom(latest);
+        if (announceRefresh) {
+          setNotice('다른 곳에서 주소록이 변경되어 작성 중인 입력을 최신 내용으로 초기화했습니다.');
+        }
       }
       session.finishAddressCheck(latest.id);
       const pending = session.addressChangePending(latest.id);
@@ -68,8 +97,9 @@ export function AddressesPage() {
       if (problem instanceof UnauthorizedError) {
         session.clear();
         setMember(null);
-        setDraft(emptyAddress);
-        setEditingId(null);
+        clearEditor();
+        loadedMemberId.current = null;
+        loadedBookVersion.current = null;
         setError('배송지를 관리하려면 로그인해주세요.');
       } else {
         setError('배송지 목록을 확인하지 못했습니다. 다시 조회해주세요.');
@@ -104,7 +134,7 @@ export function AddressesPage() {
       if (session.addressChangeInFlight(memberId)) {
         setError('다른 요청의 배송지 저장 결과를 확인 중입니다. 완료 후 다시 조회해주세요.');
       } else {
-        void reload(memberId);
+        void reload(memberId, true);
       }
     }
     window.addEventListener('storage', storageChange);
@@ -120,7 +150,7 @@ export function AddressesPage() {
     }
   }
 
-  async function mutate(command: () => Promise<unknown>, success: string) {
+  async function mutate(command: () => Promise<unknown>, success: string, announceDraftReset = false) {
     if (!member || operation.current || loading || unavailable || session.addressChangePending(member.id)) {
       return;
     }
@@ -130,6 +160,9 @@ export function AddressesPage() {
     setError('');
     setNotice('');
     const changeKey = session.beginAddressChange(memberId, addressRequestTimeoutMs);
+    const hadDraft = editingIdRef.current !== null
+      || addressFields.some(field => draft[field.key].length > 0)
+      || draft.defaultAddress;
     let saved = false;
     let message = '';
     try {
@@ -144,8 +177,9 @@ export function AddressesPage() {
       if (problem instanceof UnauthorizedError) {
         session.clear();
         setMember(null);
-        setDraft(emptyAddress);
-        setEditingId(null);
+        clearEditor();
+        loadedMemberId.current = null;
+        loadedBookVersion.current = null;
         setError('세션이 만료됐습니다. 다시 로그인해주세요.');
         return;
       }
@@ -158,8 +192,10 @@ export function AddressesPage() {
       if (active.current) {
         const checked = await reload(memberId);
         if (saved && checked) {
-          setDraft(emptyAddress);
-          setEditingId(null);
+          clearEditor();
+          if (announceDraftReset && hadDraft) {
+            message += ' 작성 중인 입력은 최신 주소록에 맞춰 초기화했습니다.';
+          }
         }
         setNotice(checked ? message : `${message} 배송지 목록을 다시 조회해주세요.`);
         setBusy(false);
@@ -169,6 +205,7 @@ export function AddressesPage() {
   }
 
   function edit(address: AddressChoice) {
+    editingIdRef.current = address.id;
     setEditingId(address.id);
     setDraft({ alias: address.alias, recipient: address.recipient, phone: address.phone,
       line1: address.line1, city: address.city, postalCode: address.postalCode, defaultAddress: false });
@@ -214,9 +251,9 @@ export function AddressesPage() {
           <div className="address-actions">
             <button type="button" disabled={locked} onClick={() => edit(address)} aria-label={`${address.alias} 수정`}>수정</button>
             <button type="button" disabled={locked} aria-label={`${address.alias} 삭제`}
-              onClick={() => void mutate(() => api.removeAddress(address.id, member.addressBookVersion), '배송지를 삭제했습니다.')}>삭제</button>
+              onClick={() => void mutate(() => api.removeAddress(address.id, member.addressBookVersion), '배송지를 삭제했습니다.', true)}>삭제</button>
             {!address.defaultAddress && <button type="button" disabled={locked} aria-label={`${address.alias} 기본 지정`}
-              onClick={() => void mutate(() => api.setDefaultAddress(address.id, member.addressBookVersion), '기본 배송지를 지정했습니다.')}>기본 지정</button>}
+              onClick={() => void mutate(() => api.setDefaultAddress(address.id, member.addressBookVersion), '기본 배송지를 지정했습니다.', true)}>기본 지정</button>}
           </div>
         </article>)}
       </section>
@@ -231,7 +268,7 @@ export function AddressesPage() {
           {!editingId && <label className="address-checkbox"><input type="checkbox" checked={draft.defaultAddress}
             onChange={event => setDraft(current => ({ ...current, defaultAddress: event.target.checked }))} />기본 배송지로 지정</label>}
           <div className="address-actions"><button type="submit">{busy ? '저장 결과 확인 중' : '배송지 저장'}</button>
-            {editingId && <button type="button" onClick={() => { setEditingId(null); setDraft(emptyAddress); }}>수정 취소</button>}
+            {editingId && <button type="button" onClick={clearEditor}>수정 취소</button>}
           </div>
         </fieldset>
       </form>
