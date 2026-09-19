@@ -2,8 +2,6 @@ package com.impati.commerce.gateway.adapter.in.web;
 
 import com.impati.commerce.common.ApiContracts.AccessTokenResponse;
 import com.impati.commerce.common.ApiContracts.AddAddressRequest;
-import com.impati.commerce.common.ApiContracts.UpdateAddressRequest;
-import com.impati.commerce.common.ApiContracts.SetDefaultAddressRequest;
 import com.impati.commerce.common.ApiContracts.AddressResponse;
 import com.impati.commerce.common.ApiContracts.CartItemRequest;
 import com.impati.commerce.common.ApiContracts.CartResponse;
@@ -18,9 +16,11 @@ import com.impati.commerce.common.ApiContracts.OrderDetailResponse;
 import com.impati.commerce.common.ApiContracts.OrderPageResponse;
 import com.impati.commerce.common.ApiContracts.ProductResponse;
 import com.impati.commerce.common.ApiContracts.RegisterMemberRequest;
+import com.impati.commerce.common.ApiContracts.SetDefaultAddressRequest;
 import com.impati.commerce.common.ApiContracts.ShipmentResponse;
 import com.impati.commerce.common.ApiContracts.StockResponse;
 import com.impati.commerce.common.ApiContracts.StorefrontCartResponse;
+import com.impati.commerce.common.ApiContracts.UpdateAddressRequest;
 import com.impati.commerce.common.ApiContracts.VerifyEmailRequest;
 import com.impati.commerce.gateway.adapter.out.client.GatewayClients;
 import com.impati.commerce.gateway.support.MemberIdentity;
@@ -151,19 +151,25 @@ public class GatewayController {
 
     @PutMapping("/me/addresses/{addressId}")
     MemberResponse updateAddress(@RequestHeader(value = "Authorization", required = false) String authorization,
-                                 @PathVariable String addressId, @RequestBody UpdateAddressRequest request) {
+                                 @PathVariable String addressId,
+                                 @RequestBody UpdateAddressRequest request
+    ) {
         return clients.updateAddress(identity.require(authorization), addressId, request);
     }
 
     @DeleteMapping("/me/addresses/{addressId}")
     MemberResponse removeAddress(@RequestHeader(value = "Authorization", required = false) String authorization,
-                                 @PathVariable String addressId, @RequestParam long expectedVersion) {
+                                 @PathVariable String addressId,
+                                 @RequestParam long expectedVersion
+    ) {
         return clients.removeAddress(identity.require(authorization), addressId, expectedVersion);
     }
 
     @PutMapping("/me/addresses/{addressId}/default")
     MemberResponse setDefaultAddress(@RequestHeader(value = "Authorization", required = false) String authorization,
-                                     @PathVariable String addressId, @RequestBody SetDefaultAddressRequest request) {
+                                     @PathVariable String addressId,
+                                     @RequestBody SetDefaultAddressRequest request
+    ) {
         return clients.setDefaultAddress(identity.require(authorization), addressId, request);
     }
 

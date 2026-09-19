@@ -124,8 +124,10 @@ public class OrderExecutor implements OrderUseCase {
             throw DomainException.cartChanged("cart changed during quote lookup");
         }
         var lines = loadPricedOrderLines(cart);
-        var quoteLines = lines.stream().map(line -> new PurchaseQuoteDetails.Line(
-                line.skuId(), line.quantity(), line.unitPrice(), line.lineTotal())).toList();
+        var quoteLines = lines.stream()
+                .map(line -> new PurchaseQuoteDetails.Line(line.skuId(), line.quantity(), line.unitPrice(), line.lineTotal()))
+                .toList();
+
         return new PurchaseQuoteDetails(
                 PurchasePricing.quoteId(memberId, cart.version(), lines),
                 cart.version(),
