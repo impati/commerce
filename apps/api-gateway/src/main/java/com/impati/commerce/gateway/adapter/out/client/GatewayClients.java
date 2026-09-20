@@ -16,6 +16,7 @@ import com.impati.commerce.common.ApiContracts.LoginResponse;
 import com.impati.commerce.common.ApiContracts.MemberResponse;
 import com.impati.commerce.common.ApiContracts.NotificationResponse;
 import com.impati.commerce.common.ApiContracts.OrderDetailResponse;
+import com.impati.commerce.common.ApiContracts.OrderCancellationResponse;
 import com.impati.commerce.common.ApiContracts.OrderPageResponse;
 import com.impati.commerce.common.ApiContracts.OrderResponse;
 import com.impati.commerce.common.ApiContracts.ProductResponse;
@@ -267,6 +268,14 @@ public class GatewayClients {
                 .header(MEMBER_ID_HEADER, memberId)
                 .retrieve()
                 .body(OrderDetailResponse.class);
+    }
+
+    public ResponseEntity<OrderCancellationResponse> cancelOrder(String memberId, String orderId) {
+        return orders.post()
+                .uri("/orders/{orderId}/cancellation", orderId)
+                .header(MEMBER_ID_HEADER, memberId)
+                .retrieve()
+                .toEntity(OrderCancellationResponse.class);
     }
 
     public OrderPageResponse orders(String memberId, String cursor, int size) {

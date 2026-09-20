@@ -24,7 +24,7 @@ final class InventoryMapper {
         return new ReservationDetails(
                 reservation.id(),
                 reservation.orderId(),
-                reservation.status(),
+                reservation.status().name(),
                 reservation.lines().stream()
                         .map(line -> new StockLine(line.skuId(), line.quantity()))
                         .toList()

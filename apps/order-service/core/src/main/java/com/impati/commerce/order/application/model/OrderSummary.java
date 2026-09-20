@@ -12,7 +12,8 @@ public record OrderSummary(
         int totalQuantity,
         PriceBreakdownDetails priceBreakdown,
         String checkoutResult,
-        String orderStatus
+        String orderStatus,
+        String cancellationStatus
 ) {
 
     public Money total() {

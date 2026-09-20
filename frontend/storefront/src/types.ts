@@ -179,6 +179,12 @@ export type IssuedAccessToken = {
 };
 
 export type OrderCustomerState = 'PROCESSING' | 'CHECKING' | 'SUCCEEDED' | 'FAILED';
+export type OrderCancellationState = 'NONE' | 'PROCESSING' | 'CHECKING' | 'COMPLETED';
+
+export type OrderCancellation = {
+  orderId: string;
+  status: OrderCancellationState;
+};
 
 export type OrderSummary = {
   id: string;
@@ -191,6 +197,7 @@ export type OrderSummary = {
   priceBreakdown: PriceBreakdown;
   checkoutResult: OrderCustomerState;
   orderStatus: string | null;
+  cancellationStatus: OrderCancellationState;
 };
 
 export type OrderPage = { items: OrderSummary[]; nextCursor: string | null };
@@ -200,6 +207,8 @@ export type OrderDetail = {
   orderedAt: string;
   checkoutResult: OrderCustomerState;
   orderStatus: string | null;
+  cancellationStatus: OrderCancellationState;
+  cancellable: boolean;
   lines: OrderLine[];
   total: Money;
   priceBreakdown: PriceBreakdown;

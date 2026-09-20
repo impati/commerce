@@ -277,9 +277,9 @@ class OrderEventPublishTest {
      * 소비자가 만든다 (ADR-0016).
      */
     @Test
-    void carriesTheCancellationReasonOnTheEvent() {
+    void carriesTheCheckoutFailureReasonOnTheEvent() {
         var order = savedOrder();
-        order.cancel("payment declined");
+        order.failCheckout("payment declined");
         orderChanges.commit(order);
 
         orderEventPublishUseCase.publishPending();
@@ -287,7 +287,7 @@ class OrderEventPublishTest {
         var captor = ArgumentCaptor.forClass(OrderEvent.class);
         verify(orderEventPublisher, times(2)).publish(captor.capture());
         assertThat(captor.getAllValues())
-                .filteredOn(event -> event.type() == OrderEventType.ORDER_CANCELLED)
+                .filteredOn(event -> event.type() == OrderEventType.CHECKOUT_FAILED)
                 .singleElement()
                 .satisfies(event -> assertThat(event.payload()).containsEntry("reason", "payment declined"));
     }

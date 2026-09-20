@@ -9,6 +9,8 @@ public record OrderHistoryDetail(
         OffsetDateTime orderedAt,
         String checkoutResult,
         String orderStatus,
+        String cancellationStatus,
+        boolean cancellable,
         List<OrderLineDetails> lines,
         PriceBreakdownDetails priceBreakdown,
         OrderAddress shippingAddress,

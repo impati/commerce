@@ -43,6 +43,11 @@ public class HttpInventoryClient implements InventoryClient {
     }
 
     @Override
+    public void restoreReservation(String reservationId) {
+        mutate(reservationId, "restore");
+    }
+
+    @Override
     public Optional<ReservationResponse> reservationForOrder(String orderId) {
         return calls.optionalQuery("inventory reservation lookup", () -> restClient.get()
                 .uri("/internal/reservations/orders/{orderId}", orderId)

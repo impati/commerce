@@ -108,12 +108,37 @@ class OrderEventConsumerTest {
                 "evt_consume_created", "ORDER_CREATED", "ord_consume_4", "mem_consume_4", Map.of()));
         send(new OrderEventMessage(
                 "evt_consume_unknown", "SOMETHING_NEW", "ord_consume_4", "mem_consume_4", Map.of()));
+        send(new OrderEventMessage(
+                "evt_consume_cancel_requested", "ORDER_CANCELLATION_REQUESTED", "ord_consume_4", "mem_consume_4", Map.of()));
         // 뒤이어 온 것이 처리되면 앞의 둘이 오프셋을 막지 않았다는 뜻이다.
         send(new OrderEventMessage(
                 "evt_consume_after", "ORDER_PAID", "ord_consume_4", "mem_consume_4", Map.of()));
 
         await().atMost(Duration.ofSeconds(20)).untilAsserted(() ->
                 assertThat(notificationsOf("mem_consume_4")).containsExactly("Order paid"));
+    }
+
+    /** [PD-0024-R9] 요청 중간 사건은 알리지 않고 완료 사건만 고객 알림이 된다. */
+    @Test
+    void notifiesOnlyWhenCustomerCancellationCompletes() {
+        send(new OrderEventMessage(
+                "evt_cancel_requested", "ORDER_CANCELLATION_REQUESTED", "ord_cancel", "mem_cancel", Map.of()));
+        send(new OrderEventMessage(
+                "evt_cancel_completed", "ORDER_CANCELLED", "ord_cancel", "mem_cancel",
+                Map.of("reason", "CUSTOMER_REQUESTED")));
+
+        await().atMost(Duration.ofSeconds(20)).untilAsserted(() ->
+                assertThat(notificationsOf("mem_cancel")).containsExactly("Order cancellation completed"));
+    }
+
+    /** 체크아웃 실패는 고객 취소 완료와 다른 사건·문구를 사용한다. */
+    @Test
+    void distinguishesCheckoutFailureFromCustomerCancellation() {
+        send(new OrderEventMessage(
+                "evt_checkout_failed", "CHECKOUT_FAILED", "ord_failed", "mem_failed", Map.of()));
+
+        await().atMost(Duration.ofSeconds(20)).untilAsserted(() ->
+                assertThat(notificationsOf("mem_failed")).containsExactly("Purchase failed"));
     }
 
     /**

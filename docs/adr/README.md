@@ -47,6 +47,7 @@
 | [0024](0024-cart-line-management.md) | 확인한 장바구니 버전으로 줄을 수정한다 | 승인됨 |
 | [0025](0025-versioned-shipping-address-management.md) | 주소록 버전으로 관리하고 확인한 배송 정보로 주문한다 | 승인됨 |
 | [0026](0026-order-price-breakdown.md) | 주문이 금액 구성을 확정하고 모든 주문 화면에 제공한다 | 승인됨 |
+| [0027](0027-durable-customer-order-cancellation.md) | 고객 주문 취소를 별도 내구성 Saga로 실행한다 | 승인됨 |
 
 ## ADR이 없는 합의
 

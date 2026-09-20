@@ -132,10 +132,10 @@ class OrderEventRecordingTest {
         var order = newOrder();
         orderChanges.commit(order);
 
-        order.cancel("payment declined");
+        order.failCheckout("payment declined");
         orderChanges.commit(order);
 
-        assertThat(payloadOf(order.id(), "ORDER_CANCELLED")).contains("\"reason\":\"payment declined\"");
+        assertThat(payloadOf(order.id(), "CHECKOUT_FAILED")).contains("\"reason\":\"payment declined\"");
     }
 
     private List<String> typesOf(String orderId) {

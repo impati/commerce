@@ -2,6 +2,7 @@ package com.impati.commerce.inventory.adapter.out.persistence;
 
 import com.impati.commerce.inventory.application.port.out.InventoryRepository;
 import com.impati.commerce.inventory.domain.InventoryModels.Reservation;
+import com.impati.commerce.inventory.domain.InventoryModels.ReservationStatus;
 import com.impati.commerce.inventory.domain.InventoryModels.ReservedLine;
 import com.impati.commerce.inventory.domain.InventoryModels.StockItem;
 import java.util.Collection;
@@ -127,7 +128,7 @@ public class JdbcInventoryRepository implements InventoryRepository {
         var params = new MapSqlParameterSource()
                 .addValue("id", reservation.id())
                 .addValue("order_id", reservation.orderId())
-                .addValue("status", reservation.status());
+                .addValue("status", reservation.status().name());
         if (jdbc.update(UPDATE_RESERVATION, params) == 0) {
             jdbc.update(INSERT_RESERVATION, params);
         }
@@ -154,7 +155,7 @@ public class JdbcInventoryRepository implements InventoryRepository {
                                 rs.getString("id"),
                                 rs.getString("order_id"),
                                 findLines(rs.getString("id")),
-                                rs.getString("status")
+                                ReservationStatus.valueOf(rs.getString("status"))
                         )
                 )
                 .stream()
@@ -171,7 +172,7 @@ public class JdbcInventoryRepository implements InventoryRepository {
                                 rs.getString("id"),
                                 rs.getString("order_id"),
                                 findLines(rs.getString("id")),
-                                rs.getString("status")
+                                ReservationStatus.valueOf(rs.getString("status"))
                         ))
                 .stream()
                 .findFirst();

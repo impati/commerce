@@ -362,10 +362,14 @@ public final class ApiContracts {
     public record CheckoutResponse(OrderResponse order, PaymentResponse payment, ShipmentResponse shipment) {
     }
 
+    public record OrderCancellationResponse(String orderId, String status) {
+    }
+
     /** GET /orders — 고객용 주문 목록 요약. 체크아웃 내부 식별자와 복구 정보는 포함하지 않는다. */
     public record OrderSummaryResponse(String id, OffsetDateTime orderedAt, String representativeProductName,
             String representativeSkuName, int additionalProductCount, int totalQuantity, Money total,
-            PriceBreakdownResponse priceBreakdown, String checkoutResult, String orderStatus) { }
+            PriceBreakdownResponse priceBreakdown, String checkoutResult, String orderStatus,
+            String cancellationStatus) { }
 
     /** GET /orders — nextCursor가 null이면 마지막 페이지다. */
     public record OrderPageResponse(List<OrderSummaryResponse> items, String nextCursor) { }
@@ -379,6 +383,7 @@ public final class ApiContracts {
 
     /** GET /orders/{orderId} — 기존 체크아웃 응답과 별개인 고객용 주문 상세. */
     public record OrderDetailResponse(String id, OffsetDateTime orderedAt, String checkoutResult, String orderStatus,
+            String cancellationStatus, boolean cancellable,
             List<OrderLineResponse> lines, Money total, PriceBreakdownResponse priceBreakdown,
             OrderShippingAddressResponse shippingAddress,
             String trackingNumber, List<OrderTimelineResponse> timeline) { }

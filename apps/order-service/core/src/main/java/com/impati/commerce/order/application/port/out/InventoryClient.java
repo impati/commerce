@@ -12,5 +12,7 @@ public interface InventoryClient {
 
     void releaseReservation(String reservationId);
 
+    void restoreReservation(String reservationId);
+
     Optional<ReservationResponse> reservationForOrder(String orderId);
 }

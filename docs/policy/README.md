@@ -39,3 +39,4 @@
 | [0021](pd-0021-purchase-confirmation.md) | 확인한 구매 내용과 금액으로 주문 |
 | [0022](pd-0022-shipping-address-management-and-selection.md) | 배송지 관리와 주문 선택 |
 | [0023](pd-0023-order-lifecycle-price-and-cancellation.md) | 주문 생애주기, 금액 구성과 취소 |
+| [0024](pd-0024-customer-order-cancellation.md) | 고객 주문 취소 |

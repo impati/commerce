@@ -13,6 +13,7 @@ import com.impati.commerce.common.ApiContracts.LoginRequest;
 import com.impati.commerce.common.ApiContracts.MemberResponse;
 import com.impati.commerce.common.ApiContracts.NotificationResponse;
 import com.impati.commerce.common.ApiContracts.OrderDetailResponse;
+import com.impati.commerce.common.ApiContracts.OrderCancellationResponse;
 import com.impati.commerce.common.ApiContracts.OrderPageResponse;
 import com.impati.commerce.common.ApiContracts.ProductResponse;
 import com.impati.commerce.common.ApiContracts.RegisterMemberRequest;
@@ -232,6 +233,14 @@ public class GatewayController {
             @PathVariable String orderId
     ) {
         return clients.order(identity.require(authorization), orderId);
+    }
+
+    @PostMapping("/orders/{orderId}/cancellation")
+    ResponseEntity<OrderCancellationResponse> cancelOrder(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @PathVariable String orderId
+    ) {
+        return clients.cancelOrder(identity.require(authorization), orderId);
     }
 
     @GetMapping("/orders")

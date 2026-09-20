@@ -20,7 +20,7 @@ import type {
   Shipment,
   Stock
 } from './types';
-import type { OrderDetail, OrderPage } from './types';
+import type { OrderCancellation, OrderDetail, OrderPage } from './types';
 
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? '/api';
 const cartRequestTimeoutMs = Number(import.meta.env.VITE_CART_REQUEST_TIMEOUT_MS ?? 10000);
@@ -270,6 +270,12 @@ export const api = {
 
   order(orderId: string): Promise<OrderDetail> {
     return request<OrderDetail>(`/orders/${encodeURIComponent(orderId)}`);
+  },
+
+  cancelOrder(orderId: string): Promise<OrderCancellation> {
+    return request<OrderCancellation>(`/orders/${encodeURIComponent(orderId)}/cancellation`, {
+      method: 'POST', body: '{}'
+    });
   },
 
   checkoutResult(orderId: string): Promise<Checkout> {

@@ -46,8 +46,9 @@ public class ShippingExecutor implements ShippingUseCase {
     }
 
     @Override
+    @Transactional
     public ShipmentDetails ship(String shipmentId) {
-        var shipment = getShipment(shipmentId);
+        var shipment = getShipmentForUpdate(shipmentId);
         shipment.ship();
         shipmentRepository.save(shipment);
         return ShipmentMapper.toDetails(shipment);
@@ -55,16 +56,18 @@ public class ShippingExecutor implements ShippingUseCase {
 
     /** 아직 나가지 않은 배송을 없앤다 (PD-0013-R5). 체크아웃 보상이 부른다 (PD-0017-R7). */
     @Override
+    @Transactional
     public ShipmentDetails cancel(String shipmentId) {
-        var shipment = getShipment(shipmentId);
+        var shipment = getShipmentForUpdate(shipmentId);
         shipment.cancel();
         shipmentRepository.save(shipment);
         return ShipmentMapper.toDetails(shipment);
     }
 
     @Override
+    @Transactional
     public ShipmentDetails deliver(String shipmentId) {
-        var shipment = getShipment(shipmentId);
+        var shipment = getShipmentForUpdate(shipmentId);
         shipment.deliver();
         shipmentRepository.save(shipment);
         return ShipmentMapper.toDetails(shipment);
@@ -72,6 +75,11 @@ public class ShippingExecutor implements ShippingUseCase {
 
     private Shipment getShipment(String shipmentId) {
         return shipmentRepository.findById(shipmentId)
+                .orElseThrow(() -> DomainException.notFound("shipment not found"));
+    }
+
+    private Shipment getShipmentForUpdate(String shipmentId) {
+        return shipmentRepository.findByIdForUpdate(shipmentId)
                 .orElseThrow(() -> DomainException.notFound("shipment not found"));
     }
 

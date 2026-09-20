@@ -59,7 +59,7 @@ final class OrderMapper {
         return new OrderDetails(
                 order.id(),
                 order.memberId(),
-                order.status(),
+                order.status().name(),
                 order.lines().stream().map(OrderMapper::toDetails).toList(),
                 toDetails(order.priceBreakdown()),
                 new OrderAddress(

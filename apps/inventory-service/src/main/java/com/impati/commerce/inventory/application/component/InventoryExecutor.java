@@ -9,6 +9,7 @@ import com.impati.commerce.inventory.application.port.out.InventoryRepository;
 import com.impati.commerce.inventory.domain.InventoryModels.Reservation;
 import com.impati.commerce.inventory.domain.InventoryModels.ReservedLine;
 import com.impati.commerce.inventory.domain.InventoryModels.StockItem;
+import com.impati.commerce.inventory.domain.InventoryModels.TransitionOutcome;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -80,11 +81,8 @@ public class InventoryExecutor implements InventoryUseCase {
     public ReservationDetails commit(String reservationId) {
         var reservation = inventoryRepository.findReservationForUpdate(reservationId)
                 .orElseThrow(() -> DomainException.notFound("reservation not found"));
-        if (reservation.status().equals("COMMITTED")) {
+        if (reservation.commit() == TransitionOutcome.UNCHANGED) {
             return InventoryMapper.toDetails(reservation);
-        }
-        if (!reservation.status().equals("RESERVED")) {
-            throw DomainException.conflict("released reservation cannot be committed");
         }
         var locked = lockFor(reservation.lines());
         for (var line : reservation.lines()) {
@@ -92,7 +90,6 @@ public class InventoryExecutor implements InventoryUseCase {
             stock.commit(line.quantity());
             inventoryRepository.saveStock(stock);
         }
-        reservation.commit();
         inventoryRepository.saveReservation(reservation);
         return InventoryMapper.toDetails(reservation);
     }
@@ -102,11 +99,8 @@ public class InventoryExecutor implements InventoryUseCase {
     public ReservationDetails release(String reservationId) {
         var reservation = inventoryRepository.findReservationForUpdate(reservationId)
                 .orElseThrow(() -> DomainException.notFound("reservation not found"));
-        if (reservation.status().equals("RELEASED")) {
+        if (reservation.release() == TransitionOutcome.UNCHANGED) {
             return InventoryMapper.toDetails(reservation);
-        }
-        if (!reservation.status().equals("RESERVED")) {
-            throw DomainException.conflict("committed reservation cannot be released");
         }
         var locked = lockFor(reservation.lines());
         for (var line : reservation.lines()) {
@@ -114,7 +108,24 @@ public class InventoryExecutor implements InventoryUseCase {
             stock.release(line.quantity());
             inventoryRepository.saveStock(stock);
         }
-        reservation.release();
+        inventoryRepository.saveReservation(reservation);
+        return InventoryMapper.toDetails(reservation);
+    }
+
+    @Transactional
+    @Override
+    public ReservationDetails restore(String reservationId) {
+        var reservation = inventoryRepository.findReservationForUpdate(reservationId)
+                .orElseThrow(() -> DomainException.notFound("reservation not found"));
+        if (reservation.restore() == TransitionOutcome.UNCHANGED) {
+            return InventoryMapper.toDetails(reservation);
+        }
+        var locked = lockFor(reservation.lines());
+        for (var line : reservation.lines()) {
+            var stock = requireStock(locked, line.skuId());
+            stock.restore(line.quantity());
+            inventoryRepository.saveStock(stock);
+        }
         inventoryRepository.saveReservation(reservation);
         return InventoryMapper.toDetails(reservation);
     }

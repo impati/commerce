@@ -1,4 +1,4 @@
-import type { OrderCustomerState } from './types';
+import type { OrderCancellationState, OrderCustomerState } from './types';
 
 const orderStatuses: Record<string, string> = {
   PAID: '결제 완료', FULFILLING: '배송 준비·진행 중', DELIVERED: '배송 완료', CANCELLED: '주문 취소'
@@ -6,10 +6,19 @@ const orderStatuses: Record<string, string> = {
 const timelineLabels: Record<string, string> = {
   ORDER_CREATED: '주문이 접수되었습니다', ORDER_PAID: '결제가 완료되었습니다',
   SHIPMENT_CREATED: '배송 준비가 시작되었습니다', ORDER_DELIVERED: '배송이 완료되었습니다',
-  ORDER_CANCELLED: '구매가 실패했습니다'
+  CHECKOUT_FAILED: '구매가 실패했습니다',
+  ORDER_CANCELLATION_REQUESTED: '주문 취소를 요청했습니다',
+  ORDER_CANCELLED: '주문 취소가 완료되었습니다'
 };
 
-export function orderStatusText(state: OrderCustomerState, status: string | null): string {
+export function orderStatusText(
+  state: OrderCustomerState,
+  status: string | null,
+  cancellation: OrderCancellationState = 'NONE'
+): string {
+  if (cancellation === 'PROCESSING') return '주문 취소 처리 중';
+  if (cancellation === 'CHECKING') return '주문 취소 확인 중';
+  if (cancellation === 'COMPLETED') return '주문 취소 완료';
   if (state === 'PROCESSING') return '주문 처리 중';
   if (state === 'CHECKING') return '확인 중';
   if (state === 'FAILED') return '구매 실패';

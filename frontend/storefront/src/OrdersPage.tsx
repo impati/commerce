@@ -22,7 +22,9 @@ export function OrdersPage() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
+  const [cancellationNotice, setCancellationNotice] = useState('');
   const [notFound, setNotFound] = useState(false);
+  const [cancellationBusy, setCancellationBusy] = useState(false);
   const [revision, setRevision] = useState(0);
   const generation = useRef(0);
 
@@ -47,6 +49,10 @@ export function OrdersPage() {
     }).finally(() => { if (!ignore) setAuthLoading(false); });
     return () => { ignore = true; };
   }, [authRetry]);
+
+  useEffect(() => {
+    setCancellationNotice('');
+  }, [member, orderId]);
 
   useEffect(() => {
     const current = ++generation.current;
@@ -76,7 +82,10 @@ export function OrdersPage() {
 
   // 상세의 진행 상태는 자동 갱신한다. 페이지를 탐색 중인 목록은 고객의 새로고침으로 갱신한다.
   useEffect(() => {
-    if (!member || !orderId || !detail || !['PROCESSING', 'CHECKING'].includes(detail.checkoutResult)) return;
+    if (!member || !orderId || !detail || (
+      !['PROCESSING', 'CHECKING'].includes(detail.checkoutResult)
+      && !['PROCESSING', 'CHECKING'].includes(detail.cancellationStatus)
+    )) return;
     const current = generation.current;
     let cancelled = false;
     let timer: number;
@@ -94,7 +103,26 @@ export function OrdersPage() {
     }
     timer = window.setTimeout(update, 10_000);
     return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [member, orderId, detail?.checkoutResult]);
+  }, [member, orderId, detail?.checkoutResult, detail?.cancellationStatus]);
+
+  async function cancelOrder() {
+    if (!detail || cancellationBusy || !window.confirm(
+      '상품 금액과 배송비를 포함한 최종 결제 금액 전액이 환불됩니다. 주문을 취소할까요?'
+    )) return;
+    setCancellationBusy(true);
+    setError('');
+    setCancellationNotice('');
+    try {
+      await api.cancelOrder(detail.id);
+      setRevision(value => value + 1);
+    } catch (problem) {
+      if (problem instanceof UnauthorizedError) expired();
+      else if (problem instanceof ApiError && problem.code === 'cancellation_not_allowed') {
+        setCancellationNotice('이미 배송이 시작되어 주문을 취소할 수 없습니다.');
+        setRevision(value => value + 1);
+      } else setError('주문 취소를 접수하지 못했습니다. 다시 시도해주세요.');
+    } finally { setCancellationBusy(false); }
+  }
 
   async function login(event: FormEvent) {
     event.preventDefault();
@@ -159,7 +187,7 @@ export function OrdersPage() {
           {orderId && <Link className="order-link" to="/orders">← 주문 목록</Link>}
           {loading ? <p role="status">주문 정보를 불러오고 있습니다.</p> : notFound ?
             <section className="panel"><h2>주문을 찾을 수 없습니다</h2><p>주문 목록에서 확인해주세요.</p></section> :
-            orderId ? detail?.id === orderId && <DetailView detail={detail} /> : <>
+            orderId ? detail?.id === orderId && <DetailView detail={detail} onCancel={cancelOrder} cancellationBusy={cancellationBusy} /> : <>
               {items.length === 0 && !error && <section className="panel empty-state"><p>아직 주문 내역이 없습니다.</p><Link to="/">상품 둘러보기</Link></section>}
               <div className="order-cards">{items.map(item => <SummaryCard item={item} key={item.id} />)}</div>
               {nextCursor && <button type="button" className="secondary-button order-more" onClick={more} disabled={loadingMore}>{loadingMore ? '불러오는 중…' : '더 보기'}</button>}
@@ -167,18 +195,21 @@ export function OrdersPage() {
           {error && <div className="order-error" role="alert"><p>{error}</p>
             {!loadingMore && (!nextCursor || orderId || items.length === 0) && <button type="button" className="secondary-button" onClick={() => setRevision(n => n + 1)}>다시 시도</button>}
           </div>}
+          {cancellationNotice && <div className="order-error" role="alert"><p>{cancellationNotice}</p></div>}
         </>}
     </main>
   </div>;
 }
 
-function Status({ state, status }: { state: OrderCustomerState; status: string | null }) {
-  return <span className={`order-status ${state.toLowerCase()}`}>{orderStatusText(state, status)}</span>;
+function Status({ state, status, cancellation }: {
+  state: OrderCustomerState; status: string | null; cancellation: OrderSummary['cancellationStatus'];
+}) {
+  return <span className={`order-status ${state.toLowerCase()}`}>{orderStatusText(state, status, cancellation)}</span>;
 }
 
 function SummaryCard({ item }: { item: OrderSummary }) {
   return <article className="panel order-card">
-    <div className="order-card-head"><time dateTime={item.orderedAt}>{orderDate(item.orderedAt)}</time><Status state={item.checkoutResult} status={item.orderStatus} /></div>
+    <div className="order-card-head"><time dateTime={item.orderedAt}>{orderDate(item.orderedAt)}</time><Status state={item.checkoutResult} status={item.orderStatus} cancellation={item.cancellationStatus} /></div>
     <p className="order-id">{item.id}</p>
     <h3>{item.representativeProductName}{item.additionalProductCount > 0 && ` 외 ${item.additionalProductCount}개 상품`}</h3>
     <p>{item.representativeSkuName} · 총 {item.totalQuantity}개</p>
@@ -187,14 +218,22 @@ function SummaryCard({ item }: { item: OrderSummary }) {
   </article>;
 }
 
-function DetailView({ detail }: { detail: OrderDetail }) {
+function DetailView({ detail, onCancel, cancellationBusy }: {
+  detail: OrderDetail; onCancel: () => void; cancellationBusy: boolean;
+}) {
   const address = detail.shippingAddress;
   return <div className="order-detail">
-    <section className="panel"><div className="order-card-head"><h2>주문 정보</h2><Status state={detail.checkoutResult} status={detail.orderStatus} /></div>
+    <section className="panel"><div className="order-card-head"><h2>주문 정보</h2><Status state={detail.checkoutResult} status={detail.orderStatus} cancellation={detail.cancellationStatus} /></div>
       <p className="order-id">{detail.id}</p><time dateTime={detail.orderedAt}>{orderDate(detail.orderedAt)}</time>
       {detail.checkoutResult === 'PROCESSING' && <p className="order-guidance" role="status">주문 처리가 진행 중입니다. 결과는 자동으로 갱신됩니다.</p>}
       {detail.checkoutResult === 'CHECKING' && <p className="order-guidance" role="status">주문을 확인하고 있습니다. 확인이 끝나면 결과가 갱신됩니다.</p>}
       {detail.checkoutResult === 'FAILED' && <p className="order-guidance">구매가 완료되지 않았습니다. 주문한 상품과 처리 이력을 아래에서 확인할 수 있습니다.</p>}
+      {detail.cancellationStatus === 'PROCESSING' && <p className="order-guidance" role="status">주문 취소를 처리하고 있습니다. 결과는 자동으로 갱신됩니다.</p>}
+      {detail.cancellationStatus === 'CHECKING' && <p className="order-guidance" role="status">주문 취소 상태를 확인하고 있습니다. 확인이 끝나면 결과가 갱신됩니다.</p>}
+      {detail.cancellationStatus === 'COMPLETED' && <p className="order-guidance">주문 취소와 전액 환불이 완료되었습니다.</p>}
+      {detail.cancellable && <button className="secondary-button" type="button" onClick={onCancel} disabled={cancellationBusy}>
+        {cancellationBusy ? '취소 접수 중…' : '주문 취소'}
+      </button>}
     </section>
     <section className="panel"><h2>주문 상품</h2><ul className="order-lines">{detail.lines.map((line, index) => <li key={`${line.skuId}-${index}`}>
       <div><strong>{line.productName}</strong><p>{line.skuName}</p><span>{formatMoney(line.unitPrice)} × {line.quantity}개</span></div>

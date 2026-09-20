@@ -117,6 +117,7 @@ class CheckoutSagaTest {
         server = customizer.getServer();
         server.reset();
         orderId.set(null);
+        jdbc.update("delete from cancellation_progress");
         jdbc.update("delete from checkout_progress");
         jdbc.update("delete from order_events");
         jdbc.update("delete from order_lines");
@@ -178,6 +179,89 @@ class CheckoutSagaTest {
                 String.class,
                 acceptedOrderId
         )).isNull();
+    }
+
+    /** [PD-0024-R1~R8][PD-0024-R12] 성공한 준비 주문의 취소가 전액 환불과 재고 복원 뒤 한 번 완료된다. */
+    @Test
+    void customerCancellationCompletesOnceAndReturnsTheSameResult() throws Exception {
+        stubCheckoutInputs();
+        stubCartDetach();
+        stubReservation();
+        stubAuthorization("card_success");
+        stubShipmentCreation();
+        stubCapture();
+        stubCommitReservation();
+        stubSuccessDecoration(1);
+        stubShipmentLookup("READY");
+        server.expect(times(1), requestTo(SHIPPING_URL + "/internal/shipments/" + SHIPMENT_ID + "/cancel"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(request -> withSuccess(json(shipment("CANCELLED")), MediaType.APPLICATION_JSON)
+                        .createResponse(request));
+        stubPaymentForOrder("CAPTURED");
+        server.expect(times(1), requestTo(PAYMENT_URL + "/internal/payments/" + PAYMENT_ID + "/refund"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(request -> withSuccess(json(payment("REFUNDED")), MediaType.APPLICATION_JSON)
+                        .createResponse(request));
+        stubReservationLookup("COMMITTED");
+        server.expect(times(1), requestTo(INVENTORY_URL + "/internal/reservations/" + RESERVATION_ID + "/restore"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess());
+        var checkout = mockMvc.perform(checkout("cancel-order-key", "card_success"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.order.checkoutStatus").value("SUCCEEDED"))
+                .andReturn();
+        var id = objectMapper.readTree(checkout.getResponse().getContentAsString())
+                .path("order").path("id").asText();
+
+        mockMvc.perform(post("/orders/{orderId}/cancellation", id).header("X-Member-Id", MEMBER_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.orderId").value(id))
+                .andExpect(jsonPath("$.status").value("COMPLETED"));
+        mockMvc.perform(post("/orders/{orderId}/cancellation", id).header("X-Member-Id", MEMBER_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("COMPLETED"));
+        mockMvc.perform(get("/orders/{orderId}", id).header("X-Member-Id", MEMBER_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.orderStatus").value("CANCELLED"))
+                .andExpect(jsonPath("$.cancellationStatus").value("COMPLETED"))
+                .andExpect(jsonPath("$.cancellable").value(false))
+                .andExpect(jsonPath("$.timeline[3].type").value("ORDER_CANCELLATION_REQUESTED"))
+                .andExpect(jsonPath("$.timeline[4].type").value("ORDER_CANCELLED"));
+        mockMvc.perform(post("/orders/{orderId}/cancellation", id).header("X-Member-Id", "mem_other"))
+                .andExpect(status().isNotFound());
+
+        assertThat(eventTypes(id)).containsExactly(
+                "ORDER_CREATED", "ORDER_PAID", "SHIPMENT_CREATED",
+                "ORDER_CANCELLATION_REQUESTED", "ORDER_CANCELLED");
+    }
+
+    /** [PD-0024-R2][PD-0024-R3] 출고가 먼저 확정된 주문은 취소 진행을 거절 상태로 끝낸다. */
+    @Test
+    void customerCancellationLosesToShipmentDeparture() throws Exception {
+        stubCheckoutInputs();
+        stubCartDetach();
+        stubReservation();
+        stubAuthorization("card_success");
+        stubShipmentCreation();
+        stubCapture();
+        stubCommitReservation();
+        stubSuccessDecoration(1);
+        stubShipmentLookup("IN_TRANSIT");
+        var checkout = mockMvc.perform(checkout("shipped-cancel-key", "card_success"))
+                .andExpect(status().isCreated()).andReturn();
+        var id = objectMapper.readTree(checkout.getResponse().getContentAsString())
+                .path("order").path("id").asText();
+
+        mockMvc.perform(post("/orders/{orderId}/cancellation", id).header("X-Member-Id", MEMBER_ID))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("cancellation_not_allowed"));
+        mockMvc.perform(post("/orders/{orderId}/cancellation", id).header("X-Member-Id", MEMBER_ID))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("cancellation_not_allowed"));
+
+        assertThat(jdbc.queryForObject("select status from orders where id = ?", String.class, id))
+                .isEqualTo("FULFILLING");
+        assertThat(eventTypes(id)).containsExactly("ORDER_CREATED", "ORDER_PAID", "SHIPMENT_CREATED");
     }
 
     @Test
@@ -522,6 +606,14 @@ class CheckoutSagaTest {
                 .andRespond(withSuccess(json(payment(paymentStatus)), MediaType.APPLICATION_JSON));
     }
 
+    private void stubPaymentForOrder(String paymentStatus) {
+        server.expect(times(1), request -> assertThat(request.getURI().toString())
+                        .isEqualTo(PAYMENT_URL + "/internal/payments/orders/" + orderId.get()))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(request -> withSuccess(json(payment(paymentStatus)), MediaType.APPLICATION_JSON)
+                        .createResponse(request));
+    }
+
     private void stubCancelPayment() {
         server.expect(times(1), requestTo(PAYMENT_URL + "/internal/payments/" + PAYMENT_ID + "/cancel"))
                 .andExpect(method(HttpMethod.POST))
@@ -532,16 +624,18 @@ class CheckoutSagaTest {
         server.expect(times(1), request -> assertThat(request.getURI().toString())
                         .isEqualTo(SHIPPING_URL + "/internal/shipments/orders/" + orderId.get()))
                 .andExpect(method(HttpMethod.GET))
-                .andRespond(withSuccess(json(shipment(shipmentStatus)), MediaType.APPLICATION_JSON));
+                .andRespond(request -> withSuccess(json(shipment(shipmentStatus)), MediaType.APPLICATION_JSON)
+                        .createResponse(request));
     }
 
     private void stubReservationLookup(String reservationStatus) {
         server.expect(times(1), request -> assertThat(request.getURI().toString())
                         .isEqualTo(INVENTORY_URL + "/internal/reservations/orders/" + orderId.get()))
                 .andExpect(method(HttpMethod.GET))
-                .andRespond(withSuccess(json(new ReservationResponse(
+                .andRespond(request -> withSuccess(json(new ReservationResponse(
                         RESERVATION_ID, orderId.get(), reservationStatus,
-                        List.of(new ReservationLine(SKU_ID, QUANTITY)))), MediaType.APPLICATION_JSON));
+                        List.of(new ReservationLine(SKU_ID, QUANTITY)))), MediaType.APPLICATION_JSON)
+                        .createResponse(request));
     }
 
     private void stubReleaseReservation() {

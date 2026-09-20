@@ -6,6 +6,7 @@ import com.impati.commerce.order.application.port.out.OrderRepository;
 import com.impati.commerce.order.domain.OrderModels.Address;
 import com.impati.commerce.order.domain.OrderModels.Order;
 import com.impati.commerce.order.domain.OrderModels.OrderLine;
+import com.impati.commerce.order.domain.OrderModels.OrderStatus;
 import com.impati.commerce.order.domain.PriceBreakdown;
 import com.impati.commerce.test.RequiresDatabase;
 import org.junit.jupiter.api.Test;
@@ -48,7 +49,7 @@ class JdbcOrderRepositoryTest {
 
         assertThat(loaded.id()).isEqualTo(order.id());
         assertThat(loaded.memberId()).isEqualTo("mem_demo");
-        assertThat(loaded.status()).isEqualTo("CREATED");
+        assertThat(loaded.status()).isEqualTo(OrderStatus.CREATED);
         assertThat(loaded.inventoryReservationId()).isEqualTo("rsv_round");
         assertThat(loaded.total()).isEqualTo(Money.krw(58_000 + 87_000));
         assertThat(loaded.priceBreakdown()).isEqualTo(new PriceBreakdown(
@@ -73,7 +74,7 @@ class JdbcOrderRepositoryTest {
         orderChanges.commit(order);
 
         var loaded = orderRepository.findById(order.id()).orElseThrow();
-        assertThat(loaded.status()).isEqualTo("FULFILLING");
+        assertThat(loaded.status()).isEqualTo(OrderStatus.FULFILLING);
         assertThat(loaded.paymentId()).isEqualTo("pay_round");
         assertThat(loaded.shipmentId()).isEqualTo("shp_round");
         assertThat(loaded.lines()).hasSize(2);
@@ -89,7 +90,7 @@ class JdbcOrderRepositoryTest {
 
         order.markPaid();
 
-        assertThat(orderRepository.findById(order.id()).orElseThrow().status()).isEqualTo("CREATED");
+        assertThat(orderRepository.findById(order.id()).orElseThrow().status()).isEqualTo(OrderStatus.CREATED);
     }
 
     @Test
