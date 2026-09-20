@@ -5,8 +5,8 @@ import com.impati.commerce.common.ApiContracts.ReserveInventoryRequest;
 import com.impati.commerce.common.ApiContracts.StockIncreaseRequest;
 import com.impati.commerce.common.ApiContracts.StockResponse;
 import com.impati.commerce.inventory.application.port.in.InventoryUseCase;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/internal")
 public class InternalInventoryController {
+
     private final InventoryUseCase inventoryUseCase;
 
     public InternalInventoryController(InventoryUseCase inventoryUseCase) {

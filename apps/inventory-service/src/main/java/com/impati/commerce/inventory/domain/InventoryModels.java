@@ -2,11 +2,11 @@ package com.impati.commerce.inventory.domain;
 
 import com.impati.commerce.common.DomainException;
 import com.impati.commerce.common.Ids;
-
 import java.util.ArrayList;
 import java.util.List;
 
 public final class InventoryModels {
+
     public enum ReservationStatus {
         RESERVED,
         COMMITTED,
@@ -22,8 +22,11 @@ public final class InventoryModels {
     private InventoryModels() {
     }
 
-    /** 예약 한 줄. 계약의 {@code ReservationLine}과 모양이 같지만 도메인 타입이다. */
+    /**
+     * 예약 한 줄. 계약의 {@code ReservationLine}과 모양이 같지만 도메인 타입이다.
+     */
     public record ReservedLine(String skuId, int quantity) {
+
         public ReservedLine {
             if (quantity <= 0) {
                 throw DomainException.validation("reservation quantity must be positive");
@@ -32,6 +35,7 @@ public final class InventoryModels {
     }
 
     public static final class StockItem {
+
         private final String skuId;
         private int onHand;
         private int reserved;
@@ -46,7 +50,9 @@ public final class InventoryModels {
             this.reserved = reserved;
         }
 
-        /** 저장된 상태에서 복원한다. 영속화 어댑터만 쓴다. */
+        /**
+         * 저장된 상태에서 복원한다. 영속화 어댑터만 쓴다.
+         */
         public static StockItem restore(String skuId, int onHand, int reserved) {
             return new StockItem(skuId, onHand, reserved);
         }
@@ -99,7 +105,9 @@ public final class InventoryModels {
             reserved -= quantity;
         }
 
-        /** [PD-0024-R6] 확정된 판매를 취소해 보유 수량으로 되돌린다. */
+        /**
+         * [PD-0024-R6] 확정된 판매를 취소해 보유 수량으로 되돌린다.
+         */
         public void restore(int quantity) {
             if (quantity <= 0) {
                 throw DomainException.validation("restored stock quantity must be positive");
@@ -109,6 +117,7 @@ public final class InventoryModels {
     }
 
     public static final class Reservation {
+
         private final String id;
         private final String orderId;
         private final List<ReservedLine> lines;
@@ -176,7 +185,9 @@ public final class InventoryModels {
             return TransitionOutcome.APPLIED;
         }
 
-        /** [PD-0024-R6][PD-0024-R7] 확정된 예약만 한 번 복원한다. */
+        /**
+         * [PD-0024-R6][PD-0024-R7] 확정된 예약만 한 번 복원한다.
+         */
         public TransitionOutcome restore() {
             if (status == ReservationStatus.RESTORED) {
                 return TransitionOutcome.UNCHANGED;

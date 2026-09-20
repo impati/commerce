@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
 @Component
 @ConditionalOnBean({InventoryClient.class, PaymentClient.class, ShippingClient.class})
 public class OrderCancellationExecutor implements OrderCancellationUseCase {
+
     private final OrderRepository orderRepository;
     private final CheckoutProgressRepository checkoutProgressRepository;
     private final CancellationProgressRepository progressRepository;
