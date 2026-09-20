@@ -1,6 +1,7 @@
 package com.impati.commerce.order.application.component;
 
 import com.impati.commerce.common.ApiContracts.PaymentResponse;
+import com.impati.commerce.common.ApiContracts.ReservationResponse;
 import com.impati.commerce.common.ApiContracts.ShipmentResponse;
 import com.impati.commerce.common.DomainException;
 import com.impati.commerce.order.application.port.out.InventoryClient;
@@ -15,6 +16,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -74,8 +76,10 @@ public class CancellationExecution {
     }
 
     private void cancelShipment(CancellationProgress progress) {
+        var order = order(progress.orderId());
         var shipment = shippingClient.shipmentForOrder(progress.orderId())
                 .orElseThrow(() -> new IllegalStateException("successful order has no shipment"));
+        ensureShipmentMatches(order, shipment);
         switch (shipment.status()) {
             case "READY" -> {
                 try {
@@ -84,17 +88,17 @@ public class CancellationExecution {
                     if (!failure.code().equals("conflict") && !failure.code().equals("outcome_unknown")) throw failure;
                     shipment = shippingClient.shipmentForOrder(progress.orderId()).orElseThrow(() -> failure);
                 }
-                settleShipment(progress, shipment);
+                ensureShipmentMatches(order, shipment);
+                settleShipment(progress, order, shipment);
             }
-            case "CANCELLED" -> settleShipment(progress, shipment);
+            case "CANCELLED" -> settleShipment(progress, order, shipment);
             case "IN_TRANSIT", "DELIVERED" -> reject(progress, "shipment already left");
             default -> throw new IllegalStateException("unknown shipment status " + shipment.status());
         }
     }
 
-    private void settleShipment(CancellationProgress progress, ShipmentResponse shipment) {
+    private void settleShipment(CancellationProgress progress, Order order, ShipmentResponse shipment) {
         if (shipment.status().equals("CANCELLED")) {
-            var order = order(progress.orderId());
             order.requestCancellation();
             progress.advance(Stage.SHIPMENT_CANCELLED);
             changes.commit(order, progress, progress.leaseGeneration());
@@ -132,8 +136,10 @@ public class CancellationExecution {
     }
 
     private void restoreInventory(CancellationProgress progress) {
+        var order = order(progress.orderId());
         var reservation = inventoryClient.reservationForOrder(progress.orderId())
                 .orElseThrow(() -> new IllegalStateException("successful order has no inventory reservation"));
+        ensureReservationMatches(order, reservation);
         switch (reservation.status()) {
             case "COMMITTED" -> {
                 try {
@@ -141,6 +147,7 @@ public class CancellationExecution {
                 } catch (DomainException failure) {
                     if (!failure.code().equals("outcome_unknown")) throw failure;
                     reservation = inventoryClient.reservationForOrder(progress.orderId()).orElseThrow(() -> failure);
+                    ensureReservationMatches(order, reservation);
                     if (!reservation.status().equals("RESTORED")) throw failure;
                 }
             }
@@ -182,6 +189,20 @@ public class CancellationExecution {
                 || !payment.memberId().equals(order.memberId())
                 || !payment.amount().equals(order.total())) {
             throw new IllegalStateException("payment does not match cancellation order");
+        }
+    }
+
+    private static void ensureShipmentMatches(Order order, ShipmentResponse shipment) {
+        if (!Objects.equals(shipment.id(), order.shipmentId())
+                || !Objects.equals(shipment.orderId(), order.id())) {
+            throw new IllegalStateException("shipment does not match cancellation order");
+        }
+    }
+
+    private static void ensureReservationMatches(Order order, ReservationResponse reservation) {
+        if (!Objects.equals(reservation.id(), order.inventoryReservationId())
+                || !Objects.equals(reservation.orderId(), order.id())) {
+            throw new IllegalStateException("inventory reservation does not match cancellation order");
         }
     }
 

@@ -37,12 +37,12 @@ class CancellationExecutionTest {
     @Test
     void completesAllCancellationStepsInOrder() {
         var fixture = fixture("ord_cancel_complete");
-        when(fixture.shipping.shipmentForOrder(fixture.order.id())).thenReturn(Optional.of(shipment("READY")));
-        when(fixture.shipping.cancelShipment("shp_demo")).thenReturn(shipment("CANCELLED"));
+        when(fixture.shipping.shipmentForOrder(fixture.order.id())).thenReturn(Optional.of(shipment(fixture, "READY")));
+        when(fixture.shipping.cancelShipment("shp_demo")).thenReturn(shipment(fixture, "CANCELLED"));
         when(fixture.payments.paymentForOrder(fixture.order.id())).thenReturn(Optional.of(payment(fixture, "CAPTURED")));
         when(fixture.payments.refundPayment("pay_demo")).thenReturn(payment(fixture, "REFUNDED"));
         when(fixture.inventory.reservationForOrder(fixture.order.id()))
-                .thenReturn(Optional.of(reservation("COMMITTED")));
+                .thenReturn(Optional.of(reservation(fixture, "COMMITTED")));
 
         fixture.execution.run(fixture.progress);
 
@@ -59,14 +59,14 @@ class CancellationExecutionTest {
     @Test
     void resumesAfterShipmentCancellationWithoutCancellingShipmentAgain() {
         var fixture = fixture("ord_cancel_resume");
-        when(fixture.shipping.shipmentForOrder(fixture.order.id())).thenReturn(Optional.of(shipment("READY")));
-        when(fixture.shipping.cancelShipment("shp_demo")).thenReturn(shipment("CANCELLED"));
+        when(fixture.shipping.shipmentForOrder(fixture.order.id())).thenReturn(Optional.of(shipment(fixture, "READY")));
+        when(fixture.shipping.cancelShipment("shp_demo")).thenReturn(shipment(fixture, "CANCELLED"));
         when(fixture.payments.paymentForOrder(fixture.order.id()))
                 .thenThrow(DomainException.unavailable("payment unavailable"))
                 .thenReturn(Optional.of(payment(fixture, "CAPTURED")));
         when(fixture.payments.refundPayment("pay_demo")).thenReturn(payment(fixture, "REFUNDED"));
         when(fixture.inventory.reservationForOrder(fixture.order.id()))
-                .thenReturn(Optional.of(reservation("COMMITTED")));
+                .thenReturn(Optional.of(reservation(fixture, "COMMITTED")));
 
         fixture.execution.run(fixture.progress);
         assertThat(fixture.progress.stage()).isEqualTo(CancellationProgress.Stage.SHIPMENT_CANCELLED);
@@ -84,7 +84,7 @@ class CancellationExecutionTest {
     void rejectsCancellationWhenShipmentAlreadyLeft() {
         var fixture = fixture("ord_cancel_rejected");
         when(fixture.shipping.shipmentForOrder(fixture.order.id()))
-                .thenReturn(Optional.of(shipment("IN_TRANSIT")));
+                .thenReturn(Optional.of(shipment(fixture, "IN_TRANSIT")));
 
         fixture.execution.run(fixture.progress);
 
@@ -106,7 +106,7 @@ class CancellationExecutionTest {
                 .when(fixture.payments).refundPayment("pay_demo");
         when(fixture.payments.payment("pay_demo")).thenReturn(payment(fixture, "REFUNDED"));
         when(fixture.inventory.reservationForOrder(fixture.order.id()))
-                .thenReturn(Optional.of(reservation("RESTORED")));
+                .thenReturn(Optional.of(reservation(fixture, "RESTORED")));
 
         fixture.execution.run(fixture.progress);
 
@@ -114,6 +114,36 @@ class CancellationExecutionTest {
         verify(fixture.payments, times(1)).refundPayment("pay_demo");
         verify(fixture.payments, times(1)).payment("pay_demo");
         verify(fixture.inventory, never()).restoreReservation("rsv_demo");
+    }
+
+    @Test
+    void stopsBeforeCancellingAShipmentThatBelongsToAnotherOrder() {
+        var fixture = fixture("ord_cancel_wrong_shipment");
+        when(fixture.shipping.shipmentForOrder(fixture.order.id())).thenReturn(Optional.of(
+                new ShipmentResponse("shp_other", "ord_other", "mem_demo", null, "READY", "TRK-other")));
+
+        fixture.execution.run(fixture.progress);
+
+        assertThat(fixture.progress.stage()).isEqualTo(CancellationProgress.Stage.ATTENTION_REQUIRED);
+        verify(fixture.shipping, never()).cancelShipment("shp_other");
+        verify(fixture.attention).required(fixture.order.id(), "CANCELLATION_REQUESTED",
+                "IllegalStateException: shipment does not match cancellation order");
+    }
+
+    @Test
+    void stopsBeforeRestoringAReservationThatBelongsToAnotherOrder() {
+        var fixture = fixture("ord_cancel_wrong_reservation");
+        fixture.progress.advance(CancellationProgress.Stage.PAYMENT_REFUNDED);
+        when(fixture.inventory.reservationForOrder(fixture.order.id())).thenReturn(Optional.of(
+                new ReservationResponse("rsv_other", "ord_other", "COMMITTED",
+                        List.of(new ReservationLine("sku_demo", 2)))));
+
+        fixture.execution.run(fixture.progress);
+
+        assertThat(fixture.progress.stage()).isEqualTo(CancellationProgress.Stage.ATTENTION_REQUIRED);
+        verify(fixture.inventory, never()).restoreReservation("rsv_other");
+        verify(fixture.attention).required(fixture.order.id(), "CANCELLATION_PAYMENT_REFUNDED",
+                "IllegalStateException: inventory reservation does not match cancellation order");
     }
 
     private static Fixture fixture(String orderId) {
@@ -132,23 +162,25 @@ class CancellationExecutionTest {
         var inventory = mock(InventoryClient.class);
         var payments = mock(PaymentClient.class);
         var shipping = mock(ShippingClient.class);
+        var attention = mock(OperationalAttention.class);
         when(orders.findById(orderId)).thenReturn(Optional.of(order));
         var progress = new CancellationProgress(orderId, "mem_demo");
         var execution = new CancellationExecution(orders, changes, inventory, payments, shipping,
-                mock(OperationalAttention.class), Clock.systemUTC());
-        return new Fixture(order, progress, execution, inventory, payments, shipping);
+                attention, Clock.systemUTC());
+        return new Fixture(order, progress, execution, inventory, payments, shipping, attention);
     }
 
-    private static ShipmentResponse shipment(String status) {
-        return new ShipmentResponse("shp_demo", "order", "mem_demo", null, status, "TRK-1");
+    private static ShipmentResponse shipment(Fixture fixture, String status) {
+        return new ShipmentResponse("shp_demo", fixture.order.id(), "mem_demo", null, status, "TRK-1");
     }
 
     private static PaymentResponse payment(Fixture fixture, String status) {
         return new PaymentResponse("pay_demo", fixture.order.id(), "mem_demo", fixture.order.total(), "CARD", status);
     }
 
-    private static ReservationResponse reservation(String status) {
-        return new ReservationResponse("rsv_demo", "order", status, List.of(new ReservationLine("sku_demo", 2)));
+    private static ReservationResponse reservation(Fixture fixture, String status) {
+        return new ReservationResponse("rsv_demo", fixture.order.id(), status,
+                List.of(new ReservationLine("sku_demo", 2)));
     }
 
     private record Fixture(
@@ -157,7 +189,8 @@ class CancellationExecutionTest {
             CancellationExecution execution,
             InventoryClient inventory,
             PaymentClient payments,
-            ShippingClient shipping
+            ShippingClient shipping,
+            OperationalAttention attention
     ) {
     }
 }
