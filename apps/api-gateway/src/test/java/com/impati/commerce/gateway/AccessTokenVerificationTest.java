@@ -14,6 +14,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.client.MockServerRestClientCustomizer;
 import org.springframework.context.annotation.Bean;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -31,6 +32,7 @@ import org.springframework.http.HttpMethod;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -141,13 +143,13 @@ class AccessTokenVerificationTest {
                 .expect(requestTo("http://localhost:8108/orders/ord_owned/cancellation"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Member-Id", "mem_local"))
-                .andRespond(withSuccess("{\"orderId\":\"ord_owned\",\"status\":\"PROCESSING\"}",
-                        MediaType.APPLICATION_JSON));
+                .andRespond(withStatus(HttpStatus.ACCEPTED).contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"orderId\":\"ord_owned\",\"status\":\"PROCESSING\"}"));
 
         mockMvc.perform(post("/orders/ord_owned/cancellation")
                         .header("Authorization", bearer(token("mem_local", Duration.ofMinutes(5))))
                         .header("X-Member-Id", "mem_forged"))
-                .andExpect(status().isOk())
+                .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.status").value("PROCESSING"));
         restClientCustomizer.getServer().verify();
     }

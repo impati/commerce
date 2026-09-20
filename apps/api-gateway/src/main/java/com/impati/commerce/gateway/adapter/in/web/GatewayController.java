@@ -230,7 +230,7 @@ public class GatewayController {
     }
 
     @PostMapping("/orders/{orderId}/cancellation")
-    OrderCancellationResponse cancelOrder(
+    ResponseEntity<OrderCancellationResponse> cancelOrder(
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @PathVariable String orderId
     ) {

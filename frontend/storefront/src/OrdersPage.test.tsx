@@ -89,6 +89,24 @@ test('confirms and requests cancellation from eligible order detail', async () =
   expect(screen.queryByRole('button', { name: '주문 취소' })).not.toBeInTheDocument();
 });
 
+test('keeps the shipment-race rejection visible while refreshing the detail', async () => {
+  vi.spyOn(window, 'confirm').mockReturnValue(true);
+  vi.mocked(api.cancelOrder).mockRejectedValueOnce(
+    new ApiError(409, 'shipment already left', 'cancellation_not_allowed')
+  );
+  vi.mocked(api.order)
+    .mockResolvedValueOnce(detail)
+    .mockResolvedValueOnce({ ...detail, cancellable: false });
+
+  open('/orders/ord_a');
+  fireEvent.click(await screen.findByRole('button', { name: '주문 취소' }));
+
+  expect(await screen.findByRole('alert')).toHaveTextContent('이미 배송이 시작되어 주문을 취소할 수 없습니다.');
+  await waitFor(() => expect(api.order).toHaveBeenCalledTimes(2));
+  expect(screen.getByRole('alert')).toHaveTextContent('이미 배송이 시작되어 주문을 취소할 수 없습니다.');
+  expect(screen.queryByRole('button', { name: '주문 취소' })).not.toBeInTheDocument();
+});
+
 test('does not expose cancellation action on the order list', async () => {
   open();
   expect(await screen.findByText('Snapshot product 외 1개 상품')).toBeInTheDocument();

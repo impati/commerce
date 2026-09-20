@@ -22,6 +22,7 @@ export function OrdersPage() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
+  const [cancellationNotice, setCancellationNotice] = useState('');
   const [notFound, setNotFound] = useState(false);
   const [cancellationBusy, setCancellationBusy] = useState(false);
   const [revision, setRevision] = useState(0);
@@ -48,6 +49,10 @@ export function OrdersPage() {
     }).finally(() => { if (!ignore) setAuthLoading(false); });
     return () => { ignore = true; };
   }, [authRetry]);
+
+  useEffect(() => {
+    setCancellationNotice('');
+  }, [member, orderId]);
 
   useEffect(() => {
     const current = ++generation.current;
@@ -106,13 +111,14 @@ export function OrdersPage() {
     )) return;
     setCancellationBusy(true);
     setError('');
+    setCancellationNotice('');
     try {
       await api.cancelOrder(detail.id);
       setRevision(value => value + 1);
     } catch (problem) {
       if (problem instanceof UnauthorizedError) expired();
       else if (problem instanceof ApiError && problem.code === 'cancellation_not_allowed') {
-        setError('이미 배송이 시작되어 주문을 취소할 수 없습니다.');
+        setCancellationNotice('이미 배송이 시작되어 주문을 취소할 수 없습니다.');
         setRevision(value => value + 1);
       } else setError('주문 취소를 접수하지 못했습니다. 다시 시도해주세요.');
     } finally { setCancellationBusy(false); }
@@ -189,6 +195,7 @@ export function OrdersPage() {
           {error && <div className="order-error" role="alert"><p>{error}</p>
             {!loadingMore && (!nextCursor || orderId || items.length === 0) && <button type="button" className="secondary-button" onClick={() => setRevision(n => n + 1)}>다시 시도</button>}
           </div>}
+          {cancellationNotice && <div className="order-error" role="alert"><p>{cancellationNotice}</p></div>}
         </>}
     </main>
   </div>;

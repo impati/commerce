@@ -270,12 +270,12 @@ public class GatewayClients {
                 .body(OrderDetailResponse.class);
     }
 
-    public OrderCancellationResponse cancelOrder(String memberId, String orderId) {
+    public ResponseEntity<OrderCancellationResponse> cancelOrder(String memberId, String orderId) {
         return orders.post()
                 .uri("/orders/{orderId}/cancellation", orderId)
                 .header(MEMBER_ID_HEADER, memberId)
                 .retrieve()
-                .body(OrderCancellationResponse.class);
+                .toEntity(OrderCancellationResponse.class);
     }
 
     public OrderPageResponse orders(String memberId, String cursor, int size) {
