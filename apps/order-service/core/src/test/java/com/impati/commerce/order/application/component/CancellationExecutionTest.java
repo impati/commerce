@@ -16,6 +16,7 @@ import com.impati.commerce.order.domain.OrderModels.Address;
 import com.impati.commerce.order.domain.OrderModels.Order;
 import com.impati.commerce.order.domain.OrderModels.OrderEventType;
 import com.impati.commerce.order.domain.OrderModels.OrderLine;
+import com.impati.commerce.order.domain.OrderModels.OrderStatus;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -46,7 +47,7 @@ class CancellationExecutionTest {
         fixture.execution.run(fixture.progress);
 
         assertThat(fixture.progress.stage()).isEqualTo(CancellationProgress.Stage.COMPLETED);
-        assertThat(fixture.order.status()).isEqualTo("CANCELLED");
+        assertThat(fixture.order.status()).isEqualTo(OrderStatus.CANCELLED);
         assertThat(fixture.order.drainPendingEvents()).extracting(event -> event.type())
                 .containsExactly(OrderEventType.ORDER_CANCELLATION_REQUESTED, OrderEventType.ORDER_CANCELLED);
         verify(fixture.shipping).cancelShipment("shp_demo");
@@ -89,7 +90,7 @@ class CancellationExecutionTest {
 
         assertThat(fixture.progress.stage()).isEqualTo(CancellationProgress.Stage.REJECTED);
         assertThat(fixture.progress.failureCode()).isEqualTo("CANCELLATION_NOT_ALLOWED");
-        assertThat(fixture.order.status()).isEqualTo("FULFILLING");
+        assertThat(fixture.order.status()).isEqualTo(OrderStatus.FULFILLING);
         assertThat(fixture.order.drainPendingEvents()).isEmpty();
         verify(fixture.payments, never()).refundPayment("pay_demo");
         verify(fixture.inventory, never()).restoreReservation("rsv_demo");

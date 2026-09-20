@@ -111,23 +111,23 @@ public class OrderHistoryExecutor implements OrderHistoryUseCase {
         }
         // 체크아웃 진행 기록 없이 도메인에서 생성된 주문도 내부 상태를 그대로 노출하지 않는다.
         return switch (order.status()) {
-            case "PAID", "FULFILLING", "DELIVERED" -> "SUCCEEDED";
-            case "CANCELLED" -> "FAILED";
-            default -> "PROCESSING";
+            case PAID, FULFILLING, DELIVERED -> "SUCCEEDED";
+            case CANCELLED -> "FAILED";
+            case CREATED -> "PROCESSING";
         };
     }
 
     private static String customerOrderStatus(Order order, String state) {
-        return "SUCCEEDED".equals(state) ? order.status() : null;
+        return "SUCCEEDED".equals(state) ? order.status().name() : null;
     }
 
     private static String cancellationStatus(CancellationProgress progress) {
-        return progress == null ? "NONE" : progress.customerStatus();
+        return progress == null ? "NONE" : progress.customerStatus().name();
     }
 
     private boolean cancellable(Order order, String checkoutState, CancellationProgress cancellation) {
         if (!"SUCCEEDED".equals(checkoutState) || cancellation != null
-                || (!order.status().equals("PAID") && !order.status().equals("FULFILLING"))) {
+                || !order.canStartCustomerCancellation()) {
             return false;
         }
         try {

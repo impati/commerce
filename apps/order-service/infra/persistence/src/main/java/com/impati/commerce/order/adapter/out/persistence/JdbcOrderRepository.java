@@ -7,6 +7,7 @@ import com.impati.commerce.order.application.port.out.OrderWriter;
 import com.impati.commerce.order.domain.OrderModels.Address;
 import com.impati.commerce.order.domain.OrderModels.Order;
 import com.impati.commerce.order.domain.OrderModels.OrderLine;
+import com.impati.commerce.order.domain.OrderModels.OrderStatus;
 import com.impati.commerce.order.domain.PriceBreakdown;
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -84,7 +85,7 @@ public class JdbcOrderRepository implements OrderRepository, OrderWriter {
             new Address(rs.getString("ship_address_id"), rs.getString("ship_alias"),
                     rs.getString("ship_recipient"), rs.getString("ship_phone"), rs.getString("ship_line1"),
                     rs.getString("ship_city"), rs.getString("ship_postal_code"), rs.getBoolean("ship_default_address")),
-            rs.getString("status"), rs.getString("payment_id"), rs.getString("shipment_id"),
+            OrderStatus.valueOf(rs.getString("status")), rs.getString("payment_id"), rs.getString("shipment_id"),
             rs.getString("inventory_reservation_id"), rs.getObject("created_at", LocalDateTime.class));
 
     private final NamedParameterJdbcTemplate jdbc;
@@ -155,7 +156,8 @@ public class JdbcOrderRepository implements OrderRepository, OrderWriter {
         var address = order.shippingAddress();
         var priceBreakdown = order.priceBreakdown();
         return new MapSqlParameterSource()
-                .addValue("id", order.id()).addValue("member_id", order.memberId()).addValue("status", order.status())
+                .addValue("id", order.id()).addValue("member_id", order.memberId())
+                .addValue("status", order.status().name())
                 .addValue("payment_id", order.paymentId()).addValue("shipment_id", order.shipmentId())
                 .addValue("inventory_reservation_id", order.inventoryReservationId())
                 .addValue("ship_address_id", address.id()).addValue("ship_alias", address.alias())
@@ -180,7 +182,7 @@ public class JdbcOrderRepository implements OrderRepository, OrderWriter {
     private record OrderLineRow(String orderId, OrderLine line) { }
 
     private record OrderRow(String id, String memberId, PriceBreakdown priceBreakdown, Address address,
-            String status, String paymentId,
+            OrderStatus status, String paymentId,
             String shipmentId, String reservationId, LocalDateTime createdAt) {
         Order toOrder(List<OrderLine> lines, Clock clock) {
             return Order.restore(id, memberId, lines, priceBreakdown, address, status, paymentId, shipmentId,

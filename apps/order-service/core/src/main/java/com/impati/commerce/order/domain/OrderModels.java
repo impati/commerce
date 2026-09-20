@@ -17,6 +17,14 @@ public final class OrderModels {
     private OrderModels() {
     }
 
+    public enum OrderStatus {
+        CREATED,
+        PAID,
+        FULFILLING,
+        DELIVERED,
+        CANCELLED
+    }
+
     /**
      * 주문에 일어날 수 있는 사건 (ADR-0012).
      *
@@ -264,7 +272,7 @@ public final class OrderModels {
         private final List<OrderLine> lines;
         private final PriceBreakdown priceBreakdown;
         private final Address shippingAddress;
-        private String status = "CREATED";
+        private OrderStatus status = OrderStatus.CREATED;
         private String paymentId;
         private String shipmentId;
         private String inventoryReservationId;
@@ -350,7 +358,7 @@ public final class OrderModels {
                 List<OrderLine> lines,
                 PriceBreakdown priceBreakdown,
                 Address shippingAddress,
-                String status,
+                OrderStatus status,
                 String paymentId,
                 String shipmentId,
                 String inventoryReservationId,
@@ -362,7 +370,7 @@ public final class OrderModels {
 
         public static Order restore(String id, String memberId, List<OrderLine> lines, PriceBreakdown priceBreakdown,
                 Address shippingAddress,
-                String status, String paymentId, String shipmentId, String inventoryReservationId,
+                OrderStatus status, String paymentId, String shipmentId, String inventoryReservationId,
                 LocalDateTime createdAt, Clock clock) {
             var order = new Order(id, memberId, lines, priceBreakdown, shippingAddress, createdAt, clock);
             order.status = status;
@@ -384,7 +392,7 @@ public final class OrderModels {
             return createdAt;
         }
 
-        public String status() {
+        public OrderStatus status() {
             return status;
         }
 
@@ -430,13 +438,13 @@ public final class OrderModels {
         }
 
         public void markPaid() {
-            if (!status.equals("CREATED")) {
+            if (status != OrderStatus.CREATED) {
                 throw DomainException.conflict("order cannot be paid from current status");
             }
             if (paymentId == null) {
                 throw DomainException.conflict("order has no authorized payment");
             }
-            this.status = "PAID";
+            this.status = OrderStatus.PAID;
             record(OrderEventType.ORDER_PAID, Map.of("paymentId", paymentId));
         }
 
@@ -448,21 +456,21 @@ public final class OrderModels {
          * 일어난 일이고, 그것을 나중에 배송 서비스에 되물으면 사건이 자기 완결적이지 않게 된다.
          */
         public void attachShipment(String shipmentId, String trackingNumber) {
-            if (!status.equals("PAID")) {
+            if (status != OrderStatus.PAID) {
                 throw DomainException.conflict("shipment can only be attached to paid order");
             }
             this.shipmentId = shipmentId;
-            this.status = "FULFILLING";
+            this.status = OrderStatus.FULFILLING;
             record(OrderEventType.SHIPMENT_CREATED, Map.of(
                     "shipmentId", shipmentId,
                     "trackingNumber", trackingNumber));
         }
 
         public void markDelivered() {
-            if (!status.equals("FULFILLING") && !status.equals("PAID")) {
+            if (status != OrderStatus.FULFILLING && status != OrderStatus.PAID) {
                 throw DomainException.conflict("order cannot be delivered from current status");
             }
-            this.status = "DELIVERED";
+            this.status = OrderStatus.DELIVERED;
             record(OrderEventType.ORDER_DELIVERED, Map.of());
         }
 
@@ -476,34 +484,41 @@ public final class OrderModels {
          * 자르지 않으면 사유가 길다는 이유로 <b>취소 자체가 롤백된다</b>.
          */
         public void failCheckout(String reason) {
-            if (status.equals("CANCELLED")) {
+            if (status == OrderStatus.CANCELLED) {
                 return;
             }
-            if (status.equals("DELIVERED")) {
+            if (status == OrderStatus.DELIVERED) {
                 throw DomainException.conflict("delivered order cannot be cancelled");
             }
-            this.status = "CANCELLED";
+            this.status = OrderStatus.CANCELLED;
             record(OrderEventType.CHECKOUT_FAILED, Map.of(
                     "reason", OrderEvent.truncate(reason == null ? "" : reason, OrderEvent.MAX_REASON_LENGTH)));
         }
 
+        /** 고객 취소 시작 여부를 판단하되 상태를 바꾸거나 사건을 만들지 않는다. */
+        public boolean canStartCustomerCancellation() {
+            return status == OrderStatus.PAID || status == OrderStatus.FULFILLING;
+        }
+
+        public void ensureCustomerCancellationMayStart() {
+            if (!canStartCustomerCancellation()) {
+                throw DomainException.cancellationNotAllowed("order cannot be cancelled from current status");
+            }
+        }
+
         /** [PD-0024-R12] 배송 취소가 확정된 고객 요청을 진행 이력에 남긴다. */
         public void requestCancellation() {
-            if (status.equals("DELIVERED") || status.equals("CANCELLED")) {
-                throw DomainException.conflict("order cannot enter customer cancellation from current status");
-            }
+            ensureCustomerCancellationMayStart();
             record(OrderEventType.ORDER_CANCELLATION_REQUESTED, Map.of("reason", "CUSTOMER_REQUESTED"));
         }
 
         /** [PD-0024-R4][PD-0024-R12] 모든 되돌림이 끝난 고객 취소를 확정한다. */
         public void cancelByCustomer() {
-            if (status.equals("CANCELLED")) {
+            if (status == OrderStatus.CANCELLED) {
                 return;
             }
-            if (status.equals("DELIVERED")) {
-                throw DomainException.conflict("delivered order cannot be cancelled");
-            }
-            status = "CANCELLED";
+            ensureCustomerCancellationMayStart();
+            status = OrderStatus.CANCELLED;
             record(OrderEventType.ORDER_CANCELLED, Map.of("reason", "CUSTOMER_REQUESTED"));
         }
 

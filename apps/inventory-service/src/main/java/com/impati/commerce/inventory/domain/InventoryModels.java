@@ -7,6 +7,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 public final class InventoryModels {
+    public enum ReservationStatus {
+        RESERVED,
+        COMMITTED,
+        RELEASED,
+        RESTORED
+    }
+
+    public enum TransitionOutcome {
+        APPLIED,
+        UNCHANGED
+    }
+
     private InventoryModels() {
     }
 
@@ -100,13 +112,13 @@ public final class InventoryModels {
         private final String id;
         private final String orderId;
         private final List<ReservedLine> lines;
-        private String status;
+        private ReservationStatus status;
 
         public Reservation(String orderId, List<ReservedLine> lines) {
-            this(Ids.newId("rsv"), orderId, lines, "RESERVED");
+            this(Ids.newId("rsv"), orderId, lines, ReservationStatus.RESERVED);
         }
 
-        private Reservation(String id, String orderId, List<ReservedLine> lines, String status) {
+        private Reservation(String id, String orderId, List<ReservedLine> lines, ReservationStatus status) {
             if (lines.isEmpty()) {
                 throw DomainException.validation("reservation requires at least one line");
             }
@@ -121,7 +133,12 @@ public final class InventoryModels {
          *
          * <p>상태 전이 규칙을 거치지 않고 status를 그대로 세운다. 영속화 어댑터만 쓴다.
          */
-        public static Reservation restore(String id, String orderId, List<ReservedLine> lines, String status) {
+        public static Reservation restore(
+                String id,
+                String orderId,
+                List<ReservedLine> lines,
+                ReservationStatus status
+        ) {
             return new Reservation(id, orderId, lines, status);
         }
 
@@ -137,39 +154,42 @@ public final class InventoryModels {
             return List.copyOf(lines);
         }
 
-        public String status() {
+        public ReservationStatus status() {
             return status;
         }
 
-        public void commit() {
-            if (status.equals("COMMITTED")) {
-                return;
+        public TransitionOutcome commit() {
+            if (status == ReservationStatus.COMMITTED) {
+                return TransitionOutcome.UNCHANGED;
             }
             ensureReserved();
-            status = "COMMITTED";
+            status = ReservationStatus.COMMITTED;
+            return TransitionOutcome.APPLIED;
         }
 
-        public void release() {
-            if (status.equals("RELEASED")) {
-                return;
+        public TransitionOutcome release() {
+            if (status == ReservationStatus.RELEASED) {
+                return TransitionOutcome.UNCHANGED;
             }
             ensureReserved();
-            status = "RELEASED";
+            status = ReservationStatus.RELEASED;
+            return TransitionOutcome.APPLIED;
         }
 
         /** [PD-0024-R6][PD-0024-R7] 확정된 예약만 한 번 복원한다. */
-        public void restore() {
-            if (status.equals("RESTORED")) {
-                return;
+        public TransitionOutcome restore() {
+            if (status == ReservationStatus.RESTORED) {
+                return TransitionOutcome.UNCHANGED;
             }
-            if (!status.equals("COMMITTED")) {
+            if (status != ReservationStatus.COMMITTED) {
                 throw DomainException.conflict("only committed reservation can be restored");
             }
-            status = "RESTORED";
+            status = ReservationStatus.RESTORED;
+            return TransitionOutcome.APPLIED;
         }
 
         private void ensureReserved() {
-            if (!status.equals("RESERVED")) {
+            if (status != ReservationStatus.RESERVED) {
                 throw DomainException.conflict("reservation is not reserved");
             }
         }

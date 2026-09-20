@@ -6,11 +6,13 @@ import com.impati.commerce.order.domain.OrderModels.Order;
 import com.impati.commerce.order.domain.OrderModels.OrderEvent;
 import com.impati.commerce.order.domain.OrderModels.OrderEventType;
 import com.impati.commerce.order.domain.OrderModels.OrderLine;
+import com.impati.commerce.order.domain.OrderModels.OrderStatus;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class OrderModelsTest {
@@ -52,7 +54,7 @@ class OrderModelsTest {
         order.markDelivered();
 
         assertThat(order.total()).isEqualTo(Money.krw(58000));
-        assertThat(order.status()).isEqualTo("DELIVERED");
+        assertThat(order.status()).isEqualTo(OrderStatus.DELIVERED);
         assertThat(order.inventoryReservationId()).isEqualTo("rsv_demo");
         assertThat(order.shippingAddress().recipient()).isEqualTo("Demo Customer");
     }
@@ -87,6 +89,25 @@ class OrderModelsTest {
                 .findFirst()
                 .orElseThrow();
         assertThat(event.payload().get("reason")).isEqualTo("payment declined");
+    }
+
+    @Test
+    void orderOwnsTheSideEffectFreeCustomerCancellationEligibilityRule() {
+        var order = newOrder();
+
+        assertThatThrownBy(order::ensureCustomerCancellationMayStart)
+                .hasMessage("order cannot be cancelled from current status");
+
+        order.attachPayment("pay_demo");
+        order.markPaid();
+        assertThatCode(order::ensureCustomerCancellationMayStart).doesNotThrowAnyException();
+
+        order.attachShipment("shp_demo", "TRK-shp_demo");
+        assertThatCode(order::ensureCustomerCancellationMayStart).doesNotThrowAnyException();
+
+        order.markDelivered();
+        assertThatThrownBy(order::ensureCustomerCancellationMayStart)
+                .hasMessage("order cannot be cancelled from current status");
     }
 
     /**

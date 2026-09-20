@@ -133,6 +133,10 @@ public final class CheckoutProgress {
     public OffsetDateTime leaseUntil() { return leaseUntil; }
     public long leaseGeneration() { return leaseGeneration; }
 
+    public boolean isCompletedSuccessfully() {
+        return stage == Stage.COMPLETED && outcome == Outcome.SUCCEEDED;
+    }
+
     public void claimed(long generation, OffsetDateTime leaseUntil) {
         this.leaseGeneration = generation;
         this.leaseUntil = leaseUntil;

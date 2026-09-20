@@ -10,7 +10,6 @@ import com.impati.commerce.order.application.port.out.OrderRepository;
 import com.impati.commerce.order.application.port.out.PaymentClient;
 import com.impati.commerce.order.application.port.out.ShippingClient;
 import com.impati.commerce.order.domain.CancellationProgress;
-import com.impati.commerce.order.domain.CheckoutProgress;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Component;
 
@@ -43,14 +42,12 @@ public class OrderCancellationExecutor implements OrderCancellationUseCase {
                 .orElseThrow(() -> DomainException.notFound("order not found"));
         var checkout = checkoutProgressRepository.findByOrderId(orderId)
                 .orElseThrow(() -> DomainException.cancellationNotAllowed("only a successful checkout can be cancelled"));
-        if (checkout.stage() != CheckoutProgress.Stage.COMPLETED) {
+        if (!checkout.isCompletedSuccessfully()) {
             throw DomainException.cancellationNotAllowed("only a successful checkout can be cancelled");
         }
         var progress = progressRepository.findByOrderId(orderId).orElse(null);
         if (progress == null) {
-            if (order.status().equals("DELIVERED") || order.status().equals("CANCELLED")) {
-                throw DomainException.cancellationNotAllowed("order cannot be cancelled from current status");
-            }
+            order.ensureCustomerCancellationMayStart();
             var created = new CancellationProgress(orderId, memberId);
             if (changes.create(created)) {
                 progress = created;
@@ -62,18 +59,18 @@ public class OrderCancellationExecutor implements OrderCancellationUseCase {
         if (!progress.memberId().equals(memberId)) {
             throw DomainException.notFound("order not found");
         }
-        if (progress.stage() == CancellationProgress.Stage.COMPLETED) {
-            return new OrderCancellationResult(orderId, progress.customerStatus());
+        if (progress.isCompleted()) {
+            return new OrderCancellationResult(orderId, progress.customerStatus().name());
         }
-        if (progress.stage() == CancellationProgress.Stage.REJECTED) {
+        if (progress.isRejected()) {
             throw DomainException.cancellationNotAllowed("shipment already left and cannot be cancelled");
         }
 
         progressRepository.claim(orderId, CancellationRecoveryExecutor.LEASE_DURATION).ifPresent(execution::run);
         var current = progressRepository.findByOrderId(orderId).orElseThrow();
-        if (current.stage() == CancellationProgress.Stage.REJECTED) {
+        if (current.isRejected()) {
             throw DomainException.cancellationNotAllowed("shipment already left and cannot be cancelled");
         }
-        return new OrderCancellationResult(orderId, current.customerStatus());
+        return new OrderCancellationResult(orderId, current.customerStatus().name());
     }
 }

@@ -15,6 +15,13 @@ public final class CancellationProgress {
         ATTENTION_REQUIRED
     }
 
+    public enum CustomerStatus {
+        NONE,
+        PROCESSING,
+        CHECKING,
+        COMPLETED
+    }
+
     private final String orderId;
     private final String memberId;
     private Stage stage;
@@ -76,6 +83,14 @@ public final class CancellationProgress {
     public OffsetDateTime leaseUntil() { return leaseUntil; }
     public long leaseGeneration() { return leaseGeneration; }
 
+    public boolean isCompleted() {
+        return stage == Stage.COMPLETED;
+    }
+
+    public boolean isRejected() {
+        return stage == Stage.REJECTED;
+    }
+
     public void claimed(long generation, OffsetDateTime until) {
         leaseGeneration = generation;
         leaseUntil = until;
@@ -118,12 +133,12 @@ public final class CancellationProgress {
         leaseUntil = null;
     }
 
-    public String customerStatus() {
+    public CustomerStatus customerStatus() {
         return switch (stage) {
-            case COMPLETED -> "COMPLETED";
-            case ATTENTION_REQUIRED -> "CHECKING";
-            case REJECTED -> "NONE";
-            default -> "PROCESSING";
+            case COMPLETED -> CustomerStatus.COMPLETED;
+            case ATTENTION_REQUIRED -> CustomerStatus.CHECKING;
+            case REJECTED -> CustomerStatus.NONE;
+            default -> CustomerStatus.PROCESSING;
         };
     }
 
