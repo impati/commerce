@@ -1,6 +1,7 @@
 package com.impati.commerce.inventory.adapter.out.persistence;
 
 import com.impati.commerce.inventory.application.port.out.InventoryRepository;
+import com.impati.commerce.inventory.domain.InventoryModels.InventoryMovement;
 import com.impati.commerce.inventory.domain.InventoryModels.Reservation;
 import com.impati.commerce.inventory.domain.InventoryModels.ReservationStatus;
 import com.impati.commerce.inventory.domain.InventoryModels.ReservedLine;
@@ -68,6 +69,19 @@ public class JdbcInventoryRepository implements InventoryRepository {
               from reservation_lines
              where reservation_id = :reservation_id
              order by line_no
+            """;
+    private static final String INSERT_MOVEMENT = """
+            insert into inventory_movements (id, reason, order_id, reservation_id, occurred_at)
+            values (:id, :reason, :order_id, :reservation_id, :occurred_at)
+            """;
+    private static final String INSERT_MOVEMENT_LINE = """
+            insert into inventory_movement_lines (
+                movement_id, line_no, sku_id,
+                on_hand_delta, reserved_delta, on_hand_after, reserved_after
+            ) values (
+                :movement_id, :line_no, :sku_id,
+                :on_hand_delta, :reserved_delta, :on_hand_after, :reserved_after
+            )
             """;
 
     private static final RowMapper<StockItem> STOCK_MAPPER = (rs, rowNum) -> StockItem.restore(
@@ -142,6 +156,30 @@ public class JdbcInventoryRepository implements InventoryRepository {
                     .addValue("sku_id", line.skuId())
                     .addValue("line_no", index)
                     .addValue("quantity", line.quantity()));
+        }
+    }
+
+    @Override
+    @Transactional
+    public void saveMovement(InventoryMovement movement) {
+        jdbc.update(INSERT_MOVEMENT, new MapSqlParameterSource()
+                .addValue("id", movement.id())
+                .addValue("reason", movement.reason().name())
+                .addValue("order_id", movement.orderId())
+                .addValue("reservation_id", movement.reservationId())
+                .addValue("occurred_at", movement.occurredAt()));
+
+        var lines = movement.lines();
+        for (var index = 0; index < lines.size(); index++) {
+            var line = lines.get(index);
+            jdbc.update(INSERT_MOVEMENT_LINE, new MapSqlParameterSource()
+                    .addValue("movement_id", movement.id())
+                    .addValue("line_no", index)
+                    .addValue("sku_id", line.skuId())
+                    .addValue("on_hand_delta", line.onHandDelta())
+                    .addValue("reserved_delta", line.reservedDelta())
+                    .addValue("on_hand_after", line.onHandAfter())
+                    .addValue("reserved_after", line.reservedAfter()));
         }
     }
 

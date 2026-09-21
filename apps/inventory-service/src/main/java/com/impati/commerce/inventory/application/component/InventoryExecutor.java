@@ -6,10 +6,17 @@ import com.impati.commerce.inventory.application.port.in.ReservationDetails;
 import com.impati.commerce.inventory.application.port.in.StockDetails;
 import com.impati.commerce.inventory.application.port.in.StockLine;
 import com.impati.commerce.inventory.application.port.out.InventoryRepository;
+import com.impati.commerce.inventory.domain.InventoryModels.InventoryMovement;
+import com.impati.commerce.inventory.domain.InventoryModels.MovementLine;
+import com.impati.commerce.inventory.domain.InventoryModels.MovementReason;
 import com.impati.commerce.inventory.domain.InventoryModels.Reservation;
 import com.impati.commerce.inventory.domain.InventoryModels.ReservedLine;
 import com.impati.commerce.inventory.domain.InventoryModels.StockItem;
 import com.impati.commerce.inventory.domain.InventoryModels.TransitionOutcome;
+import java.time.Clock;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,9 +33,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class InventoryExecutor implements InventoryUseCase {
 
     private final InventoryRepository inventoryRepository;
+    private final Clock clock;
 
-    public InventoryExecutor(InventoryRepository inventoryRepository) {
+    public InventoryExecutor(InventoryRepository inventoryRepository, Clock clock) {
         this.inventoryRepository = inventoryRepository;
+        this.clock = clock;
     }
 
     @Transactional
@@ -37,8 +46,9 @@ public class InventoryExecutor implements InventoryUseCase {
         var stock = inventoryRepository.lockStock(List.of(skuId)).stream()
                 .findFirst()
                 .orElseGet(() -> new StockItem(skuId));
-        stock.add(quantity);
+        var movementLine = stock.add(quantity);
         inventoryRepository.saveStock(stock);
+        inventoryRepository.saveMovement(InventoryMovement.stockIncreased(now(), movementLine));
         return InventoryMapper.toDetails(stock);
     }
 
@@ -65,14 +75,21 @@ public class InventoryExecutor implements InventoryUseCase {
                 throw DomainException.outOfStock("insufficient stock for " + line.skuId());
             }
         }
+        var movementLines = new ArrayList<MovementLine>();
         for (var line : reservedLines) {
             var stock = requireStock(locked, line.skuId());
-            stock.reserve(line.quantity());
+            movementLines.add(stock.reserve(line.quantity()));
             inventoryRepository.saveStock(stock);
         }
 
         var reservation = new Reservation(orderId, reservedLines);
         inventoryRepository.saveReservation(reservation);
+        inventoryRepository.saveMovement(InventoryMovement.forReservation(
+                MovementReason.RESERVATION_CREATED,
+                reservation,
+                now(),
+                movementLines
+        ));
         return InventoryMapper.toDetails(reservation);
     }
 
@@ -85,12 +102,19 @@ public class InventoryExecutor implements InventoryUseCase {
             return InventoryMapper.toDetails(reservation);
         }
         var locked = lockFor(reservation.lines());
+        var movementLines = new ArrayList<MovementLine>();
         for (var line : reservation.lines()) {
             var stock = requireStock(locked, line.skuId());
-            stock.commit(line.quantity());
+            movementLines.add(stock.commit(line.quantity()));
             inventoryRepository.saveStock(stock);
         }
         inventoryRepository.saveReservation(reservation);
+        inventoryRepository.saveMovement(InventoryMovement.forReservation(
+                MovementReason.RESERVATION_COMMITTED,
+                reservation,
+                now(),
+                movementLines
+        ));
         return InventoryMapper.toDetails(reservation);
     }
 
@@ -103,12 +127,19 @@ public class InventoryExecutor implements InventoryUseCase {
             return InventoryMapper.toDetails(reservation);
         }
         var locked = lockFor(reservation.lines());
+        var movementLines = new ArrayList<MovementLine>();
         for (var line : reservation.lines()) {
             var stock = requireStock(locked, line.skuId());
-            stock.release(line.quantity());
+            movementLines.add(stock.release(line.quantity()));
             inventoryRepository.saveStock(stock);
         }
         inventoryRepository.saveReservation(reservation);
+        inventoryRepository.saveMovement(InventoryMovement.forReservation(
+                MovementReason.RESERVATION_RELEASED,
+                reservation,
+                now(),
+                movementLines
+        ));
         return InventoryMapper.toDetails(reservation);
     }
 
@@ -121,12 +152,19 @@ public class InventoryExecutor implements InventoryUseCase {
             return InventoryMapper.toDetails(reservation);
         }
         var locked = lockFor(reservation.lines());
+        var movementLines = new ArrayList<MovementLine>();
         for (var line : reservation.lines()) {
             var stock = requireStock(locked, line.skuId());
-            stock.restore(line.quantity());
+            movementLines.add(stock.restore(line.quantity()));
             inventoryRepository.saveStock(stock);
         }
         inventoryRepository.saveReservation(reservation);
+        inventoryRepository.saveMovement(InventoryMovement.forReservation(
+                MovementReason.RESERVATION_RESTORED,
+                reservation,
+                now(),
+                movementLines
+        ));
         return InventoryMapper.toDetails(reservation);
     }
 
@@ -179,5 +217,9 @@ public class InventoryExecutor implements InventoryUseCase {
             throw DomainException.notFound("stock not found for " + skuId);
         }
         return stock;
+    }
+
+    private LocalDateTime now() {
+        return LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
     }
 }

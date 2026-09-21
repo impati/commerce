@@ -69,6 +69,8 @@ class InventoryExecutorTest {
         assertThat(second.id()).isEqualTo(first.id());
         assertThat(stockOf(skuId).onHand()).isEqualTo(8);
         assertThat(stockOf(skuId).reserved()).isZero();
+        assertThat(movementCount("RESERVATION_CREATED", first.id())).isOne();
+        assertThat(movementCount("RESERVATION_COMMITTED", first.id())).isOne();
     }
 
     /** [PD-0024-R6][PD-0024-R7] 확정 재고 복원은 전체 수량을 정확히 한 번 되돌린다. */
@@ -86,6 +88,7 @@ class InventoryExecutorTest {
         assertThat(second).isEqualTo(first);
         assertThat(stockOf(skuId).onHand()).isEqualTo(10);
         assertThat(stockOf(skuId).reserved()).isZero();
+        assertThat(movementCount("RESERVATION_RESTORED", reservation.id())).isOne();
     }
 
     /** [PD-0024-R6] 아직 확정되지 않았거나 해제된 예약은 판매 재고 복원 대상이 아니다. */
@@ -218,6 +221,7 @@ class InventoryExecutorTest {
 
             assertThat(stockOf(skuId).onHand()).isEqualTo(18);
             assertThat(stockOf(skuId).reserved()).isZero();
+            assertThat(movementCount("RESERVATION_COMMITTED", reservation.id())).isOne();
         } finally {
             executorService.shutdown();
         }
@@ -255,6 +259,42 @@ class InventoryExecutorTest {
             }
             assertThat(stockOf(skuId).onHand()).isEqualTo(20);
             assertThat(stockOf(skuId).reserved()).isZero();
+            assertThat(movementCount("RESERVATION_RELEASED", reservation.id())).isOne();
+        } finally {
+            executorService.shutdown();
+        }
+    }
+
+    @Test
+    void restoreInConcurrency() throws InterruptedException, ExecutionException {
+        var skuId = "sku_restore_concurrency";
+        inventoryUseCase.addStock(skuId, 20);
+        var reservation = inventoryUseCase.reserve(
+                "ord_restore_concurrency", List.of(new StockLine(skuId, 2)));
+        inventoryUseCase.commit(reservation.id());
+
+        ExecutorService executorService = Executors.newFixedThreadPool(5);
+        CountDownLatch countDownLatch = new CountDownLatch(20);
+        List<Future<?>> futures = new ArrayList<>();
+        try {
+            for (int i = 0; i < 20; i++) {
+                futures.add(executorService.submit(() -> {
+                    try {
+                        ReservationDetails restored = inventoryUseCase.restore(reservation.id());
+                        assertThat(restored.id()).isEqualTo(reservation.id());
+                    } finally {
+                        countDownLatch.countDown();
+                    }
+                }));
+            }
+            assertThat(countDownLatch.await(10, TimeUnit.SECONDS)).isTrue();
+            for (Future<?> future : futures) {
+                future.get();
+            }
+
+            assertThat(stockOf(skuId).onHand()).isEqualTo(20);
+            assertThat(stockOf(skuId).reserved()).isZero();
+            assertThat(movementCount("RESERVATION_RESTORED", reservation.id())).isOne();
         } finally {
             executorService.shutdown();
         }
@@ -265,6 +305,18 @@ class InventoryExecutorTest {
                 .filter(stock -> stock.skuId().equals(skuId))
                 .findFirst()
                 .orElseThrow();
+    }
+
+    private int movementCount(String reason, String reservationId) {
+        return jdbc.queryForObject("""
+                        select count(*)
+                          from inventory_movements
+                         where reason = ? and reservation_id = ?
+                        """,
+                Integer.class,
+                reason,
+                reservationId
+        );
     }
 
     @Test
