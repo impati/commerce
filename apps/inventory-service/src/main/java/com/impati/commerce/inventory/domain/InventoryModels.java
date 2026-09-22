@@ -2,8 +2,11 @@ package com.impati.commerce.inventory.domain;
 
 import com.impati.commerce.common.DomainException;
 import com.impati.commerce.common.Ids;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public final class InventoryModels {
 
@@ -19,6 +22,14 @@ public final class InventoryModels {
         UNCHANGED
     }
 
+    public enum MovementReason {
+        STOCK_INCREASED,
+        RESERVATION_CREATED,
+        RESERVATION_COMMITTED,
+        RESERVATION_RELEASED,
+        RESERVATION_RESTORED
+    }
+
     private InventoryModels() {
     }
 
@@ -31,6 +42,118 @@ public final class InventoryModels {
             if (quantity <= 0) {
                 throw DomainException.validation("reservation quantity must be positive");
             }
+        }
+    }
+
+    /**
+     * 한 재고 이동이 SKU 하나에 만든 변화와 그 결과다.
+     *
+     * <p>반영 전 잔액은 {@code after - delta}로 구한다. 증감과 결과를 함께 고정해 현재 재고가
+     * 어느 이동에서 어긋났는지 확인할 수 있게 한다 (ADR-0028).
+     */
+    public record MovementLine(
+            String skuId,
+            int onHandDelta,
+            int reservedDelta,
+            int onHandAfter,
+            int reservedAfter
+    ) {
+
+        public MovementLine {
+            Objects.requireNonNull(skuId);
+            if (onHandDelta == 0 && reservedDelta == 0) {
+                throw DomainException.validation("inventory movement must change stock");
+            }
+            if (onHandAfter < 0 || reservedAfter < 0 || onHandAfter < reservedAfter) {
+                throw DomainException.validation("inventory movement has invalid resulting stock");
+            }
+            var onHandBefore = onHandAfter - onHandDelta;
+            var reservedBefore = reservedAfter - reservedDelta;
+            if (onHandBefore < 0 || reservedBefore < 0 || onHandBefore < reservedBefore) {
+                throw DomainException.validation("inventory movement has invalid previous stock");
+            }
+        }
+    }
+
+    /** 실제로 적용된 한 번의 재고 사건. 요청 시도 로그와 달리 품목 줄은 항상 수량을 바꾼다. */
+    public static final class InventoryMovement {
+
+        private final String id;
+        private final MovementReason reason;
+        private final String orderId;
+        private final String reservationId;
+        private final LocalDateTime occurredAt;
+        private final List<MovementLine> lines;
+
+        private InventoryMovement(
+                MovementReason reason,
+                String orderId,
+                String reservationId,
+                LocalDateTime occurredAt,
+                List<MovementLine> lines
+        ) {
+            if (lines.isEmpty()) {
+                throw DomainException.validation("inventory movement requires at least one line");
+            }
+            this.id = Ids.newId("mov");
+            this.reason = Objects.requireNonNull(reason);
+            this.orderId = orderId;
+            this.reservationId = reservationId;
+            this.occurredAt = Objects.requireNonNull(occurredAt).truncatedTo(ChronoUnit.MICROS);
+            this.lines = List.copyOf(lines);
+        }
+
+        public static InventoryMovement stockIncreased(LocalDateTime occurredAt, MovementLine line) {
+            return new InventoryMovement(
+                    MovementReason.STOCK_INCREASED,
+                    null,
+                    null,
+                    occurredAt,
+                    List.of(line)
+            );
+        }
+
+        public static InventoryMovement forReservation(
+                MovementReason reason,
+                Reservation reservation,
+                LocalDateTime occurredAt,
+                List<MovementLine> lines
+        ) {
+            if (reason == MovementReason.STOCK_INCREASED) {
+                throw DomainException.validation("stock increase is not a reservation movement");
+            }
+            Objects.requireNonNull(reservation);
+            return new InventoryMovement(
+                    reason,
+                    reservation.orderId(),
+                    reservation.id(),
+                    occurredAt,
+                    lines
+            );
+        }
+
+        public String id() {
+            return id;
+        }
+
+        public MovementReason reason() {
+            return reason;
+        }
+
+        public String orderId() {
+            return orderId;
+        }
+
+        public String reservationId() {
+            return reservationId;
+        }
+
+        public LocalDateTime occurredAt() {
+            return occurredAt;
+        }
+
+        public List<MovementLine> lines() {
+            return lines;
         }
     }
 
@@ -73,46 +196,71 @@ public final class InventoryModels {
             return onHand - reserved;
         }
 
-        public void add(int quantity) {
+        public MovementLine add(int quantity) {
             if (quantity <= 0) {
                 throw DomainException.validation("stock quantity must be positive");
             }
+            var onHandBefore = onHand;
+            var reservedBefore = reserved;
             onHand += quantity;
+            return changedFrom(onHandBefore, reservedBefore);
         }
 
-        public void reserve(int quantity) {
+        public MovementLine reserve(int quantity) {
             if (quantity <= 0) {
                 throw DomainException.validation("reservation quantity must be positive");
             }
             if (available() < quantity) {
                 throw DomainException.conflict("insufficient stock for " + skuId);
             }
+            var onHandBefore = onHand;
+            var reservedBefore = reserved;
             reserved += quantity;
+            return changedFrom(onHandBefore, reservedBefore);
         }
 
-        public void commit(int quantity) {
+        public MovementLine commit(int quantity) {
             if (reserved < quantity) {
                 throw DomainException.conflict("reservation mismatch for " + skuId);
             }
+            var onHandBefore = onHand;
+            var reservedBefore = reserved;
             reserved -= quantity;
             onHand -= quantity;
+            return changedFrom(onHandBefore, reservedBefore);
         }
 
-        public void release(int quantity) {
+        public MovementLine release(int quantity) {
             if (reserved < quantity) {
                 throw DomainException.conflict("reservation mismatch for " + skuId);
             }
+            var onHandBefore = onHand;
+            var reservedBefore = reserved;
             reserved -= quantity;
+            return changedFrom(onHandBefore, reservedBefore);
         }
 
         /**
          * [PD-0024-R6] 확정된 판매를 취소해 보유 수량으로 되돌린다.
          */
-        public void restore(int quantity) {
+        public MovementLine restore(int quantity) {
             if (quantity <= 0) {
                 throw DomainException.validation("restored stock quantity must be positive");
             }
+            var onHandBefore = onHand;
+            var reservedBefore = reserved;
             onHand += quantity;
+            return changedFrom(onHandBefore, reservedBefore);
+        }
+
+        private MovementLine changedFrom(int onHandBefore, int reservedBefore) {
+            return new MovementLine(
+                    skuId,
+                    onHand - onHandBefore,
+                    reserved - reservedBefore,
+                    onHand,
+                    reserved
+            );
         }
     }
 

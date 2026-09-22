@@ -1,5 +1,6 @@
 package com.impati.commerce.inventory.application.port.out;
 
+import com.impati.commerce.inventory.domain.InventoryModels.InventoryMovement;
 import com.impati.commerce.inventory.domain.InventoryModels.Reservation;
 import com.impati.commerce.inventory.domain.InventoryModels.StockItem;
 
@@ -31,6 +32,8 @@ public interface InventoryRepository {
     Collection<StockItem> stock();
 
     void saveReservation(Reservation reservation);
+
+    void saveMovement(InventoryMovement movement);
 
     Optional<Reservation> findReservationForUpdate(String reservationId);
 
