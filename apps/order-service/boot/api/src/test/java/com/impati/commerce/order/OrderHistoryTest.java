@@ -149,7 +149,7 @@ class OrderHistoryTest {
 
         order = Order.restore(order.id(), member, order.lines(), order.priceBreakdown(), order.shippingAddress(), order.status(),
                 order.paymentId(), order.shipmentId(), order.inventoryReservationId(), order.createdAt(),
-                Clock.fixed(created.plusSeconds(120), ZoneOffset.UTC));
+                Clock.fixed(created.plusSeconds(120), ZoneOffset.UTC), order.version());
         order.markDelivered();
         orderChanges.commit(order);
         mockMvc.perform(get("/orders/{id}", order.id()).header("X-Member-Id", member))

@@ -2,6 +2,7 @@ package com.impati.commerce.order.adapter.out.persistence;
 
 import com.impati.commerce.common.ApiContracts.Money;
 import com.impati.commerce.order.application.model.OrderCursor;
+import com.impati.commerce.order.application.port.out.ConcurrentOrderModificationException;
 import com.impati.commerce.order.application.port.out.OrderRepository;
 import com.impati.commerce.order.application.port.out.OrderWriter;
 import com.impati.commerce.order.domain.OrderModels.Address;
@@ -28,7 +29,7 @@ public class JdbcOrderRepository implements OrderRepository, OrderWriter {
             id, member_id, status, payment_id, shipment_id, inventory_reservation_id,
             ship_address_id, ship_alias, ship_recipient, ship_phone,
             ship_line1, ship_city, ship_postal_code, ship_default_address, created_at,
-            product_amount, shipping_fee_amount, total_amount, amount_currency
+            product_amount, shipping_fee_amount, total_amount, amount_currency, version
             """;
     private static final String UPDATE_ORDER = """
             update orders
@@ -39,20 +40,21 @@ public class JdbcOrderRepository implements OrderRepository, OrderWriter {
                    ship_line1 = :ship_line1, ship_city = :ship_city,
                    ship_postal_code = :ship_postal_code, ship_default_address = :ship_default_address,
                    product_amount = :product_amount, shipping_fee_amount = :shipping_fee_amount,
-                   total_amount = :total_amount, amount_currency = :amount_currency
-             where id = :id
+                   total_amount = :total_amount, amount_currency = :amount_currency,
+                   version = version + 1
+             where id = :id and version = :version
             """;
     private static final String INSERT_ORDER = """
             insert into orders (
                 id, member_id, status, payment_id, shipment_id, inventory_reservation_id,
                 ship_address_id, ship_alias, ship_recipient, ship_phone,
                 ship_line1, ship_city, ship_postal_code, ship_default_address, created_at,
-                product_amount, shipping_fee_amount, total_amount, amount_currency
+                product_amount, shipping_fee_amount, total_amount, amount_currency, version
             ) values (
                 :id, :member_id, :status, :payment_id, :shipment_id, :inventory_reservation_id,
                 :ship_address_id, :ship_alias, :ship_recipient, :ship_phone,
                 :ship_line1, :ship_city, :ship_postal_code, :ship_default_address, :created_at,
-                :product_amount, :shipping_fee_amount, :total_amount, :amount_currency
+                :product_amount, :shipping_fee_amount, :total_amount, :amount_currency, :version
             )
             """;
     private static final String INSERT_LINE = """
@@ -86,7 +88,8 @@ public class JdbcOrderRepository implements OrderRepository, OrderWriter {
                     rs.getString("ship_recipient"), rs.getString("ship_phone"), rs.getString("ship_line1"),
                     rs.getString("ship_city"), rs.getString("ship_postal_code"), rs.getBoolean("ship_default_address")),
             OrderStatus.valueOf(rs.getString("status")), rs.getString("payment_id"), rs.getString("shipment_id"),
-            rs.getString("inventory_reservation_id"), rs.getObject("created_at", LocalDateTime.class));
+            rs.getString("inventory_reservation_id"), rs.getObject("created_at", LocalDateTime.class),
+            rs.getLong("version"));
 
     private final NamedParameterJdbcTemplate jdbc;
     private final Clock clock;
@@ -100,7 +103,15 @@ public class JdbcOrderRepository implements OrderRepository, OrderWriter {
     @Override
     public void save(Order order) {
         var params = orderParams(order);
-        if (jdbc.update(UPDATE_ORDER, params) == 0) jdbc.update(INSERT_ORDER, params);
+        if (order.persisted()) {
+            if (jdbc.update(UPDATE_ORDER, params) == 0) {
+                throw new ConcurrentOrderModificationException(order.id());
+            }
+            order.markPersisted(order.version() + 1);
+        } else {
+            jdbc.update(INSERT_ORDER, params);
+            order.markPersisted(0);
+        }
         jdbc.update("delete from order_lines where order_id = :order_id", new MapSqlParameterSource("order_id", order.id()));
         var lines = order.lines();
         for (var index = 0; index < lines.size(); index++) {
@@ -168,7 +179,8 @@ public class JdbcOrderRepository implements OrderRepository, OrderWriter {
                 .addValue("product_amount", priceBreakdown.productAmount().amount())
                 .addValue("shipping_fee_amount", priceBreakdown.shippingFee().amount())
                 .addValue("total_amount", priceBreakdown.totalAmount().amount())
-                .addValue("amount_currency", priceBreakdown.totalAmount().currency());
+                .addValue("amount_currency", priceBreakdown.totalAmount().currency())
+                .addValue("version", order.version());
     }
 
     private MapSqlParameterSource lineParams(String orderId, int lineNo, OrderLine line) {
@@ -183,10 +195,10 @@ public class JdbcOrderRepository implements OrderRepository, OrderWriter {
 
     private record OrderRow(String id, String memberId, PriceBreakdown priceBreakdown, Address address,
             OrderStatus status, String paymentId,
-            String shipmentId, String reservationId, LocalDateTime createdAt) {
+            String shipmentId, String reservationId, LocalDateTime createdAt, long version) {
         Order toOrder(List<OrderLine> lines, Clock clock) {
             return Order.restore(id, memberId, lines, priceBreakdown, address, status, paymentId, shipmentId,
-                    reservationId, createdAt, clock);
+                    reservationId, createdAt, clock, version);
         }
     }
 }

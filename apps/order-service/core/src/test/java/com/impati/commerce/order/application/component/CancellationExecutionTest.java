@@ -96,6 +96,54 @@ class CancellationExecutionTest {
         verify(fixture.inventory, never()).restoreReservation("rsv_demo");
     }
 
+    @Test
+    void cancelsShipmentThatIsAwaitingPickup() {
+        var fixture = fixture("ord_cancel_awaiting_pickup");
+        when(fixture.shipping.shipmentForOrder(fixture.order.id()))
+                .thenReturn(Optional.of(shipment(fixture, "AWAITING_PICKUP")));
+        when(fixture.shipping.cancelShipment("shp_demo")).thenReturn(shipment(fixture, "CANCELLED"));
+        when(fixture.payments.paymentForOrder(fixture.order.id()))
+                .thenReturn(Optional.of(payment(fixture, "REFUNDED")));
+        when(fixture.inventory.reservationForOrder(fixture.order.id()))
+                .thenReturn(Optional.of(reservation(fixture, "RESTORED")));
+
+        fixture.execution.run(fixture.progress);
+
+        assertThat(fixture.progress.stage()).isEqualTo(CancellationProgress.Stage.COMPLETED);
+        verify(fixture.shipping).cancelShipment("shp_demo");
+    }
+
+    @Test
+    void continuesWhenShipmentWasAlreadyCancelled() {
+        var fixture = fixture("ord_shipment_already_cancelled");
+        when(fixture.shipping.shipmentForOrder(fixture.order.id()))
+                .thenReturn(Optional.of(shipment(fixture, "CANCELLED")));
+        when(fixture.payments.paymentForOrder(fixture.order.id()))
+                .thenReturn(Optional.of(payment(fixture, "REFUNDED")));
+        when(fixture.inventory.reservationForOrder(fixture.order.id()))
+                .thenReturn(Optional.of(reservation(fixture, "RESTORED")));
+
+        fixture.execution.run(fixture.progress);
+
+        assertThat(fixture.progress.stage()).isEqualTo(CancellationProgress.Stage.COMPLETED);
+        verify(fixture.shipping, never()).cancelShipment("shp_demo");
+    }
+
+    @Test
+    void rejectsEveryPostPickupShipmentState() {
+        for (var status : List.of("IN_TRANSIT", "DELIVERED", "RETURNING", "RETURNED")) {
+            var fixture = fixture("ord_cancel_" + status.toLowerCase());
+            when(fixture.shipping.shipmentForOrder(fixture.order.id()))
+                    .thenReturn(Optional.of(shipment(fixture, status)));
+
+            fixture.execution.run(fixture.progress);
+
+            assertThat(fixture.progress.stage()).as(status)
+                    .isEqualTo(CancellationProgress.Stage.REJECTED);
+            verify(fixture.shipping, never()).cancelShipment("shp_demo");
+        }
+    }
+
     /** [PD-0024-R10] 환불 응답을 잃으면 결제 상태를 확인해 이중 환불 없이 계속한다. */
     @Test
     void confirmsUnknownRefundBeforeContinuing() {

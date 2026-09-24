@@ -2,6 +2,7 @@ package com.impati.commerce.order.adapter.out.persistence;
 
 import com.impati.commerce.common.ApiContracts.Money;
 import com.impati.commerce.order.application.component.OrderChanges;
+import com.impati.commerce.order.application.port.out.ConcurrentOrderModificationException;
 import com.impati.commerce.order.application.port.out.OrderRepository;
 import com.impati.commerce.order.domain.OrderModels.Address;
 import com.impati.commerce.order.domain.OrderModels.Order;
@@ -15,8 +16,11 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.List;
+import java.time.OffsetDateTime;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * 저장 후 다시 읽었을 때 aggregate가 그대로 복원되는지 확인한다.
@@ -96,6 +100,26 @@ class JdbcOrderRepositoryTest {
     @Test
     void returnsEmptyForUnknownOrder() {
         assertThat(orderRepository.findById("ord_never_saved")).isEmpty();
+    }
+
+    @Test
+    void staleShipmentEventCannotOverwriteAConcurrentlyCancelledOrder() {
+        var order = newOrder();
+        order.attachPayment("pay_concurrent");
+        order.markPaid();
+        order.attachShipment("shp_concurrent", null);
+        orderChanges.commit(order);
+        var cancellation = orderRepository.findById(order.id()).orElseThrow();
+        var staleEventProjection = orderRepository.findById(order.id()).orElseThrow();
+
+        cancellation.cancelByCustomer();
+        orderChanges.commit(cancellation);
+        staleEventProjection.applyShipmentEvent("SHIPMENT_REGISTERED", "shp_concurrent", Map.of(),
+                OffsetDateTime.parse("2026-09-24T00:00:00Z"));
+
+        assertThatThrownBy(() -> orderChanges.commit(staleEventProjection))
+                .isInstanceOf(ConcurrentOrderModificationException.class);
+        assertThat(orderRepository.findById(order.id()).orElseThrow().status()).isEqualTo(OrderStatus.CANCELLED);
     }
 
     /**

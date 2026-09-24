@@ -5,6 +5,7 @@ import com.impati.commerce.common.DomainException;
 import com.impati.commerce.common.Ids;
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -281,6 +282,8 @@ public final class OrderModels {
         private String paymentId;
         private String shipmentId;
         private String inventoryReservationId;
+        private long version;
+        private boolean persisted;
         private final LocalDateTime createdAt;
         private final Clock clock;
 
@@ -334,8 +337,8 @@ public final class OrderModels {
         }
 
         private Order(String id, String memberId, List<OrderLine> lines, PriceBreakdown priceBreakdown,
-                Address shippingAddress,
-                LocalDateTime createdAt, Clock clock) {
+                      Address shippingAddress,
+                      LocalDateTime createdAt, Clock clock) {
             if (lines.isEmpty()) {
                 throw DomainException.validation("order requires at least one line");
             }
@@ -347,6 +350,8 @@ public final class OrderModels {
             this.lines = new ArrayList<>(lines);
             this.priceBreakdown = priceBreakdown;
             this.shippingAddress = shippingAddress;
+            this.version = 0;
+            this.persisted = false;
             this.createdAt = Objects.requireNonNull(createdAt).truncatedTo(ChronoUnit.MICROS);
             this.clock = Objects.requireNonNull(clock);
         }
@@ -374,14 +379,24 @@ public final class OrderModels {
         }
 
         public static Order restore(String id, String memberId, List<OrderLine> lines, PriceBreakdown priceBreakdown,
-                Address shippingAddress,
-                OrderStatus status, String paymentId, String shipmentId, String inventoryReservationId,
-                LocalDateTime createdAt, Clock clock) {
+                                    Address shippingAddress,
+                                    OrderStatus status, String paymentId, String shipmentId, String inventoryReservationId,
+                                    LocalDateTime createdAt, Clock clock) {
+            return restore(id, memberId, lines, priceBreakdown, shippingAddress, status, paymentId, shipmentId,
+                    inventoryReservationId, createdAt, clock, 0);
+        }
+
+        public static Order restore(String id, String memberId, List<OrderLine> lines, PriceBreakdown priceBreakdown,
+                                    Address shippingAddress,
+                                    OrderStatus status, String paymentId, String shipmentId, String inventoryReservationId,
+                                    LocalDateTime createdAt, Clock clock, long version) {
             var order = new Order(id, memberId, lines, priceBreakdown, shippingAddress, createdAt, clock);
             order.status = status;
             order.paymentId = paymentId;
             order.shipmentId = shipmentId;
             order.inventoryReservationId = inventoryReservationId;
+            order.version = version;
+            order.persisted = true;
             return order;
         }
 
@@ -421,6 +436,20 @@ public final class OrderModels {
             return inventoryReservationId;
         }
 
+        public long version() {
+            return version;
+        }
+
+        public boolean persisted() {
+            return persisted;
+        }
+
+        /** 영속화 어댑터가 성공한 INSERT/UPDATE 뒤 메모리 스냅샷의 버전을 맞춘다. */
+        public void markPersisted(long version) {
+            this.version = version;
+            this.persisted = true;
+        }
+
         public PriceBreakdown priceBreakdown() {
             return priceBreakdown;
         }
@@ -453,7 +482,9 @@ public final class OrderModels {
             record(OrderEventType.ORDER_PAID, Map.of("paymentId", paymentId));
         }
 
-        /** 배송을 붙인다. 이 시점에는 아직 택배 접수 전이라 운송장이 없다. */
+        /**
+         * 배송을 붙인다. 이 시점에는 아직 택배 접수 전이라 운송장이 없다.
+         */
         public void attachShipment(String shipmentId, String trackingNumber) {
             if (status != OrderStatus.PAID) {
                 throw DomainException.conflict("shipment can only be attached to paid order");
@@ -471,9 +502,10 @@ public final class OrderModels {
             record(OrderEventType.ORDER_DELIVERED, Map.of());
         }
 
-        /** Shipping이 발행한 사실을 주문의 고객용 프로젝션과 이력으로 반영한다. */
-        public void applyShipmentEvent(String type, String eventShipmentId, Map<String, String> payload,
-                java.time.OffsetDateTime occurredAt) {
+        /**
+         * Shipping이 발행한 사실을 주문의 고객용 프로젝션과 이력으로 반영한다.
+         */
+        public void applyShipmentEvent(String type, String eventShipmentId, Map<String, String> payload, OffsetDateTime occurredAt) {
             if (!Objects.equals(shipmentId, eventShipmentId)) {
                 throw DomainException.conflict("shipment event belongs to another shipment");
             }
@@ -518,7 +550,9 @@ public final class OrderModels {
                     "reason", OrderEvent.truncate(reason == null ? "" : reason, OrderEvent.MAX_REASON_LENGTH)));
         }
 
-        /** 고객 취소 시작 여부를 판단하되 상태를 바꾸거나 사건을 만들지 않는다. */
+        /**
+         * 고객 취소 시작 여부를 판단하되 상태를 바꾸거나 사건을 만들지 않는다.
+         */
         public boolean canStartCustomerCancellation() {
             return status == OrderStatus.PAID || status == OrderStatus.FULFILLING;
         }
@@ -529,13 +563,17 @@ public final class OrderModels {
             }
         }
 
-        /** [PD-0024-R12] 배송 취소가 확정된 고객 요청을 진행 이력에 남긴다. */
+        /**
+         * [PD-0024-R12] 배송 취소가 확정된 고객 요청을 진행 이력에 남긴다.
+         */
         public void requestCancellation() {
             ensureCustomerCancellationMayStart();
             record(OrderEventType.ORDER_CANCELLATION_REQUESTED, Map.of("reason", "CUSTOMER_REQUESTED"));
         }
 
-        /** [PD-0024-R4][PD-0024-R12] 모든 되돌림이 끝난 고객 취소를 확정한다. */
+        /**
+         * [PD-0024-R4][PD-0024-R12] 모든 되돌림이 끝난 고객 취소를 확정한다.
+         */
         public void cancelByCustomer() {
             if (status == OrderStatus.CANCELLED) {
                 return;
@@ -551,7 +589,7 @@ public final class OrderModels {
         }
 
         private void recordAt(OrderEventType type, Map<String, String> payload,
-                java.time.OffsetDateTime occurredAt) {
+                              java.time.OffsetDateTime occurredAt) {
             pendingEvents.add(OrderEvent.occurred(type, id, memberId, payload,
                     LocalDateTime.ofInstant(occurredAt.toInstant(), ZoneOffset.UTC)));
         }

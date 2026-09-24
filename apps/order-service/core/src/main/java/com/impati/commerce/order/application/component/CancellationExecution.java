@@ -80,8 +80,8 @@ public class CancellationExecution {
         var shipment = shippingClient.shipmentForOrder(progress.orderId())
                 .orElseThrow(() -> new IllegalStateException("successful order has no shipment"));
         ensureShipmentMatches(order, shipment);
-        switch (shipment.status()) {
-            case "READY" -> {
+        switch (shipmentState(shipment)) {
+            case READY, AWAITING_PICKUP -> {
                 try {
                     shipment = shippingClient.cancelShipment(shipment.id());
                 } catch (DomainException failure) {
@@ -91,24 +91,21 @@ public class CancellationExecution {
                 ensureShipmentMatches(order, shipment);
                 settleShipment(progress, order, shipment);
             }
-            case "CANCELLED" -> settleShipment(progress, order, shipment);
-            case "IN_TRANSIT", "DELIVERED" -> reject(progress, "shipment already left");
-            default -> throw new IllegalStateException("unknown shipment status " + shipment.status());
+            case CANCELLED -> settleShipment(progress, order, shipment);
+            case IN_TRANSIT, DELIVERED, RETURNING, RETURNED -> reject(progress, "shipment already left");
         }
     }
 
     private void settleShipment(CancellationProgress progress, Order order, ShipmentResponse shipment) {
-        if (shipment.status().equals("CANCELLED")) {
-            order.requestCancellation();
-            progress.advance(Stage.SHIPMENT_CANCELLED);
-            changes.commit(order, progress, progress.leaseGeneration());
-            return;
+        switch (shipmentState(shipment)) {
+            case CANCELLED -> {
+                order.requestCancellation();
+                progress.advance(Stage.SHIPMENT_CANCELLED);
+                changes.commit(order, progress, progress.leaseGeneration());
+            }
+            case IN_TRANSIT, DELIVERED, RETURNING, RETURNED -> reject(progress, "shipment already left");
+            case READY, AWAITING_PICKUP -> throw DomainException.unavailable("shipment cancellation is not settled");
         }
-        if (shipment.status().equals("IN_TRANSIT") || shipment.status().equals("DELIVERED")) {
-            reject(progress, "shipment already left");
-            return;
-        }
-        throw DomainException.unavailable("shipment cancellation is not settled");
     }
 
     private void refundPayment(CancellationProgress progress) {
@@ -213,5 +210,23 @@ public class CancellationExecution {
 
     private OffsetDateTime now() {
         return OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
+    }
+
+    private static ShipmentState shipmentState(ShipmentResponse shipment) {
+        try {
+            return ShipmentState.valueOf(shipment.status());
+        } catch (RuntimeException failure) {
+            throw new IllegalStateException("unknown shipment status " + shipment.status(), failure);
+        }
+    }
+
+    private enum ShipmentState {
+        READY,
+        AWAITING_PICKUP,
+        IN_TRANSIT,
+        DELIVERED,
+        RETURNING,
+        RETURNED,
+        CANCELLED
     }
 }
