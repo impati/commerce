@@ -56,6 +56,7 @@ make todo
 | 17 | [BL-0006](bl-0006-local-profile-smoke.md) local 프로파일 스모크 | 하네스가 못 보는 구간이다. 급하지 않다 |
 | 18 | [BL-0007](bl-0007-password-policy-to-domain.md) 비밀번호 정책을 도메인으로 | 클래스 리뷰에서 나왔다. 지금 동작에는 문제가 없다 |
 | 19 | [BL-0030](bl-0030-policy-verification-gaps.md) 정책 규칙 검증 공백 | 상품 노출 전체와 체크아웃 R1~R4. 크지만 기계적이라 앞의 것들이 끝난 뒤가 낫다 |
+| 20 | [BL-0086](bl-0086-in-house-delivery-fulfillment.md) 자체 배송 이행 | 외부 택배사 기반 핵심 흐름을 먼저 완성한 뒤 확장한다 |
 
 ## 순서를 정하지 않은 항목
 
