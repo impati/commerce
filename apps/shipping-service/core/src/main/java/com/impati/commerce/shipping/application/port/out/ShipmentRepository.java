@@ -3,7 +3,6 @@ package com.impati.commerce.shipping.application.port.out;
 import com.impati.commerce.shipping.domain.ShippingModels.Shipment;
 
 import java.util.Collection;
-import java.util.List;
 import java.util.Optional;
 import java.time.OffsetDateTime;
 
@@ -24,8 +23,6 @@ public interface ShipmentRepository {
     Optional<Shipment> findByCarrierAndTrackingForUpdate(String carrierCode, String trackingNumber);
 
     Collection<Shipment> findAll();
-
-    List<String> findPendingRegistrationIds(int batchSize);
 
     boolean insertCarrierEventIfAbsent(CarrierEventRecord event);
 

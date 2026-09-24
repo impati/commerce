@@ -1,6 +1,7 @@
 package com.impati.commerce.shipping.adapter.out.carrier;
 
 import com.impati.commerce.shipping.application.port.out.CarrierGateway;
+import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -10,6 +11,8 @@ public class LocalCarrierGateway implements CarrierGateway {
     private final String carrierCode;
     private final String carrierName;
     private final String trackingPrefix;
+    private final ConcurrentHashMap<String, CarrierRegistration> registrations = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, CarrierCancellation> cancellations = new ConcurrentHashMap<>();
 
     public LocalCarrierGateway(
             @Value("${shipping.carrier.code:PRIMARY}") String carrierCode,
@@ -22,12 +25,23 @@ public class LocalCarrierGateway implements CarrierGateway {
     }
 
     @Override
-    public CarrierRegistration register(String shipmentId) {
-        return new CarrierRegistration(carrierCode, carrierName, trackingPrefix + shipmentId);
+    public CarrierRegistration register(RegistrationCommand command) {
+        return registrations.computeIfAbsent(command.idempotencyKey(), ignored -> CarrierRegistration.confirmed(
+                carrierCode, carrierName, trackingPrefix + command.shipmentId()));
     }
 
     @Override
-    public void cancel(String shipmentId, String trackingNumber) {
-        // 실제 어댑터는 같은 shipmentId를 멱등 키로 택배 접수를 취소한다.
+    public CarrierRegistration registration(RegistrationCommand command) {
+        return registrations.getOrDefault(command.idempotencyKey(), CarrierRegistration.absent());
+    }
+
+    @Override
+    public CarrierCancellation cancel(CancellationCommand command) {
+        return cancellations.computeIfAbsent(command.idempotencyKey(), ignored -> CarrierCancellation.confirmed());
+    }
+
+    @Override
+    public CarrierCancellation cancellation(CancellationCommand command) {
+        return cancellations.getOrDefault(command.idempotencyKey(), CarrierCancellation.absent());
     }
 }

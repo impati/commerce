@@ -2,12 +2,23 @@ package com.impati.commerce.shipping.application.component;
 
 import com.impati.commerce.common.DomainException;
 import com.impati.commerce.shipping.application.port.in.CarrierEventCommand;
+import com.impati.commerce.shipping.application.port.in.CarrierOperationRecoveryUseCase;
 import com.impati.commerce.shipping.application.port.in.ShipmentAddress;
 import com.impati.commerce.shipping.application.port.in.ShipmentDetails;
 import com.impati.commerce.shipping.application.port.in.ShippingUseCase;
+import com.impati.commerce.shipping.domain.ShippingModels.CarrierEventType;
+import com.impati.commerce.shipping.application.port.out.CarrierGateway;
 import com.impati.commerce.test.RequiresDatabase;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -24,6 +35,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /** PD-0025의 접수·집하·배송·반송 전이와 멱등성을 고정한다. */
 @SpringBootTest
 @RequiresDatabase
+@Import(ShippingExecutorTest.CarrierTestConfiguration.class)
 class ShippingExecutorTest {
     private final String runId = UUID.randomUUID().toString();
 
@@ -31,7 +43,18 @@ class ShippingExecutorTest {
     private ShippingUseCase shippingUseCase;
 
     @Autowired
+    private CarrierOperationRecoveryUseCase recovery;
+
+    @Autowired
+    private RecordingCarrierGateway carrier;
+
+    @Autowired
     private JdbcTemplate jdbc;
+
+    @BeforeEach
+    void resetCarrier() {
+        carrier.reset();
+    }
 
     /** [PD-0025-R2] 새 배송에는 아직 택배사와 운송장이 없다. */
     @Test
@@ -57,6 +80,44 @@ class ShippingExecutorTest {
         assertThat(second).isEqualTo(first);
         assertThat(jdbc.queryForObject("select count(*) from shipment_events where shipment_id = ? "
                 + "and type = 'SHIPMENT_REGISTERED'", Integer.class, shipment.id())).isEqualTo(1);
+        assertThat(carrier.registrationCalls.get()).isEqualTo(1);
+    }
+
+    @Test
+    void registrationResponseLossIsRecoveredByQueryWithoutASecondMutation() {
+        var shipment = create("ord_reg_loss");
+        carrier.loseNextRegistrationResponse.set(true);
+
+        assertThat(shippingUseCase.completePacking(shipment.id()).status()).isEqualTo("READY");
+        makeOperationsDue();
+        recovery.recoverPendingOperations(20);
+
+        assertThat(shippingUseCase.get(shipment.id()).status()).isEqualTo("AWAITING_PICKUP");
+        assertThat(carrier.registrationCalls.get()).isEqualTo(1);
+        assertThat(carrier.registrationQueries.get()).isEqualTo(1);
+    }
+
+    @Test
+    void concurrentPackingCompletionCreatesOneCarrierRegistration() throws Exception {
+        var shipment = create("ord_concurrent_packing");
+        var start = new CountDownLatch(1);
+        var executor = Executors.newFixedThreadPool(2);
+        try {
+            var calls = List.of(
+                    executor.submit(() -> { start.await(); return shippingUseCase.completePacking(shipment.id()); }),
+                    executor.submit(() -> { start.await(); return shippingUseCase.completePacking(shipment.id()); })
+            );
+            start.countDown();
+
+            calls.get(0).get(10, TimeUnit.SECONDS);
+            calls.get(1).get(10, TimeUnit.SECONDS);
+            assertThat(shippingUseCase.get(shipment.id()).status()).isEqualTo("AWAITING_PICKUP");
+            assertThat(carrier.registrationCalls.get()).isEqualTo(1);
+            assertThat(jdbc.queryForObject("select count(*) from shipment_events where shipment_id = ? "
+                    + "and type = 'SHIPMENT_REGISTERED'", Integer.class, shipment.id())).isEqualTo(1);
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     @Test
@@ -87,6 +148,45 @@ class ShippingExecutorTest {
         assertThat(second).isEqualTo(first);
     }
 
+    @Test
+    void cancellationResponseLossIsRecoveredByQueryWithoutASecondMutation() {
+        var shipment = registered("ord_cancel_loss");
+        carrier.loseNextCancellationResponse.set(true);
+
+        assertThat(shippingUseCase.cancel(shipment.id()).status()).isEqualTo("AWAITING_PICKUP");
+        makeOperationsDue();
+        recovery.recoverPendingOperations(20);
+
+        assertThat(shippingUseCase.get(shipment.id()).status()).isEqualTo("CANCELLED");
+        assertThat(carrier.cancellationCalls.get()).isEqualTo(1);
+        assertThat(carrier.cancellationQueries.get()).isEqualTo(1);
+    }
+
+    @Test
+    void packingAndCancellationRaceConvergesWithoutAnOrphanRegistration() throws Exception {
+        var shipment = create("ord_packing_cancel_race");
+        var start = new CountDownLatch(1);
+        var executor = Executors.newFixedThreadPool(2);
+        try {
+            var packing = executor.submit(() -> transition(start,
+                    () -> shippingUseCase.completePacking(shipment.id())));
+            var cancellation = executor.submit(() -> transition(start,
+                    () -> shippingUseCase.cancel(shipment.id())));
+            start.countDown();
+            packing.get(10, TimeUnit.SECONDS);
+            cancellation.get(10, TimeUnit.SECONDS);
+            makeOperationsDue();
+            recovery.recoverPendingOperations(20);
+
+            assertThat(shippingUseCase.get(shipment.id()).status()).isEqualTo("CANCELLED");
+            if (carrier.registrationCalls.get() > 0) {
+                assertThat(carrier.cancellationCalls.get()).isEqualTo(1);
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
     /** [PD-0025-R6] 집하 뒤에는 고객 취소가 아니라 반품 절차가 필요하다. */
     @Test
     void pickedUpShipmentCannotBeCancelled() {
@@ -109,6 +209,31 @@ class ShippingExecutorTest {
         assertThat(shippingUseCase.get(shipment.id()).status()).isEqualTo("IN_TRANSIT");
         assertThat(jdbc.queryForObject("select count(*) from shipment_events where shipment_id = ? "
                 + "and type = 'SHIPMENT_PICKED_UP'", Integer.class, shipment.id())).isEqualTo(1);
+    }
+
+    @Test
+    void sameEventInstantWithAnotherOffsetAndExcessNanosIsDuplicate() {
+        var shipment = registered("ord_normalized_duplicate");
+        var first = new CarrierEventCommand(shipment.id() + "-normalized", shipment.carrierCode(),
+                shipment.trackingNumber(), CarrierEventType.PICKED_UP,
+                OffsetDateTime.parse("2026-09-24T00:01:00.123456Z"));
+        var replay = new CarrierEventCommand(shipment.id() + "-normalized", shipment.carrierCode(),
+                shipment.trackingNumber(), CarrierEventType.PICKED_UP,
+                OffsetDateTime.parse("2026-09-24T09:01:00.123456999+09:00"));
+
+        assertThat(shippingUseCase.receive(first).result()).isEqualTo("APPLIED");
+        assertThat(shippingUseCase.receive(replay).result()).isEqualTo("DUPLICATE");
+    }
+
+    @Test
+    void sameEventIdWithDifferentCanonicalContentIsConflict() {
+        var shipment = registered("ord_event_fingerprint");
+        var first = command(shipment, "reused", "PICKED_UP", time(1));
+        var changed = command(shipment, "reused", "DELIVERED", time(1));
+
+        assertThat(shippingUseCase.receive(first).result()).isEqualTo("APPLIED");
+        assertThat(shippingUseCase.receive(changed).result()).isEqualTo("CONFLICT");
+        assertThat(shippingUseCase.get(shipment.id()).status()).isEqualTo("IN_TRANSIT");
     }
 
     /** [PD-0025-R9] 늦은 과거 사건은 현재 상태를 후퇴시키지 않는다. */
@@ -194,7 +319,7 @@ class ShippingExecutorTest {
             ShipmentDetails shipment, String eventId, String type, OffsetDateTime occurredAt
     ) {
         return new CarrierEventCommand(shipment.id() + "-" + eventId,
-                shipment.carrierCode(), shipment.trackingNumber(), type, occurredAt);
+                shipment.carrierCode(), shipment.trackingNumber(), CarrierEventType.valueOf(type), occurredAt);
     }
 
     private static OffsetDateTime time(int minute) {
@@ -211,6 +336,75 @@ class ShippingExecutorTest {
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
             throw new RuntimeException(interrupted);
+        }
+    }
+
+    private void makeOperationsDue() {
+        jdbc.update("update carrier_operations set next_attempt_at = date_sub(utc_timestamp(6), interval 1 second), "
+                + "claim_until = null where operation_status = 'PENDING'");
+    }
+
+    @TestConfiguration
+    static class CarrierTestConfiguration {
+        @Bean
+        @Primary
+        RecordingCarrierGateway recordingCarrierGateway() {
+            return new RecordingCarrierGateway();
+        }
+    }
+
+    static final class RecordingCarrierGateway implements CarrierGateway {
+        private final ConcurrentHashMap<String, CarrierRegistration> registrations = new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<String, CarrierCancellation> cancellations = new ConcurrentHashMap<>();
+        private final AtomicInteger registrationCalls = new AtomicInteger();
+        private final AtomicInteger registrationQueries = new AtomicInteger();
+        private final AtomicInteger cancellationCalls = new AtomicInteger();
+        private final AtomicInteger cancellationQueries = new AtomicInteger();
+        private final AtomicBoolean loseNextRegistrationResponse = new AtomicBoolean();
+        private final AtomicBoolean loseNextCancellationResponse = new AtomicBoolean();
+
+        @Override
+        public CarrierRegistration register(RegistrationCommand command) {
+            registrationCalls.incrementAndGet();
+            var result = registrations.computeIfAbsent(command.idempotencyKey(), ignored ->
+                    CarrierRegistration.confirmed("PRIMARY", "기본 택배사", "TRK-" + command.shipmentId()));
+            if (loseNextRegistrationResponse.compareAndSet(true, false)) {
+                throw DomainException.outcomeUnknown("registration response was lost");
+            }
+            return result;
+        }
+
+        @Override
+        public CarrierRegistration registration(RegistrationCommand command) {
+            registrationQueries.incrementAndGet();
+            return registrations.getOrDefault(command.idempotencyKey(), CarrierRegistration.absent());
+        }
+
+        @Override
+        public CarrierCancellation cancel(CancellationCommand command) {
+            cancellationCalls.incrementAndGet();
+            var result = cancellations.computeIfAbsent(command.idempotencyKey(), ignored -> CarrierCancellation.confirmed());
+            if (loseNextCancellationResponse.compareAndSet(true, false)) {
+                throw DomainException.outcomeUnknown("cancellation response was lost");
+            }
+            return result;
+        }
+
+        @Override
+        public CarrierCancellation cancellation(CancellationCommand command) {
+            cancellationQueries.incrementAndGet();
+            return cancellations.getOrDefault(command.idempotencyKey(), CarrierCancellation.absent());
+        }
+
+        void reset() {
+            registrations.clear();
+            cancellations.clear();
+            registrationCalls.set(0);
+            registrationQueries.set(0);
+            cancellationCalls.set(0);
+            cancellationQueries.set(0);
+            loseNextRegistrationResponse.set(false);
+            loseNextCancellationResponse.set(false);
         }
     }
 }

@@ -22,7 +22,7 @@ import java.time.OffsetDateTime;
 @Repository
 public class JdbcShipmentRepository implements ShipmentRepository {
     private static final String COLUMNS = """
-            id, order_id, member_id, status, registration_status,
+            id, order_id, member_id, status, registration_status, cancellation_status,
             carrier_code, carrier_name, tracking_number, last_carrier_event_at,
             ship_address_id, ship_alias, ship_recipient, ship_phone,
             ship_line1, ship_city, ship_postal_code, ship_default_address
@@ -30,12 +30,12 @@ public class JdbcShipmentRepository implements ShipmentRepository {
 
     private static final String INSERT = """
             insert into shipments (
-                id, order_id, member_id, status, registration_status,
+                id, order_id, member_id, status, registration_status, cancellation_status,
                 carrier_code, carrier_name, tracking_number, last_carrier_event_at,
                 ship_address_id, ship_alias, ship_recipient, ship_phone,
                 ship_line1, ship_city, ship_postal_code, ship_default_address
             ) values (
-                :id, :order_id, :member_id, :status, :registration_status,
+                :id, :order_id, :member_id, :status, :registration_status, :cancellation_status,
                 :carrier_code, :carrier_name, :tracking_number, :last_carrier_event_at,
                 :ship_address_id, :ship_alias, :ship_recipient, :ship_phone,
                 :ship_line1, :ship_city, :ship_postal_code, :ship_default_address
@@ -48,6 +48,7 @@ public class JdbcShipmentRepository implements ShipmentRepository {
                    member_id = :member_id,
                    status = :status,
                    registration_status = :registration_status,
+                   cancellation_status = :cancellation_status,
                    carrier_code = :carrier_code,
                    carrier_name = :carrier_name,
                    tracking_number = :tracking_number,
@@ -101,6 +102,7 @@ public class JdbcShipmentRepository implements ShipmentRepository {
             ),
             rs.getString("status"),
             rs.getString("registration_status"),
+            rs.getString("cancellation_status"),
             rs.getString("carrier_code"),
             rs.getString("carrier_name"),
             rs.getString("tracking_number"),
@@ -187,17 +189,6 @@ public class JdbcShipmentRepository implements ShipmentRepository {
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public List<String> findPendingRegistrationIds(int batchSize) {
-        return jdbc.queryForList("""
-                select id from shipments
-                 where registration_status = 'PENDING' and status = 'READY'
-                 order by id
-                 limit :batch_size
-                """, new MapSqlParameterSource("batch_size", batchSize), String.class);
-    }
-
-    @Override
     public boolean insertCarrierEventIfAbsent(CarrierEventRecord event) {
         var params = new MapSqlParameterSource()
                 .addValue("event_id", event.eventId())
@@ -250,6 +241,7 @@ public class JdbcShipmentRepository implements ShipmentRepository {
                 .addValue("member_id", shipment.memberId())
                 .addValue("status", shipment.status().name())
                 .addValue("registration_status", shipment.registrationStatus().name())
+                .addValue("cancellation_status", shipment.cancellationStatus().name())
                 .addValue("carrier_code", shipment.carrierCode())
                 .addValue("carrier_name", shipment.carrierName())
                 .addValue("tracking_number", shipment.trackingNumber())

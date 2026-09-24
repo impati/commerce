@@ -4,19 +4,6 @@ alter table shipments add column carrier_code varchar(64) null after registratio
 alter table shipments add column carrier_name varchar(128) null after carrier_code;
 alter table shipments add column last_carrier_event_at datetime(6) null after tracking_number;
 
-update shipments
-   set status = 'AWAITING_PICKUP',
-       registration_status = 'CONFIRMED',
-       carrier_code = 'LEGACY',
-       carrier_name = '기존 택배사'
- where tracking_number is not null and status = 'READY';
-
-update shipments
-   set registration_status = case when status = 'CANCELLED' then 'CANCELLED' else 'CONFIRMED' end,
-       carrier_code = coalesce(carrier_code, 'LEGACY'),
-       carrier_name = coalesce(carrier_name, '기존 택배사')
- where tracking_number is not null;
-
 create unique index uq_shipments_carrier_tracking on shipments (carrier_code, tracking_number);
 
 create table shipment_carrier_events (
