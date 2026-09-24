@@ -191,8 +191,13 @@ services:
       DB_URL: jdbc:mysql://mysql:3306/shipping_service?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
       DB_USERNAME: commerce
       DB_PASSWORD: commerce
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_SHIPMENT_EVENTS_REPLICAS: 1
+      KAFKA_SHIPMENT_EVENTS_MIN_ISR: 1
     depends_on:
       mysql:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
 
   order-api:
@@ -265,6 +270,26 @@ services:
         condition: service_healthy
       payment-service:
         condition: service_started
+
+  order-consumer:
+    build:
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        MODULE: order-service/boot/consumer
+        ARTIFACT: order-consumer
+    ports:
+      - "8127:8127"
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/order_service?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
+      DB_USERNAME: commerce
+      DB_PASSWORD: commerce
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    depends_on:
+      mysql:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
 
   notification-api:
     build:

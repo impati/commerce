@@ -6,7 +6,6 @@ import {
   RefreshCcw,
   Search,
   ShoppingBag,
-  Truck,
   Wifi,
   WifiOff
 } from 'lucide-react';
@@ -25,7 +24,7 @@ import { productImages } from './mockData';
 import type { AddressChoice, Cart, Checkout, DisplayHome, Member, Notification, Product, Shipment, Stock } from './types';
 
 type ApiMode = 'live' | 'partial' | 'demo';
-type BusyAction = 'load' | 'cart' | 'checkout' | 'ship' | 'deliver' | null;
+type BusyAction = 'load' | 'cart' | 'checkout' | null;
 
 const categories = ['all', 'apparel', 'home', 'travel'];
 
@@ -620,65 +619,6 @@ export function App() {
     setNotice('Checkout completed');
   }
 
-  async function shipOrder() {
-    if (!shipment) return;
-    setBusy('ship');
-    try {
-      const shipped = apiMode !== 'demo' ? await api.ship(shipment.id) : { ...shipment, status: 'IN_TRANSIT' };
-      setShipment(shipped);
-      setCheckout((current) =>
-        current ? { ...current, shipment: shipped, order: { ...current.order, status: 'FULFILLING' } } : current
-      );
-      setNotice('Shipment in transit');
-    } catch {
-      const shipped = { ...shipment, status: 'IN_TRANSIT' };
-      setShipment(shipped);
-      setCheckout((current) => (current ? { ...current, shipment: shipped } : current));
-      setApiMode('demo');
-      setNotice('Shipment in transit');
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function deliverOrder() {
-    if (!shipment || !checkout) return;
-    setBusy('deliver');
-    try {
-      const delivered =
-        apiMode !== 'demo'
-          ? await api.deliver(shipment.id)
-          : { shipment: { ...shipment, status: 'DELIVERED' }, order: { ...checkout.order, status: 'DELIVERED' } };
-      setShipment(delivered.shipment);
-      setCheckout((current) =>
-        current ? { ...current, shipment: delivered.shipment, order: delivered.order } : current
-      );
-      setNotifications((current) => [
-        ...current,
-        {
-          id: `ntf_ui_${Date.now()}`,
-          eventType: 'OrderDelivered',
-          memberId: member?.id ?? 'unknown',
-          subject: 'Order delivered',
-          body: `Order ${delivered.order.id} has been delivered.`
-        }
-      ]);
-      setNotice('Delivery completed');
-    } catch {
-      const deliveredShipment = { ...shipment, status: 'DELIVERED' };
-      setShipment(deliveredShipment);
-      setCheckout((current) =>
-        current
-          ? { ...current, shipment: deliveredShipment, order: { ...current.order, status: 'DELIVERED' } }
-          : current
-      );
-      setApiMode('demo');
-      setNotice('Delivery completed');
-    } finally {
-      setBusy(null);
-    }
-  }
-
   const connectionMode = cartUnavailable && apiMode === 'live' ? 'partial' : apiMode;
   const connectionNotice = noticeFor(apiMode, degradedResources, cartUnavailable && member !== null);
 
@@ -905,7 +845,7 @@ export function App() {
 
             <div className="timeline">
               <Step active={checkoutState === 'SUCCEEDED'} done={checkoutState === 'SUCCEEDED'} label="Paid" />
-              <Step active={shipment?.status === 'IN_TRANSIT'} done={shipment?.status === 'IN_TRANSIT' || shipment?.status === 'DELIVERED'} label="Shipped" />
+              <Step active={shipment?.status === 'IN_TRANSIT'} done={shipment?.status === 'IN_TRANSIT' || shipment?.status === 'DELIVERED' || shipment?.status === 'RETURNING' || shipment?.status === 'RETURNED'} label="Shipped" />
               <Step active={shipment?.status === 'DELIVERED'} done={shipment?.status === 'DELIVERED'} label="Delivered" />
             </div>
 
@@ -918,26 +858,7 @@ export function App() {
               </>
             )}
 
-            <div className="action-row">
-              <button
-                className="secondary-button"
-                type="button"
-                onClick={shipOrder}
-                disabled={!shipment || shipment.status !== 'READY' || busy === 'ship'}
-              >
-                {busy === 'ship' ? <Loader2 className="spin" size={17} /> : <Truck size={17} />}
-                Ship
-              </button>
-              <button
-                className="secondary-button"
-                type="button"
-                onClick={deliverOrder}
-                disabled={!shipment || shipment.status === 'DELIVERED' || busy === 'deliver'}
-              >
-                {busy === 'deliver' ? <Loader2 className="spin" size={17} /> : <Check size={17} />}
-                Deliver
-              </button>
-            </div>
+            {shipment && <p className="order-guidance">배송 상태는 택배사 진행 정보에 따라 갱신됩니다.</p>}
           </section>
 
           <section className="panel compact-panel">

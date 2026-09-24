@@ -21,6 +21,7 @@ const detail: OrderDetail = { id: 'ord_a', orderedAt: summary.orderedAt, checkou
     unitPrice: { amount: 10000, currency: 'KRW' }, lineTotal: { amount: 20000, currency: 'KRW' } }], total: summary.total,
   priceBreakdown: summary.priceBreakdown,
   shippingAddress: { recipient: 'Snapshot Recipient', phone: '010-1234-5678', line1: 'Snapshot road', city: 'Seoul', postalCode: '12345' },
+  shipmentStatus: 'AWAITING_PICKUP', carrierCode: 'PRIMARY', carrierName: '기본 택배사',
   trackingNumber: 'TRK-visible', timeline: [{ type: 'ORDER_CREATED', occurredAt: summary.orderedAt },
     { type: 'ORDER_PAID', occurredAt: '2026-09-16T03:05:00Z' }] };
 
@@ -40,7 +41,7 @@ function open(path = '/orders') {
   return render(<MemoryRouter initialEntries={[path]}><Back /><CommerceRoutes /></MemoryRouter>);
 }
 
-// [PD-0020-R5, PD-0020-R6, PD-0023-R8] 요약과 금액 구성, 다음 커서를 사용한다. DB 경계는 서버 테스트가 검증한다.
+// [PD-0020-R5, PD-0020-R6, PD-0026-R10] 요약과 금액 구성, 다음 커서를 사용한다. DB 경계는 서버 테스트가 검증한다.
 test('shows summaries and appends the next cursor page', async () => {
   vi.mocked(api.orders).mockResolvedValueOnce({ items: [summary], nextCursor: 'opaque-cursor' })
     .mockResolvedValueOnce({ items: [{ ...summary, id: 'ord_b', representativeProductName: 'Older product' }], nextCursor: null });
@@ -57,7 +58,7 @@ test('shows summaries and appends the next cursor page', async () => {
   expect(screen.queryByRole('button', { name: '더 보기' })).not.toBeInTheDocument();
 });
 
-// [PD-0020-R7, PD-0020-R8, PD-0023-R8] 직접 진입해도 전체 구매 내용, 금액 구성과 사실 시각이 표시된다.
+// [PD-0020-R7, PD-0020-R8, PD-0026-R10] 직접 진입해도 전체 구매 내용, 금액 구성과 사실 시각이 표시된다.
 test('loads detail from a direct URL and supports refresh', async () => {
   open('/orders/ord_a');
   expect(await screen.findByText('Snapshot Recipient')).toBeInTheDocument();

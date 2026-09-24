@@ -1,4 +1,4 @@
-import type { Cart, Checkout, DisplayHome, Notification, Product, Shipment, Stock } from './types';
+import type { Cart, Checkout, DisplayHome, Notification, Product, Stock } from './types';
 
 export const demoMemberId = 'mem_demo';
 
@@ -159,7 +159,6 @@ export function createDemoCheckout(cart: Cart): Checkout {
   const shipmentId = `shp_demo_${now}`;
   const reservationId = `rsv_demo_${now}`;
   const transactionId = `txn_demo_${now}`;
-  const trackingNumber = `trk_demo_${now}`;
   const lines = cart.lines.map((line) => {
     const product = products.find((candidate) => candidate.skus.some((sku) => sku.id === line.skuId));
     const sku = product?.skus.find((candidate) => candidate.id === line.skuId);
@@ -230,11 +229,9 @@ export function createDemoCheckout(cart: Cart): Checkout {
         defaultAddress: true
       },
       status: 'READY',
-      trackingNumber
+      carrierCode: null,
+      carrierName: null,
+      trackingNumber: null
     }
   };
-}
-
-export function deliverDemoShipment(shipment: Shipment): Shipment {
-  return { ...shipment, status: 'DELIVERED' };
 }

@@ -22,11 +22,12 @@ Java 21 + Spring Boot 3.2 기반 이커머스 마이크로서비스 레퍼런스
 | `shipping-service` / worker | 8117 | 택배 접수 복구, 배송 사건 발행 |
 | `order-service` / api | 8108 | 주문 aggregate, checkout saga |
 | `order-service` / worker | 8118 | 사건 발행, 결제 미확인 정리 |
+| `order-service` / consumer | 8127 | 배송 사건 구독, 주문 배송 프로젝션 |
 | `notification-service` / api | 8109 | 알림 수신·조회 |
 | `notification-service` / worker | 8119 | 메일 발송 |
 | `notification-service` / consumer | 8129 | 주문 사건 구독 |
 
-**두 서비스는 실행 단위가 나뉘어 있습니다** ([ADR-0014](docs/adr/0014-split-api-and-worker-modules.md)). 요청을 받는 것과 큐를 비우는 것은 스케일 축이 다르고, 브로커 의존성이 API에 붙으면 안 되기 때문입니다. 절단면은 `adapter/in`의 종류입니다 — 컨트롤러는 api, 스케줄러는 worker, 브로커 구독은 consumer. notification은 셋이고 order는 둘이라 BFF를 포함한 실행 단위가 14개입니다 ([ADR-0016](docs/adr/0016-publish-order-events-to-kafka.md)).
+**order·shipping·notification 서비스는 실행 단위가 나뉘어 있습니다** ([ADR-0014](docs/adr/0014-split-api-and-worker-modules.md), [ADR-0029](docs/adr/0029-carrier-driven-shipment-progress.md)). 요청을 받는 것과 큐를 비우는 것은 스케일 축이 다르고, 브로커 의존성이 API에 붙으면 안 되기 때문입니다. 절단면은 `adapter/in`의 종류입니다 — 컨트롤러는 api, 스케줄러는 worker, 브로커 구독은 consumer입니다.
 
 ## 실행
 
@@ -37,6 +38,8 @@ make boot-all
 make demo
 make stop
 ```
+
+이미 생성된 배송을 택배 접수·집하·배송 완료까지 진행하려면 `make demo-shipping SHIPMENT_ID=shp_...`를 사용합니다. 실제 택배사를 호출하지 않고 로컬 택배 어댑터와 서명 웹훅 경계를 그대로 통과합니다. `DEMO_CARRIER_FLOW=returned`를 함께 주면 최종 배송 실패와 반송 완료 흐름을 실행합니다.
 
 `make boot-all`은 bootJar를 만든 뒤 각 서비스를 로컬 프로세스로 실행합니다. 전체 데이터 초기화는 `make stop` 후 `docker compose down -v`입니다. 기존 로컬 데이터가 삭제됩니다.
 

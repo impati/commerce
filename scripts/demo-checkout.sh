@@ -47,13 +47,8 @@ echo
 
 shipment_id="$(printf '%s' "$checkout_response" | jq -r '.shipment.id')"
 
-echo "5. ship"
-json_post "/shipments/${shipment_id}/ship" '{}'
-echo
-echo
-
-echo "6. deliver"
-json_post "/shipments/${shipment_id}/deliver" '{}'
+echo "5. carrier-driven shipping"
+"$(dirname "$0")/demo-shipping.sh" "$shipment_id"
 echo
 echo
 
@@ -62,7 +57,7 @@ echo
 # 주문 사건이 아웃박스에 커밋되고, 릴레이가 카프카로 발행하고, 컨슈머가 받아 적는다. 그래서
 # 배송 완료 직후에 물어보면 아직 비어 있다. 기다리는 것은 데모의 편의이며 검증이 아니다 —
 # 이 스크립트에는 assert가 없다.
-echo "7. notifications (사건이 브로커를 거쳐 오므로 잠깐 기다린다)"
+echo "6. notifications (사건이 브로커를 거쳐 오므로 잠깐 기다린다)"
 for _ in $(seq 1 20); do
   body="$(curl -sS -H "Authorization: Bearer ${TOKEN}" "${BASE_URL}/notifications")"
   [[ "$body" != "[]" ]] && break

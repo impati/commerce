@@ -1,4 +1,4 @@
-.PHONY: verify todo setup-hooks build test test-fast boot-all demo stop frontend-install frontend-dev frontend-build frontend-test
+.PHONY: verify todo setup-hooks build test test-fast boot-all demo demo-shipping stop frontend-install frontend-dev frontend-build frontend-test
 
 # 검증의 단일 진입점. 성공은 한 줄, 실패는 로그와 함께 종료코드 1.
 #
@@ -36,6 +36,10 @@ boot-all:
 
 demo:
 	./scripts/demo-checkout.sh
+
+demo-shipping:
+	@test -n "$(SHIPMENT_ID)" || (echo "SHIPMENT_ID가 필요합니다"; exit 1)
+	./scripts/demo-shipping.sh "$(SHIPMENT_ID)"
 
 stop:
 	./scripts/stop-all.sh

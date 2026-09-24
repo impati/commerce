@@ -17,7 +17,6 @@ import type {
   Member,
   Notification,
   Product,
-  Shipment,
   Stock
 } from './types';
 import type { OrderCancellation, OrderDetail, OrderPage } from './types';
@@ -280,17 +279,6 @@ export const api = {
 
   checkoutResult(orderId: string): Promise<Checkout> {
     return request<Checkout>(`/orders/${orderId}/checkout-result`);
-  },
-
-  ship(shipmentId: string): Promise<Shipment> {
-    return request<Shipment>(`/shipments/${shipmentId}/ship`, { method: 'POST', body: '{}' });
-  },
-
-  deliver(shipmentId: string): Promise<{ shipment: Shipment; order: Checkout['order'] }> {
-    return request<{ shipment: Shipment; order: Checkout['order'] }>(`/shipments/${shipmentId}/deliver`, {
-      method: 'POST',
-      body: '{}'
-    });
   },
 
   notifications(): Promise<Notification[]> {

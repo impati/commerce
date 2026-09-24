@@ -147,7 +147,7 @@ async function ready() {
   await waitFor(() => expect(screen.getByRole('button', { name: 'Checkout' })).toBeEnabled());
 }
 
-// [PD-0021-R1, PD-0023-R8] 상품 목록의 가격을 합산하지 않고 서버 견적의 금액 구성을 표시한다.
+// [PD-0021-R1, PD-0026-R10] 상품 목록의 가격을 합산하지 않고 서버 견적의 금액 구성을 표시한다.
 test('shows the server quote breakdown instead of multiplying catalog prices', async () => {
   open();
   await ready();
@@ -160,7 +160,7 @@ test('shows the server quote breakdown instead of multiplying catalog prices', a
   expect(screen.queryByText(formatMoney({ amount: 1998, currency: 'KRW' }))).not.toBeInTheDocument();
 });
 
-// [PD-0023-R8] 결제 결과도 주문에 확정된 금액 구성을 그대로 표시한다.
+// [PD-0026-R10] 결제 결과도 주문에 확정된 금액 구성을 그대로 표시한다.
 test('shows the confirmed price breakdown in the checkout result', async () => {
   vi.mocked(api.checkout).mockResolvedValue(failedCheckout);
   open();

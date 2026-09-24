@@ -242,6 +242,8 @@ function DetailView({ detail, onCancel, cancellationBusy }: {
     <section className="panel"><h2>배송 정보</h2><dl className="order-address">
       <dt>수령인</dt><dd>{address.recipient}</dd><dt>연락처</dt><dd>{address.phone}</dd>
       <dt>주소</dt><dd>{address.line1}, {address.city} ({address.postalCode})</dd>
+      <dt>배송 상태</dt><dd>{shipmentStatusText(detail.shipmentStatus)}</dd>
+      <dt>택배사</dt><dd>{detail.carrierName ?? '아직 접수되지 않았습니다'}</dd>
       <dt>운송장</dt><dd>{detail.trackingNumber ?? '아직 발급되지 않았습니다'}</dd>
     </dl></section>
     <section className="panel"><h2>진행 이력</h2>{detail.timeline.length === 0 ? <p>아직 기록된 진행 이력이 없습니다.</p> :
@@ -249,4 +251,10 @@ function DetailView({ detail, onCancel, cancellationBusy }: {
         <strong>{timelineText(event.type)}</strong><time dateTime={event.occurredAt}>{orderDate(event.occurredAt)}</time>
       </li>)}</ol>}</section>
   </div>;
+}
+
+function shipmentStatusText(status: string | null): string {
+  return ({ READY: '배송 준비 중', AWAITING_PICKUP: '집하 대기', IN_TRANSIT: '배송 중',
+    DELIVERED: '배송 완료', RETURNING: '반송 중', RETURNED: '반송 완료', CANCELLED: '배송 취소' } as Record<string, string>)[status ?? '']
+    ?? '상태 확인 중';
 }

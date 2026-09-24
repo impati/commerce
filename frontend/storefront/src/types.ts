@@ -136,7 +136,9 @@ export type Shipment = {
   memberId: string;
   address: Address;
   status: string;
-  trackingNumber: string;
+  carrierCode: string | null;
+  carrierName: string | null;
+  trackingNumber: string | null;
 };
 
 export type Checkout = {
@@ -213,6 +215,9 @@ export type OrderDetail = {
   total: Money;
   priceBreakdown: PriceBreakdown;
   shippingAddress: Pick<Address, 'recipient' | 'phone' | 'line1' | 'city' | 'postalCode'>;
+  shipmentStatus: string | null;
+  carrierCode: string | null;
+  carrierName: string | null;
   trackingNumber: string | null;
   timeline: { type: string; occurredAt: string }[];
 };
