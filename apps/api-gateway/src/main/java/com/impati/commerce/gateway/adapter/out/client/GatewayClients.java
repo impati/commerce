@@ -7,6 +7,8 @@ import com.impati.commerce.common.ApiContracts.SetDefaultAddressRequest;
 import com.impati.commerce.common.ApiContracts.AddressResponse;
 import com.impati.commerce.common.ApiContracts.CartItemRequest;
 import com.impati.commerce.common.ApiContracts.CartResponse;
+import com.impati.commerce.common.ApiContracts.CarrierEventRequest;
+import com.impati.commerce.common.ApiContracts.CarrierEventResponse;
 import com.impati.commerce.common.ApiContracts.ChangeCartQuantityRequest;
 import com.impati.commerce.common.ApiContracts.CheckoutResponse;
 import com.impati.commerce.common.ApiContracts.ConfirmedCheckoutRequest;
@@ -18,11 +20,9 @@ import com.impati.commerce.common.ApiContracts.NotificationResponse;
 import com.impati.commerce.common.ApiContracts.OrderDetailResponse;
 import com.impati.commerce.common.ApiContracts.OrderCancellationResponse;
 import com.impati.commerce.common.ApiContracts.OrderPageResponse;
-import com.impati.commerce.common.ApiContracts.OrderResponse;
 import com.impati.commerce.common.ApiContracts.ProductResponse;
 import com.impati.commerce.common.ApiContracts.RegisterMemberRequest;
 import com.impati.commerce.common.ApiContracts.SessionTokenRequest;
-import com.impati.commerce.common.ApiContracts.ShipmentResponse;
 import com.impati.commerce.common.ApiContracts.StockResponse;
 import com.impati.commerce.common.ApiContracts.StorefrontCartResponse;
 import com.impati.commerce.common.ApiContracts.VerifyEmailRequest;
@@ -295,16 +295,9 @@ public class GatewayClients {
                 .body(CheckoutResponse.class);
     }
 
-    public OrderResponse markDelivered(String orderId) {
-        return orders.post().uri("/orders/{orderId}/delivered", orderId).retrieve().body(OrderResponse.class);
-    }
-
-    public ShipmentResponse ship(String shipmentId) {
-        return shipping.post().uri("/shipments/{shipmentId}/ship", shipmentId).retrieve().body(ShipmentResponse.class);
-    }
-
-    public ShipmentResponse deliver(String shipmentId) {
-        return shipping.post().uri("/shipments/{shipmentId}/deliver", shipmentId).retrieve().body(ShipmentResponse.class);
+    public CarrierEventResponse carrierEvent(CarrierEventRequest event) {
+        return shipping.post().uri("/internal/carrier-events").body(event).retrieve()
+                .body(CarrierEventResponse.class);
     }
 
     public List<StockResponse> stock() {

@@ -18,7 +18,6 @@ import com.impati.commerce.common.ApiContracts.OrderPageResponse;
 import com.impati.commerce.common.ApiContracts.ProductResponse;
 import com.impati.commerce.common.ApiContracts.RegisterMemberRequest;
 import com.impati.commerce.common.ApiContracts.SetDefaultAddressRequest;
-import com.impati.commerce.common.ApiContracts.ShipmentResponse;
 import com.impati.commerce.common.ApiContracts.StockResponse;
 import com.impati.commerce.common.ApiContracts.StorefrontCartResponse;
 import com.impati.commerce.common.ApiContracts.UpdateAddressRequest;
@@ -266,23 +265,4 @@ public class GatewayController {
         return clients.notifications(identity.require(authorization));
     }
 
-    @PostMapping("/shipments/{shipmentId}/ship")
-    ShipmentResponse ship(
-            @RequestHeader(value = "Authorization", required = false) String authorization,
-            @PathVariable String shipmentId
-    ) {
-        identity.require(authorization);
-        return clients.ship(shipmentId);
-    }
-
-    @PostMapping("/shipments/{shipmentId}/deliver")
-    Map<String, Object> deliver(
-            @RequestHeader(value = "Authorization", required = false) String authorization,
-            @PathVariable String shipmentId
-    ) {
-        identity.require(authorization);
-        var shipment = clients.deliver(shipmentId);
-        var order = clients.markDelivered(shipment.orderId());
-        return Map.of("shipment", shipment, "order", order);
-    }
 }
