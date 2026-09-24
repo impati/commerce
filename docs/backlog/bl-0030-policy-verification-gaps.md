@@ -7,11 +7,11 @@
 
 여덟 개 정책 문서에 규칙 55개가 있었고, 그중 절반 이상을 아무 테스트도 고정하지 않았다. 고정되지 않은 규칙은 코드를 반대로 바꿔도 `make verify`가 통과한다.
 
-이 중 결제와 배송은 [BL-0034](done/bl-0034-checkout-payment-integrity.md)에서 메워졌다. PD-0008과 PD-0010은 각각 [PD-0011](../policy/pd-0011-payment-authorization-and-capture.md), [PD-0013](../policy/pd-0013-shipment-progress-and-cancellation.md)로 대체되면서 규칙마다 테스트가 붙었다. 남은 것은 아래다.
+이 중 결제와 당시 배송 정책은 [BL-0034](done/bl-0034-checkout-payment-integrity.md)에서 메워졌다. PD-0008과 PD-0010은 각각 PD-0011과 PD-0013으로 대체되면서 당시 규칙마다 테스트가 붙었다. 이후 배송 정책은 택배사 사건을 정본으로 삼는 [PD-0025](../policy/pd-0025-carrier-driven-shipment-progress.md)로 다시 대체됐으므로 새 규칙의 검증이 필요하다. 남은 것은 아래다.
 
 - **상품 노출([PD-0007](../policy/pd-0007-product-exposure-and-search.md))에는 규칙 테스트가 하나도 없다.** 테스트가 전부 영속화 왕복 확인이다. 저장하고 읽으면 같은 값이 나온다는 것만 보고, 무엇을 거절해야 하는지는 보지 않는다.
 - **체크아웃과 장바구니([PD-0017](../policy/pd-0017-checkout-execution-and-recovery.md), [PD-0018](../policy/pd-0018-cart-checkout-snapshot.md))의 일부 규칙이 비어 있다.** 기본 배송지 선택, 남의 배송지 거절과 주문 라인의 가격 확정 등이 그것이다.
-- **배송([PD-0013](../policy/pd-0013-shipment-progress-and-cancellation.md))의 R4가 비어 있다.** 배송지가 생성 시점의 사본이라는 규칙이다. R8과 R9는 "지원하지 않는다"와 "서로 자동 전이하지 않는다"이므로 고정할 동작이 없다.
+- **배송([PD-0025](../policy/pd-0025-carrier-driven-shipment-progress.md))의 새 택배사 흐름이 비어 있다.** 운송장 발급과 집하의 분리, 중복·역순 사건, 종결 결과 충돌, 최종 배송 실패와 반송을 아직 테스트로 고정하지 않았다. R2의 배송지 사본 규칙도 계속 비어 있다.
 
 주문 상태 전이도 마찬가지다. 성공 경로 하나만 있고 거절 경로가 없다. 결제 전 주문에 배송을 붙이거나 완료된 주문을 취소하는 시도가 실제로 막히는지 확인하는 것이 없다.
 

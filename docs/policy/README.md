@@ -30,7 +30,6 @@
 | [0005](pd-0005-inventory-reservation.md) | 재고 예약과 가용 수량 |
 | [0007](pd-0007-product-exposure-and-search.md) | 상품 노출과 검색 |
 | [0011](pd-0011-payment-authorization-and-capture.md) | 결제 승인과 매입 |
-| [0013](pd-0013-shipment-progress-and-cancellation.md) | 배송 진행과 취소 |
 | [0014](pd-0014-login-rejection-and-session-lifetime.md) | 로그인 거절과 세션 수명 |
 | [0016](pd-0016-notification-delivery.md) | 알림 기록과 발송 |
 | [0017](pd-0017-checkout-execution-and-recovery.md) | 체크아웃 실행과 복구 |
@@ -38,5 +37,6 @@
 | [0020](pd-0020-order-history-visibility.md) | 주문 내역 노출과 진행 이력 |
 | [0021](pd-0021-purchase-confirmation.md) | 확인한 구매 내용과 금액으로 주문 |
 | [0022](pd-0022-shipping-address-management-and-selection.md) | 배송지 관리와 주문 선택 |
-| [0023](pd-0023-order-lifecycle-price-and-cancellation.md) | 주문 생애주기, 금액 구성과 취소 |
 | [0024](pd-0024-customer-order-cancellation.md) | 고객 주문 취소 |
+| [0025](pd-0025-carrier-driven-shipment-progress.md) | 택배사 기반 배송 진행과 취소 |
+| [0026](pd-0026-order-lifecycle-shipment-projection-and-price.md) | 주문 생애주기, 배송 투영과 금액 구성 |

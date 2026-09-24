@@ -3,7 +3,7 @@
 - **상태:** 승인됨
 - **날짜:** 2026-08-22
 - **해결한 백로그:** BL-0034 체크아웃에서 결제와 재고가 어긋난 채 남는다
-- **관련:** [PD-0011](../policy/pd-0011-payment-authorization-and-capture.md), [PD-0017](../policy/pd-0017-checkout-execution-and-recovery.md), [PD-0013](../policy/pd-0013-shipment-progress-and-cancellation.md)
+- **관련:** [PD-0011](../policy/pd-0011-payment-authorization-and-capture.md), [PD-0017](../policy/pd-0017-checkout-execution-and-recovery.md), [PD-0025](../policy/pd-0025-carrier-driven-shipment-progress.md)
 
 ## 맥락과 의도
 
@@ -23,7 +23,7 @@
 
 **주문 식별자를 자연 멱등 키로 쓴다.** `payments`에 `unique (order_id)`를 걸고 결제는 주문당 하나만 존재하며 상태만 전이한다. 키를 새로 만들 필요가 없고, DB 제약이 비즈니스 규칙과 그대로 일치한다.
 
-**주문 상태 전이는 바꾸지 않는다.** 배송 *생성*을 매입 앞에, 주문에 *붙이기*를 매입 뒤에 두어 "배송은 결제된 주문에만 붙는다"([PD-0023-R2](../policy/pd-0023-order-lifecycle-price-and-cancellation.md))를 그대로 지킨다. 결제 식별자는 승인 시점에 상태 전이 없이 붙는다.
+**주문 상태 전이는 바꾸지 않는다.** 배송 *생성*을 매입 앞에, 주문에 *붙이기*를 매입 뒤에 두어 "배송은 결제된 주문에만 붙는다"([PD-0026-R2](../policy/pd-0026-order-lifecycle-shipment-projection-and-price.md))를 그대로 지킨다. 결제 식별자는 승인 시점에 상태 전이 없이 붙는다.
 
 ## 고려한 선택지
 

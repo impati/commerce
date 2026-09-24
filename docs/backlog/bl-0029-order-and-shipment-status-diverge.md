@@ -5,16 +5,16 @@
 
 ## 배경
 
-주문 상태와 배송 상태는 각각 따로 전이된다. 한쪽을 바꾸는 것이 다른 쪽을 자동으로 바꾸지 않는다 ([PD-0013-R9](../policy/pd-0013-shipment-progress-and-cancellation.md)).
+새 정책은 배송을 물리적 배송 진행의 정본으로 두고 주문이 그 사실을 전달받도록 정했다 ([PD-0025-R8](../policy/pd-0025-carrier-driven-shipment-progress.md), [PD-0026-R3](../policy/pd-0026-order-lifecycle-shipment-projection-and-price.md)). 그러나 현재 구현은 주문 상태와 배송 상태를 각각 따로 전이한다.
 
 배송을 완료로 기록해도 주문은 이행 중으로 남고, 주문을 배송 완료로 기록해도 배송은 준비 상태로 남는다. 두 값이 다를 때 어느 쪽이 진실인지 정해져 있지 않다.
 
-주문 취소도 마찬가지다. 주문을 취소해도 배송 취소를 자동으로 호출하지 않는다. 배송 자체는 준비 상태에서 취소할 수 있지만([PD-0013-R5](../policy/pd-0013-shipment-progress-and-cancellation.md)), 호출 경로가 이어지지 않아 취소된 주문의 물건이 그대로 배송될 수 있다.
+주문 취소도 마찬가지다. 주문을 취소해도 배송 취소를 자동으로 호출하지 않는다. 배송 자체는 택배사 집하 전에 취소할 수 있지만([PD-0025-R5](../policy/pd-0025-carrier-driven-shipment-progress.md)), 호출 경로가 이어지지 않아 취소된 주문의 물건이 그대로 배송될 수 있다.
 
-주문이 배송을 거치지 않고 결제됨에서 바로 완료로 갈 수 있다는 점도([PD-0023-R3](../policy/pd-0023-order-lifecycle-price-and-cancellation.md)) 두 상태가 독립적이라는 전제 위에 있다.
+주문을 배송 없이 직접 완료할 수 있는 현재 경로도 택배사 배송 완료만 주문에 반영한다는 정책([PD-0026-R4](../policy/pd-0026-order-lifecycle-shipment-projection-and-price.md))과 어긋난다.
 
 ## 목표
 
 주문과 배송 중 어느 쪽이 배송 진행의 진실인지 정해져 있고, 다른 쪽은 그것을 따라간다. 취소된 주문의 배송을 멈출 수 있으며, 멈출 수 없는 시점이 언제부터인지도 정해져 있다.
 
-두 정책의 규칙이 함께 바뀌므로 [PD-0023](../policy/pd-0023-order-lifecycle-price-and-cancellation.md)과 [PD-0013](../policy/pd-0013-shipment-progress-and-cancellation.md)을 각각 새 번호로 바꾸고 기존 문서를 삭제한다.
+배송 사건이 주문으로 전달되어 두 상태가 같은 물류 사실로 수렴하고, 취소와 집하 중 먼저 확정된 전이만 성공한다.

@@ -71,7 +71,7 @@
 
 ## 관련 정책
 
-- [PD-0023](pd-0023-order-lifecycle-price-and-cancellation.md)은 주문의 일반 상태 전이와 금액 구성을 정한다. 이 문서는 그중 고객이 요청하는 취소의 허용 범위와 되돌림 결과를 더 구체적으로 제한한다.
+- [PD-0026](pd-0026-order-lifecycle-shipment-projection-and-price.md)은 주문의 일반 상태 전이, 배송 투영과 금액 구성을 정한다. 이 문서는 그중 고객이 요청하는 취소의 허용 범위와 되돌림 결과를 더 구체적으로 제한한다.
 - [PD-0011](pd-0011-payment-authorization-and-capture.md)은 매입된 결제의 전액 환불과 반복 요청의 결과를 정한다.
-- [PD-0013](pd-0013-shipment-progress-and-cancellation.md)은 준비 상태 배송만 취소할 수 있고 취소가 끝 상태임을 정한다.
+- [PD-0025](pd-0025-carrier-driven-shipment-progress.md)은 택배사 집하 전 배송만 취소할 수 있고 취소가 끝 상태임을 정한다.
 - [PD-0005](pd-0005-inventory-reservation.md)은 예약 확정으로 판매 재고가 차감되는 방식을 정한다.
