@@ -14,6 +14,9 @@ public record OrderHistoryDetail(
         List<OrderLineDetails> lines,
         PriceBreakdownDetails priceBreakdown,
         OrderAddress shippingAddress,
+        String shipmentStatus,
+        String carrierCode,
+        String carrierName,
         String trackingNumber,
         List<OrderTimelineEntry> timeline
 ) {

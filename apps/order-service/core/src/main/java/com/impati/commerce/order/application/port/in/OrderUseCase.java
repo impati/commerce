@@ -1,7 +1,6 @@
 package com.impati.commerce.order.application.port.in;
 
 import com.impati.commerce.order.application.model.CheckoutResult;
-import com.impati.commerce.order.application.model.OrderDetails;
 import com.impati.commerce.order.application.model.PurchaseQuoteDetails;
 import com.impati.commerce.order.domain.IdempotencyKey;
 
@@ -31,7 +30,5 @@ public interface OrderUseCase {
      * 주문 식별자로 폴링할 체크아웃 결과를 돌려준다.
      */
     CheckoutResult getCheckoutResultOwned(String memberId, String orderId);
-
-    OrderDetails markDelivered(String orderId);
 
 }

@@ -71,7 +71,7 @@ public class OrderEventConsumer {
                 case "ORDER_PAID" -> Optional.of(new Wording("OrderPaid",
                         "Order paid",
                         "Order " + message.orderId() + " has been paid."));
-                case "SHIPMENT_CREATED" -> Optional.of(new Wording("ShipmentCreated",
+                case "SHIPMENT_REGISTERED" -> Optional.of(new Wording("ShipmentCreated",
                         "Shipment ready",
                         "Tracking number: " + payload(message, "trackingNumber")));
                 case "ORDER_DELIVERED" -> Optional.of(new Wording("OrderDelivered",

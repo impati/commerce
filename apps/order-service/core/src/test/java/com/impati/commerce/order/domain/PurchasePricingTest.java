@@ -50,7 +50,7 @@ class PurchasePricingTest {
                 .isInstanceOf(DomainException.class);
     }
 
-    /** [PD-0023-R6, PD-0023-R7] 50,000원 경계에서 배송비와 최종 금액이 함께 바뀐다. */
+    /** [PD-0026-R8, PD-0026-R9] 50,000원 경계에서 배송비와 최종 금액이 함께 바뀐다. */
     @Test
     void appliesShippingFeeAtTheFreeShippingBoundary() {
         assertThat(PurchasePricing.priceBreakdown(List.of(line("a", 1, 49_999))))
@@ -61,7 +61,7 @@ class PurchasePricingTest {
                 .isEqualTo(new PriceBreakdown(Money.krw(0), Money.krw(0), Money.krw(0)));
     }
 
-    /** [PD-0023-R7] 합계가 상품 금액과 배송비의 합이 아니면 금액 구성을 만들 수 없다. */
+    /** [PD-0026-R9] 합계가 상품 금액과 배송비의 합이 아니면 금액 구성을 만들 수 없다. */
     @Test
     void rejectsAnInconsistentPriceBreakdown() {
         assertThatThrownBy(() -> new PriceBreakdown(Money.krw(49_999), Money.krw(3_000), Money.krw(49_999)))

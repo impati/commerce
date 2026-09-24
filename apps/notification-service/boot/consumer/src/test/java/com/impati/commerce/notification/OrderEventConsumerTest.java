@@ -67,7 +67,7 @@ class OrderEventConsumerTest {
     @Test
     void rendersTheTrackingNumberFromThePayload() {
         var event = new OrderEventMessage(
-                "evt_consume_shipped", "SHIPMENT_CREATED", "ord_consume_2", "mem_consume_2",
+                "evt_consume_shipped", "SHIPMENT_REGISTERED", "ord_consume_2", "mem_consume_2",
                 Map.of("trackingNumber", "TRK-CONSUME"));
 
         send(event);

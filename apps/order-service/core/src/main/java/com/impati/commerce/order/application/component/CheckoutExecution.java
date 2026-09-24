@@ -128,7 +128,7 @@ public class CheckoutExecution {
                     order.markPaid();
                     order.attachShipment(
                             require(progress.shipmentId(), "shipment"),
-                            require(progress.trackingNumber(), "tracking number"));
+                            progress.trackingNumber());
                     progress.advance(Stage.ORDER_CONFIRMED);
                     checkoutChanges.commit(order, progress, progress.leaseGeneration());
                 }

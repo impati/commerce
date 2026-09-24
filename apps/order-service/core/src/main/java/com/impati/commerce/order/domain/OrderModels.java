@@ -40,6 +40,11 @@ public final class OrderModels {
         ORDER_CREATED,
         ORDER_PAID,
         SHIPMENT_CREATED,
+        SHIPMENT_REGISTERED,
+        SHIPMENT_PICKED_UP,
+        SHIPMENT_IN_TRANSIT,
+        SHIPMENT_DELIVERY_FAILED,
+        SHIPMENT_RETURNED,
         ORDER_DELIVERED,
         ORDER_CANCELLATION_REQUESTED,
         CHECKOUT_FAILED,
@@ -431,7 +436,7 @@ public final class OrderModels {
         /**
          * 승인된 결제를 붙인다. 청구가 아직 확정되지 않았으므로 상태는 그대로다 (PD-0011-R1).
          *
-         * <p>주문이 결제됨으로 넘어가는 것은 매입 시점이다 (PD-0023-R1).
+         * <p>주문이 결제됨으로 넘어가는 것은 매입 시점이다 (PD-0026-R1).
          */
         public void attachPayment(String paymentId) {
             this.paymentId = paymentId;
@@ -448,22 +453,14 @@ public final class OrderModels {
             record(OrderEventType.ORDER_PAID, Map.of("paymentId", paymentId));
         }
 
-        /**
-         * 배송을 붙인다.
-         *
-         * <p>{@code trackingNumber}는 주문이 들고 있지 않는 값이다. 그래도 받는 이유는 사건이
-         * 담아야 할 사실의 일부이기 때문이다 — "이 주문의 배송이 시작됐고 운송장은 이것"이
-         * 일어난 일이고, 그것을 나중에 배송 서비스에 되물으면 사건이 자기 완결적이지 않게 된다.
-         */
+        /** 배송을 붙인다. 이 시점에는 아직 택배 접수 전이라 운송장이 없다. */
         public void attachShipment(String shipmentId, String trackingNumber) {
             if (status != OrderStatus.PAID) {
                 throw DomainException.conflict("shipment can only be attached to paid order");
             }
             this.shipmentId = shipmentId;
             this.status = OrderStatus.FULFILLING;
-            record(OrderEventType.SHIPMENT_CREATED, Map.of(
-                    "shipmentId", shipmentId,
-                    "trackingNumber", trackingNumber));
+            record(OrderEventType.SHIPMENT_CREATED, Map.of("shipmentId", shipmentId));
         }
 
         public void markDelivered() {
@@ -472,6 +469,32 @@ public final class OrderModels {
             }
             this.status = OrderStatus.DELIVERED;
             record(OrderEventType.ORDER_DELIVERED, Map.of());
+        }
+
+        /** Shipping이 발행한 사실을 주문의 고객용 프로젝션과 이력으로 반영한다. */
+        public void applyShipmentEvent(String type, String eventShipmentId, Map<String, String> payload,
+                java.time.OffsetDateTime occurredAt) {
+            if (!Objects.equals(shipmentId, eventShipmentId)) {
+                throw DomainException.conflict("shipment event belongs to another shipment");
+            }
+            if (status != OrderStatus.FULFILLING) {
+                throw DomainException.conflict("shipment event cannot be applied to current order status");
+            }
+            var eventType = switch (type) {
+                case "SHIPMENT_REGISTERED" -> OrderEventType.SHIPMENT_REGISTERED;
+                case "SHIPMENT_PICKED_UP" -> OrderEventType.SHIPMENT_PICKED_UP;
+                case "SHIPMENT_IN_TRANSIT" -> OrderEventType.SHIPMENT_IN_TRANSIT;
+                case "SHIPMENT_DELIVERY_FAILED" -> OrderEventType.SHIPMENT_DELIVERY_FAILED;
+                case "SHIPMENT_RETURNED" -> OrderEventType.SHIPMENT_RETURNED;
+                case "SHIPMENT_DELIVERED" -> null;
+                default -> throw DomainException.validation("unknown shipment event type");
+            };
+            if (eventType == null) {
+                status = OrderStatus.DELIVERED;
+                recordAt(OrderEventType.ORDER_DELIVERED, payload, occurredAt);
+            } else {
+                recordAt(eventType, payload, occurredAt);
+            }
         }
 
         /**
@@ -525,6 +548,12 @@ public final class OrderModels {
         private void record(OrderEventType type, Map<String, String> payload) {
             var occurredAt = type == OrderEventType.ORDER_CREATED ? createdAt : now(clock);
             pendingEvents.add(OrderEvent.occurred(type, id, memberId, payload, occurredAt));
+        }
+
+        private void recordAt(OrderEventType type, Map<String, String> payload,
+                java.time.OffsetDateTime occurredAt) {
+            pendingEvents.add(OrderEvent.occurred(type, id, memberId, payload,
+                    LocalDateTime.ofInstant(occurredAt.toInstant(), ZoneOffset.UTC)));
         }
 
         private static LocalDateTime now(Clock clock) {

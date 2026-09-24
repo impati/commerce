@@ -73,7 +73,8 @@ class OrderEventRecordingTest {
 
         assertThat(typesOf(order.id()))
                 .containsExactly("ORDER_CREATED", "ORDER_PAID", "SHIPMENT_CREATED", "ORDER_DELIVERED");
-        assertThat(payloadOf(order.id(), "SHIPMENT_CREATED")).contains("\"trackingNumber\":\"TRK-77\"");
+        assertThat(payloadOf(order.id(), "SHIPMENT_CREATED")).contains("\"shipmentId\":\"shp_evt\"")
+                .doesNotContain("trackingNumber");
     }
 
     /**

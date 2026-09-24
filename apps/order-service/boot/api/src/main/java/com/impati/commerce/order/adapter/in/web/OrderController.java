@@ -93,11 +93,4 @@ public class OrderController {
                 : ResponseEntity.accepted().body(response);
     }
 
-    /**
-     * shipping 흐름에서 게이트웨이가 부르는 내부 경로. 배송 완료 처리는 회원 요청이 아니다.
-     */
-    @PostMapping("/orders/{orderId}/delivered")
-    OrderResponse delivered(@PathVariable String orderId) {
-        return OrderResponseMapper.from(orderUseCase.markDelivered(orderId));
-    }
 }

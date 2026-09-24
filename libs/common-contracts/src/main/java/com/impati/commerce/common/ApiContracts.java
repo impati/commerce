@@ -403,6 +403,7 @@ public final class ApiContracts {
             String cancellationStatus, boolean cancellable,
             List<OrderLineResponse> lines, Money total, PriceBreakdownResponse priceBreakdown,
             OrderShippingAddressResponse shippingAddress,
+            String shipmentStatus, String carrierCode, String carrierName,
             String trackingNumber, List<OrderTimelineResponse> timeline) { }
 
     /**
@@ -435,6 +436,17 @@ public final class ApiContracts {
             Map<String, String> payload
     ) {
     }
+
+    /** Shipping이 소유한 배송 진행 사실. orderId가 파티션 키이며 eventId는 소비자 멱등 키다. */
+    public record ShipmentEventMessage(
+            String eventId,
+            String type,
+            String shipmentId,
+            String orderId,
+            String memberId,
+            OffsetDateTime occurredAt,
+            Map<String, String> payload
+    ) { }
 
     /** POST /members/verifications — 이메일 소유 인증 토큰. 단일 사용이며 짧은 만료를 갖는다. */
     public record VerifyEmailRequest(String token) {

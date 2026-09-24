@@ -8,7 +8,7 @@ import java.util.Optional;
 public interface ShippingClient {
     ShipmentResponse createShipment(CreateShipmentRequest request);
 
-    /** 아직 나가지 않은 배송을 없앤다 (PD-0013-R5). 매입 전 실패를 되돌릴 때 부른다. */
+    /** 아직 집하되지 않은 배송을 없앤다 (PD-0025-R5). 매입 전 실패를 되돌릴 때 부른다. */
     ShipmentResponse cancelShipment(String shipmentId);
 
     Optional<ShipmentResponse> shipmentForOrder(String orderId);

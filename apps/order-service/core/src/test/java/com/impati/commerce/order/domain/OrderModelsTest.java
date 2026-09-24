@@ -10,6 +10,8 @@ import com.impati.commerce.order.domain.OrderModels.OrderStatus;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
+import java.time.OffsetDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -17,7 +19,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class OrderModelsTest {
     /**
-     * [PD-0023-R1][PD-0023-R2][PD-0023-R3][PD-0023-R5] 허용되는 전이 순서와 상품 금액 계산을 잡는다.
+     * [PD-0026-R1][PD-0026-R2][PD-0026-R4][PD-0026-R7] 허용되는 전이 순서와 상품 금액 계산을 잡는다.
      *
      * <p>거절되는 전이는 하나도 보지 않는다. 결제 전 주문에 배송을 붙이거나 완료된 주문을
      * 취소하는 시도가 막히는지는 여기서 드러나지 않는다. BL-0030.
@@ -137,6 +139,28 @@ class OrderModelsTest {
         event.markFailed(null, 3);
 
         assertThat(event.lastError()).isNull();
+    }
+
+    @Test
+    void projectsCarrierEventsIntoOrderHistoryAndDelivery() {
+        var order = newOrder();
+        order.attachPayment("pay_demo");
+        order.markPaid();
+        order.attachShipment("shp_demo", null);
+        order.drainPendingEvents();
+        var payload = Map.of("shipmentStatus", "AWAITING_PICKUP", "carrierCode", "PRIMARY",
+                "carrierName", "기본 택배사", "trackingNumber", "TRK-1");
+
+        order.applyShipmentEvent("SHIPMENT_REGISTERED", "shp_demo", payload,
+                OffsetDateTime.parse("2026-09-24T01:00:00Z"));
+        order.applyShipmentEvent("SHIPMENT_DELIVERED", "shp_demo",
+                Map.of("shipmentStatus", "DELIVERED", "carrierCode", "PRIMARY",
+                        "carrierName", "기본 택배사", "trackingNumber", "TRK-1"),
+                OffsetDateTime.parse("2026-09-24T02:00:00Z"));
+
+        assertThat(order.status()).isEqualTo(OrderStatus.DELIVERED);
+        assertThat(order.drainPendingEvents()).extracting(OrderEvent::type)
+                .containsExactly(OrderEventType.SHIPMENT_REGISTERED, OrderEventType.ORDER_DELIVERED);
     }
 
     private Order newOrder() {

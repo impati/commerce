@@ -9,6 +9,7 @@ import com.impati.commerce.test.RequiresDatabase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -28,6 +29,9 @@ class ShippingExecutorTest {
 
     @Autowired
     private ShippingUseCase shippingUseCase;
+
+    @Autowired
+    private JdbcTemplate jdbc;
 
     /** [PD-0025-R2] 새 배송에는 아직 택배사와 운송장이 없다. */
     @Test
@@ -51,6 +55,8 @@ class ShippingExecutorTest {
         assertThat(first.carrierCode()).isEqualTo("PRIMARY");
         assertThat(first.trackingNumber()).isNotBlank();
         assertThat(second).isEqualTo(first);
+        assertThat(jdbc.queryForObject("select count(*) from shipment_events where shipment_id = ? "
+                + "and type = 'SHIPMENT_REGISTERED'", Integer.class, shipment.id())).isEqualTo(1);
     }
 
     @Test
@@ -101,6 +107,8 @@ class ShippingExecutorTest {
         assertThat(shippingUseCase.receive(command).result()).isEqualTo("APPLIED");
         assertThat(shippingUseCase.receive(command).result()).isEqualTo("DUPLICATE");
         assertThat(shippingUseCase.get(shipment.id()).status()).isEqualTo("IN_TRANSIT");
+        assertThat(jdbc.queryForObject("select count(*) from shipment_events where shipment_id = ? "
+                + "and type = 'SHIPMENT_PICKED_UP'", Integer.class, shipment.id())).isEqualTo(1);
     }
 
     /** [PD-0025-R9] 늦은 과거 사건은 현재 상태를 후퇴시키지 않는다. */

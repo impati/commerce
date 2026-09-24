@@ -36,7 +36,6 @@ public class OrderExecutor implements OrderUseCase {
     private final OrderRepository orderRepository;
     private final CheckoutProgressRepository progressRepository;
     private final CheckoutChanges checkoutChanges;
-    private final OrderChanges orderChanges;
     private final CheckoutExecution checkoutExecution;
     private final MemberClient memberClient;
     private final CartClient cartClient;
@@ -61,7 +60,6 @@ public class OrderExecutor implements OrderUseCase {
         this.orderRepository = orderRepository;
         this.progressRepository = progressRepository;
         this.checkoutChanges = checkoutChanges;
-        this.orderChanges = orderChanges;
         this.checkoutExecution = checkoutExecution;
         this.memberClient = memberClient;
         this.cartClient = cartClient;
@@ -212,14 +210,6 @@ public class OrderExecutor implements OrderUseCase {
             return new CheckoutResult(OrderMapper.toDetails(order, progress), payment, shipment, false);
         }
         return result(order, progress, false);
-    }
-
-    @Override
-    public OrderDetails markDelivered(String orderId) {
-        var order = order(orderId);
-        order.markDelivered();
-        orderChanges.commit(order);
-        return OrderMapper.toDetails(order, progressRepository.findByOrderId(orderId).orElse(null));
     }
 
     private AddressResponse selectAddress(List<AddressResponse> addresses, String addressId) {

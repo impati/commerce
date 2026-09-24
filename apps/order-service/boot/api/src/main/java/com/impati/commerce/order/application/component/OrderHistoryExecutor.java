@@ -75,15 +75,22 @@ public class OrderHistoryExecutor implements OrderHistoryUseCase {
                 .filter(event -> event.type() != OrderEventType.CHECKOUT_FAILED || "FAILED".equals(state))
                 .map(event -> new OrderTimelineEntry(event.type().name(), event.occurredAt().atOffset(ZoneOffset.UTC)))
                 .toList();
-        var trackingNumber = events.stream().filter(event -> event.type() == OrderEventType.SHIPMENT_CREATED)
-                .map(event -> event.payload().get("trackingNumber")).filter(java.util.Objects::nonNull)
-                .reduce((first, last) -> last).orElse(null);
+        var shipmentEvents = events.stream().filter(event -> event.type().name().startsWith("SHIPMENT_")
+                || event.type() == OrderEventType.ORDER_DELIVERED).toList();
+        var latestShipmentPayload = shipmentEvents.stream().map(event -> event.payload())
+                .filter(payload -> payload.get("shipmentStatus") != null).reduce((first, last) -> last)
+                .orElse(java.util.Map.of());
+        var shipmentStatus = latestShipmentPayload.getOrDefault("shipmentStatus",
+                order.shipmentId() == null ? null : "READY");
+        var carrierCode = latestShipmentPayload.get("carrierCode");
+        var carrierName = latestShipmentPayload.get("carrierName");
+        var trackingNumber = latestShipmentPayload.get("trackingNumber");
         var details = OrderMapper.toDetails(order);
         return new OrderHistoryDetail(order.id(), order.createdAt().atOffset(ZoneOffset.UTC), state,
                 customerOrderStatus(order, state), cancellationStatus(cancellation),
                 cancellable(order, state, cancellation),
                 details.lines(), details.priceBreakdown(), details.shippingAddress(),
-                trackingNumber, timeline);
+                shipmentStatus, carrierCode, carrierName, trackingNumber, timeline);
     }
 
     private static OrderSummary summary(
@@ -132,7 +139,8 @@ public class OrderHistoryExecutor implements OrderHistoryUseCase {
         }
         try {
             return shippingClient.shipmentForOrder(order.id())
-                    .map(shipment -> shipment.status().equals("READY"))
+                    .map(shipment -> shipment.status().equals("READY")
+                            || shipment.status().equals("AWAITING_PICKUP"))
                     .orElse(false);
         } catch (RuntimeException unavailable) {
             return false;

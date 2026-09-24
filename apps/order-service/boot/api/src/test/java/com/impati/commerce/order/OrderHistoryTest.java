@@ -105,7 +105,12 @@ class OrderHistoryTest {
         order = Order.restore(order.id(), member, order.lines(), order.priceBreakdown(), order.shippingAddress(), order.status(),
                 null, null, null, order.createdAt(), Clock.fixed(created.plusSeconds(60), ZoneOffset.UTC));
         order.attachReservation("rsv_private"); order.attachPayment("pay_private"); order.markPaid();
-        order.attachShipment("shp_private", "TRK-visible"); orderChanges.commit(order);
+        order.attachShipment("shp_private", null);
+        order.applyShipmentEvent("SHIPMENT_REGISTERED", "shp_private", java.util.Map.of(
+                "shipmentStatus", "AWAITING_PICKUP", "carrierCode", "PRIMARY",
+                "carrierName", "기본 택배사", "trackingNumber", "TRK-visible"),
+                java.time.OffsetDateTime.ofInstant(created.plusSeconds(90), ZoneOffset.UTC));
+        orderChanges.commit(order);
         progress(order, "COMPLETED");
         var event = orderEventRepository.findByOrderIdAndMemberId(order.id(), member).getFirst();
         event.markFailed("private publisher failure", 1); orderEventRepository.savePublishResult(event);
@@ -125,6 +130,7 @@ class OrderHistoryTest {
                 .andExpect(jsonPath("$.timeline[1].type").value("ORDER_PAID"))
                 .andExpect(jsonPath("$.timeline[1].occurredAt").value("2026-09-16T03:01:00.123456Z"))
                 .andExpect(jsonPath("$.timeline[2].type").value("SHIPMENT_CREATED"))
+                .andExpect(jsonPath("$.timeline[3].type").value("SHIPMENT_REGISTERED"))
                 .andReturn().getResponse().getContentAsString();
         assertThat(response).doesNotContain("pay_private", "shp_private", "rsv_private", "publishStatus",
                 "attempts", "lastError", "failureCode", "private publisher failure", "memberId");
@@ -150,8 +156,8 @@ class OrderHistoryTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.checkoutResult").value("SUCCEEDED"))
                 .andExpect(jsonPath("$.orderStatus").value("DELIVERED"))
                 .andExpect(jsonPath("$.orderedAt").value("2026-09-16T03:00:00.123456Z"))
-                .andExpect(jsonPath("$.timeline[3].type").value("ORDER_DELIVERED"))
-                .andExpect(jsonPath("$.timeline[3].occurredAt").value("2026-09-16T03:02:00.123456Z"));
+                .andExpect(jsonPath("$.timeline[4].type").value("ORDER_DELIVERED"))
+                .andExpect(jsonPath("$.timeline[4].occurredAt").value("2026-09-16T03:02:00.123456Z"));
     }
 
     /** [PD-0020-R9] 타 회원 주문의 존재도 알아낼 수 없다. */

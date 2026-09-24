@@ -5,7 +5,7 @@ import com.impati.commerce.common.DomainException;
 import java.util.Objects;
 
 /**
- * [PD-0023-R6] 주문 단위 무료배송 기준과 배송비를 한 곳에서 소유한다.
+ * [PD-0026-R8] 주문 단위 무료배송 기준과 배송비를 한 곳에서 소유한다.
  */
 public final class ShippingFeePolicy {
 

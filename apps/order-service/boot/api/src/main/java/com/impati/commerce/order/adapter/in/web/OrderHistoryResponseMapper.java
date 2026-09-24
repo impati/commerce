@@ -30,7 +30,8 @@ final class OrderHistoryResponseMapper {
                         line.productName(), line.skuName(), line.quantity(), line.unitPrice(), line.lineTotal())).toList(),
                 detail.total(), priceBreakdown(detail.priceBreakdown()),
                 new OrderShippingAddressResponse(address.recipient(), address.phone(), address.line1(),
-                        address.city(), address.postalCode()), detail.trackingNumber(),
+                        address.city(), address.postalCode()), detail.shipmentStatus(), detail.carrierCode(),
+                detail.carrierName(), detail.trackingNumber(),
                 detail.timeline().stream().map(event -> new OrderTimelineResponse(event.type(), event.occurredAt())).toList());
     }
 

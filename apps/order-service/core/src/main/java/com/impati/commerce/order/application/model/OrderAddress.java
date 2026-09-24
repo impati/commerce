@@ -1,6 +1,6 @@
 package com.impati.commerce.order.application.model;
 
-/** 주문에 남은 배송지 사본 (PD-0023-R11). */
+/** 주문에 남은 배송지 사본 (PD-0026-R13). */
 public record OrderAddress(
         String id,
         String alias,

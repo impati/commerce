@@ -66,7 +66,7 @@ def bootModules = [
         ':apps:catalog-service', ':apps:inventory-service', ':apps:cart-service',
         ':apps:payment-service',
         ':apps:shipping-service:boot:api', ':apps:shipping-service:boot:worker',
-        ':apps:order-service:boot:api', ':apps:order-service:boot:worker',
+        ':apps:order-service:boot:api', ':apps:order-service:boot:worker', ':apps:order-service:boot:consumer',
         ':apps:notification-service:boot:api', ':apps:notification-service:boot:worker',
         ':apps:notification-service:boot:consumer'
 ]
@@ -142,6 +142,7 @@ configure([
         project(':apps:order-service:infra:persistence'),
         project(':apps:order-service:boot:api'),
         project(':apps:order-service:boot:worker'),
+        project(':apps:order-service:boot:consumer'),
         project(':apps:payment-service'),
         project(':apps:notification-service:infra:persistence'),
         project(':apps:notification-service:boot:api'),
@@ -211,6 +212,14 @@ project(':apps:order-service:boot:worker') {
     }
 }
 
+project(':apps:order-service:boot:consumer') {
+    dependencies {
+        implementation project(':apps:order-service:core')
+        implementation project(':apps:order-service:infra:persistence')
+        implementation 'org.springframework.kafka:spring-kafka'
+    }
+}
+
 // shipping-service: API 요청과 복구 작업을 실행 단위로 분리한다 (ADR-0029).
 project(':apps:shipping-service:core') {
     dependencies {
@@ -230,6 +239,13 @@ project(':apps:shipping-service:infra:carrier:local') {
     }
 }
 
+project(':apps:shipping-service:infra:publisher:kafka') {
+    dependencies {
+        implementation project(':apps:shipping-service:core')
+        implementation 'org.springframework.kafka:spring-kafka'
+    }
+}
+
 project(':apps:shipping-service:boot:api') {
     dependencies {
         implementation project(':apps:shipping-service:core')
@@ -243,6 +259,7 @@ project(':apps:shipping-service:boot:worker') {
         implementation project(':apps:shipping-service:core')
         implementation project(':apps:shipping-service:infra:persistence')
         implementation project(':apps:shipping-service:infra:carrier:local')
+        implementation project(':apps:shipping-service:infra:publisher:kafka')
     }
 }
 
@@ -308,6 +325,7 @@ project(':apps:notification-service:boot:worker') {
 [
         (':apps:order-service:boot:api'): 'order-api',
         (':apps:order-service:boot:worker'): 'order-worker',
+        (':apps:order-service:boot:consumer'): 'order-consumer',
         (':apps:shipping-service:boot:api'): 'shipping-api',
         (':apps:shipping-service:boot:worker'): 'shipping-worker',
         (':apps:notification-service:boot:api'): 'notification-api',

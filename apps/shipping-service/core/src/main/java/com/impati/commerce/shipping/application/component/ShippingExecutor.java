@@ -10,7 +10,9 @@ import com.impati.commerce.shipping.application.port.in.ShippingUseCase;
 import com.impati.commerce.shipping.application.port.out.CarrierEventRecord;
 import com.impati.commerce.shipping.application.port.out.CarrierGateway;
 import com.impati.commerce.shipping.application.port.out.ShipmentRepository;
+import com.impati.commerce.shipping.application.port.out.ShipmentEventRepository;
 import com.impati.commerce.shipping.application.port.out.TransactionSection;
+import com.impati.commerce.shipping.domain.ShipmentEvent;
 import com.impati.commerce.shipping.domain.ShippingModels.CarrierEventType;
 import com.impati.commerce.shipping.domain.ShippingModels.EventDecision;
 import com.impati.commerce.shipping.domain.ShippingModels.Shipment;
@@ -30,13 +32,15 @@ public class ShippingExecutor implements ShippingUseCase, CarrierRegistrationRec
     private final ShipmentRepository shipmentRepository;
     private final CarrierGateway carrierGateway;
     private final TransactionSection transactions;
+    private final ShipmentEventRepository shipmentEventRepository;
     private final Clock clock;
 
     public ShippingExecutor(ShipmentRepository shipmentRepository, CarrierGateway carrierGateway,
-            TransactionSection transactions, Clock clock) {
+            TransactionSection transactions, ShipmentEventRepository shipmentEventRepository, Clock clock) {
         this.shipmentRepository = shipmentRepository;
         this.carrierGateway = carrierGateway;
         this.transactions = transactions;
+        this.shipmentEventRepository = shipmentEventRepository;
         this.clock = clock;
     }
 
@@ -82,6 +86,8 @@ public class ShippingExecutor implements ShippingUseCase, CarrierRegistrationRec
                 current.confirmRegistration(registration.carrierCode(), registration.carrierName(),
                         registration.trackingNumber());
                 shipmentRepository.save(current);
+                shipmentEventRepository.save(ShipmentEvent.occurred(
+                        "SHIPMENT_REGISTERED", current, now()));
                 return ShipmentMapper.toDetails(current);
             });
         } catch (RuntimeException failure) {
@@ -138,7 +144,11 @@ public class ShippingExecutor implements ShippingUseCase, CarrierRegistrationRec
         }
 
         var decision = shipment.apply(type, command.occurredAt());
-        if (decision == EventDecision.APPLIED) shipmentRepository.save(shipment);
+        if (decision == EventDecision.APPLIED) {
+            shipmentRepository.save(shipment);
+            shipmentEventRepository.save(ShipmentEvent.occurred("SHIPMENT_" + type.name(), shipment,
+                    command.occurredAt()));
+        }
         shipmentRepository.completeCarrierEvent(command.eventId(), decision.name(), shipment.status().name());
         if (decision == EventDecision.CONFLICT) {
             log.warn("carrier event conflicts with shipment terminal state event={} shipment={} status={}",
@@ -185,5 +195,9 @@ public class ShippingExecutor implements ShippingUseCase, CarrierRegistrationRec
 
     private static void requireText(String value, String field) {
         if (value == null || value.isBlank()) throw DomainException.validation(field + " is required");
+    }
+
+    private OffsetDateTime now() {
+        return OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
     }
 }
