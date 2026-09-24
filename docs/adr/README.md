@@ -49,6 +49,7 @@
 | [0026](0026-order-price-breakdown.md) | 주문이 금액 구성을 확정하고 모든 주문 화면에 제공한다 | 승인됨 |
 | [0027](0027-durable-customer-order-cancellation.md) | 고객 주문 취소를 별도 내구성 Saga로 실행한다 | 승인됨 |
 | [0028](0028-inventory-movement-ledger.md) | 현재 재고와 이동 원장을 함께 유지한다 | 승인됨 |
+| [0029](0029-carrier-driven-shipment-progress.md) | 택배사 사건을 배송 정본으로 삼아 주문에 투영한다 | 승인됨 |
 
 ## ADR이 없는 합의
 
