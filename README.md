@@ -18,7 +18,8 @@ Java 21 + Spring Boot 3.2 기반 이커머스 마이크로서비스 레퍼런스
 | `inventory-service` | 8104 | 재고, 예약, 확정, 해제 |
 | `cart-service` | 8105 | 장바구니 |
 | `payment-service` | 8106 | 결제 승인/매입 시뮬레이션 |
-| `shipping-service` | 8107 | 배송 생성, 출고, 배송 완료 |
+| `shipping-service` / api | 8107 | 배송 생성, 운영 명령, 택배 사건 수신 |
+| `shipping-service` / worker | 8117 | 택배 접수 복구, 배송 사건 발행 |
 | `order-service` / api | 8108 | 주문 aggregate, checkout saga |
 | `order-service` / worker | 8118 | 사건 발행, 결제 미확인 정리 |
 | `notification-service` / api | 8109 | 알림 수신·조회 |

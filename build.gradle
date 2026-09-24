@@ -64,7 +64,8 @@ project(':libs:test-kafka') {
 def bootModules = [
         ':apps:api-gateway', ':apps:storefront-bff', ':apps:member-service', ':apps:display-service',
         ':apps:catalog-service', ':apps:inventory-service', ':apps:cart-service',
-        ':apps:payment-service', ':apps:shipping-service',
+        ':apps:payment-service',
+        ':apps:shipping-service:boot:api', ':apps:shipping-service:boot:worker',
         ':apps:order-service:boot:api', ':apps:order-service:boot:worker',
         ':apps:notification-service:boot:api', ':apps:notification-service:boot:worker',
         ':apps:notification-service:boot:consumer'
@@ -146,7 +147,9 @@ configure([
         project(':apps:notification-service:boot:api'),
         project(':apps:notification-service:boot:worker'),
         project(':apps:notification-service:boot:consumer'),
-        project(':apps:shipping-service'),
+        project(':apps:shipping-service:infra:persistence'),
+        project(':apps:shipping-service:boot:api'),
+        project(':apps:shipping-service:boot:worker'),
         project(':apps:cart-service'),
         project(':apps:member-service'),
         project(':apps:catalog-service'),
@@ -205,6 +208,33 @@ project(':apps:order-service:boot:worker') {
             implementation project(":apps:order-service:infra:client:$it")
         }
         implementation project(':apps:order-service:infra:publisher:kafka')
+    }
+}
+
+// shipping-service: API 요청과 복구 작업을 실행 단위로 분리한다 (ADR-0029).
+project(':apps:shipping-service:core') {
+    dependencies {
+        implementation 'org.springframework:spring-tx'
+    }
+}
+
+project(':apps:shipping-service:infra:persistence') {
+    dependencies {
+        implementation project(':apps:shipping-service:core')
+    }
+}
+
+project(':apps:shipping-service:boot:api') {
+    dependencies {
+        implementation project(':apps:shipping-service:core')
+        implementation project(':apps:shipping-service:infra:persistence')
+    }
+}
+
+project(':apps:shipping-service:boot:worker') {
+    dependencies {
+        implementation project(':apps:shipping-service:core')
+        implementation project(':apps:shipping-service:infra:persistence')
     }
 }
 
@@ -270,6 +300,8 @@ project(':apps:notification-service:boot:worker') {
 [
         (':apps:order-service:boot:api'): 'order-api',
         (':apps:order-service:boot:worker'): 'order-worker',
+        (':apps:shipping-service:boot:api'): 'shipping-api',
+        (':apps:shipping-service:boot:worker'): 'shipping-worker',
         (':apps:notification-service:boot:api'): 'notification-api',
         (':apps:notification-service:boot:worker'): 'notification-worker',
         (':apps:notification-service:boot:consumer'): 'notification-consumer'

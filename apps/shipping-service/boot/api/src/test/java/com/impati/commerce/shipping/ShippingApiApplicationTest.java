@@ -12,7 +12,7 @@ import org.springframework.boot.test.context.SpringBootTest;
  */
 @SpringBootTest
 @RequiresDatabase
-class ShippingServiceApplicationTest {
+class ShippingApiApplicationTest {
 
     @Test
     void contextLoads() {

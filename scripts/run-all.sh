@@ -189,7 +189,8 @@ start_service display-service display-service 8103
 start_service inventory-service inventory-service 8104
 start_service cart-service cart-service 8105
 start_service payment-service payment-service 8106
-start_service shipping-service shipping-service 8107
+start_service shipping-api shipping-service/boot/api 8107
+start_service shipping-worker shipping-service/boot/worker 8117
 start_service notification-api notification-service/boot/api 8109
 start_service notification-worker notification-service/boot/worker 8119
 start_service notification-consumer notification-service/boot/consumer 8129
@@ -204,7 +205,8 @@ wait_health display-service 8103
 wait_health inventory-service 8104
 wait_health cart-service 8105
 wait_health payment-service 8106
-wait_health shipping-service 8107
+wait_health shipping-api 8107
+wait_health shipping-worker 8117
 wait_health notification-api 8109
 wait_health notification-worker 8119
 wait_health notification-consumer 8129

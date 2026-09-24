@@ -161,15 +161,32 @@ services:
       mysql:
         condition: service_healthy
 
-  shipping-service:
+  shipping-api:
     build:
       context: .
       dockerfile: docker/service.Dockerfile
       args:
-        MODULE: shipping-service
-        ARTIFACT: shipping-service
+        MODULE: shipping-service/boot/api
+        ARTIFACT: shipping-api
     ports:
       - "8107:8107"
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/shipping_service?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
+      DB_USERNAME: commerce
+      DB_PASSWORD: commerce
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  shipping-worker:
+    build:
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        MODULE: shipping-service/boot/worker
+        ARTIFACT: shipping-worker
+    ports:
+      - "8117:8117"
     environment:
       DB_URL: jdbc:mysql://mysql:3306/shipping_service?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
       DB_USERNAME: commerce
@@ -196,7 +213,7 @@ services:
       CLIENTS_INVENTORY_URL: http://inventory-service:8104
       CLIENTS_CART_URL: http://cart-service:8105
       CLIENTS_PAYMENT_URL: http://payment-service:8106
-      CLIENTS_SHIPPING_URL: http://shipping-service:8107
+      CLIENTS_SHIPPING_URL: http://shipping-api:8107
     depends_on:
       mysql:
         condition: service_healthy
@@ -210,7 +227,7 @@ services:
         condition: service_started
       payment-service:
         condition: service_started
-      shipping-service:
+      shipping-api:
         condition: service_started
       notification-api:
         condition: service_started
@@ -233,7 +250,7 @@ services:
       CLIENTS_INVENTORY_URL: http://inventory-service:8104
       CLIENTS_CART_URL: http://cart-service:8105
       CLIENTS_PAYMENT_URL: http://payment-service:8106
-      CLIENTS_SHIPPING_URL: http://shipping-service:8107
+      CLIENTS_SHIPPING_URL: http://shipping-api:8107
       # 사건을 브로커로 내보낸다. 알림 서비스는 부르지 않는다 (ADR-0016).
       #
       # 복제는 노드가 하나라 1로 내린다. 기본값이 운영 값(3/2)이므로 여기서 내리지 않으면
@@ -344,7 +361,7 @@ services:
       CLIENTS_INVENTORY_URL: http://inventory-service:8104
       CLIENTS_STOREFRONT_URL: http://storefront-bff:8110
       CLIENTS_ORDER_URL: http://order-api:8108
-      CLIENTS_SHIPPING_URL: http://shipping-service:8107
+      CLIENTS_SHIPPING_URL: http://shipping-api:8107
       CLIENTS_NOTIFICATION_URL: http://notification-api:8109
     depends_on:
       member-service:
@@ -359,8 +376,7 @@ services:
         condition: service_started
       order-api:
         condition: service_started
-      shipping-service:
+      shipping-api:
         condition: service_started
       notification-api:
         condition: service_started
-
