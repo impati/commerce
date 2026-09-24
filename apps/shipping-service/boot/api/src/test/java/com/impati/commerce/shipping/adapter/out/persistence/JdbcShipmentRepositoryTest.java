@@ -31,24 +31,25 @@ class JdbcShipmentRepositoryTest {
         assertThat(loaded.id()).isEqualTo(shipment.id());
         assertThat(loaded.orderId()).isEqualTo("ord_round");
         assertThat(loaded.memberId()).isEqualTo("mem_demo");
-        assertThat(loaded.status()).isEqualTo("READY");
-        assertThat(loaded.trackingNumber()).isEqualTo(shipment.trackingNumber());
+        assertThat(loaded.status().name()).isEqualTo("READY");
+        assertThat(loaded.trackingNumber()).isNull();
         assertThat(loaded.address().recipient()).isEqualTo("Demo Customer");
         assertThat(loaded.address().postalCode()).isEqualTo("04524");
     }
 
     @Test
-    void savesStatusTransitions() {
+    void savesCarrierRegistration() {
         var shipment = newShipment("ord_transition");
         shipmentRepository.save(shipment);
 
-        shipment.ship();
+        shipment.requestRegistration();
+        shipment.confirmRegistration("PRIMARY", "기본 택배사", "TRK-round");
         shipmentRepository.save(shipment);
-        assertThat(shipmentRepository.findById(shipment.id()).orElseThrow().status()).isEqualTo("IN_TRANSIT");
 
-        shipment.deliver();
-        shipmentRepository.save(shipment);
-        assertThat(shipmentRepository.findById(shipment.id()).orElseThrow().status()).isEqualTo("DELIVERED");
+        var loaded = shipmentRepository.findById(shipment.id()).orElseThrow();
+        assertThat(loaded.status().name()).isEqualTo("AWAITING_PICKUP");
+        assertThat(loaded.carrierCode()).isEqualTo("PRIMARY");
+        assertThat(loaded.trackingNumber()).isEqualTo("TRK-round");
     }
 
     /** 저장하지 않은 변경은 반영되지 않는다. 인메모리 맵에서는 성립하지 않던 성질이다. */
@@ -57,9 +58,9 @@ class JdbcShipmentRepositoryTest {
         var shipment = newShipment("ord_unsaved");
         shipmentRepository.save(shipment);
 
-        shipment.ship();
+        shipment.requestRegistration();
 
-        assertThat(shipmentRepository.findById(shipment.id()).orElseThrow().status()).isEqualTo("READY");
+        assertThat(shipmentRepository.findById(shipment.id()).orElseThrow().status().name()).isEqualTo("READY");
     }
 
     /** 왕복 테스트는 쓰기와 읽기가 같은 방향으로 틀리면 통과한다. 컬럼을 직접 읽어 막는다. */
@@ -69,7 +70,7 @@ class JdbcShipmentRepositoryTest {
         shipmentRepository.save(shipment);
 
         var row = jdbc.queryForMap(
-                "select order_id, member_id, status, tracking_number, ship_address_id, ship_alias,"
+                "select order_id, member_id, status, registration_status, carrier_code, tracking_number, ship_address_id, ship_alias,"
                         + " ship_recipient, ship_phone, ship_line1, ship_city, ship_postal_code"
                         + " from shipments where id = ?",
                 shipment.id()
@@ -77,7 +78,9 @@ class JdbcShipmentRepositoryTest {
         assertThat(row.get("order_id")).isEqualTo("ord_column");
         assertThat(row.get("member_id")).isEqualTo("mem_demo");
         assertThat(row.get("status")).isEqualTo("READY");
-        assertThat(row.get("tracking_number")).isEqualTo(shipment.trackingNumber());
+        assertThat(row.get("registration_status")).isEqualTo("NOT_REQUESTED");
+        assertThat(row.get("carrier_code")).isNull();
+        assertThat(row.get("tracking_number")).isNull();
         assertThat(row.get("ship_address_id")).isEqualTo("addr_demo");
         assertThat(row.get("ship_alias")).isEqualTo("home");
         assertThat(row.get("ship_recipient")).isEqualTo("Demo Customer");

@@ -7,6 +7,8 @@ public record ShipmentDetails(
         String memberId,
         ShipmentAddress address,
         String status,
+        String carrierCode,
+        String carrierName,
         String trackingNumber
 ) {
 }

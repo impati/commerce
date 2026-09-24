@@ -224,10 +224,17 @@ project(':apps:shipping-service:infra:persistence') {
     }
 }
 
+project(':apps:shipping-service:infra:carrier:local') {
+    dependencies {
+        implementation project(':apps:shipping-service:core')
+    }
+}
+
 project(':apps:shipping-service:boot:api') {
     dependencies {
         implementation project(':apps:shipping-service:core')
         implementation project(':apps:shipping-service:infra:persistence')
+        implementation project(':apps:shipping-service:infra:carrier:local')
     }
 }
 
@@ -235,6 +242,7 @@ project(':apps:shipping-service:boot:worker') {
     dependencies {
         implementation project(':apps:shipping-service:core')
         implementation project(':apps:shipping-service:infra:persistence')
+        implementation project(':apps:shipping-service:infra:carrier:local')
     }
 }
 

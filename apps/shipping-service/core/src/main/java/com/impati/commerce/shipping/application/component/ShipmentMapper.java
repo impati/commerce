@@ -44,7 +44,9 @@ final class ShipmentMapper {
                         address.postalCode(),
                         address.defaultAddress()
                 ),
-                shipment.status(),
+                shipment.status().name(),
+                shipment.carrierCode(),
+                shipment.carrierName(),
                 shipment.trackingNumber()
         );
     }

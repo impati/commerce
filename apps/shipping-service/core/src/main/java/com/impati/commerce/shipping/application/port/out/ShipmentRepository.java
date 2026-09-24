@@ -3,7 +3,9 @@ package com.impati.commerce.shipping.application.port.out;
 import com.impati.commerce.shipping.domain.ShippingModels.Shipment;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
+import java.time.OffsetDateTime;
 
 /**
  * 배송 저장소 포트. 구현은 {@code adapter/out/persistence}에 둔다.
@@ -19,5 +21,17 @@ public interface ShipmentRepository {
 
     Optional<Shipment> findByOrderId(String orderId);
 
+    Optional<Shipment> findByCarrierAndTrackingForUpdate(String carrierCode, String trackingNumber);
+
     Collection<Shipment> findAll();
+
+    List<String> findPendingRegistrationIds(int batchSize);
+
+    boolean insertCarrierEventIfAbsent(CarrierEventRecord event);
+
+    Optional<CarrierEventRecord> findCarrierEvent(String eventId);
+
+    void completeCarrierEvent(String eventId, String result, String shipmentStatus);
+
+    void recordDuplicateCarrierEvent(String eventId, OffsetDateTime receivedAt);
 }

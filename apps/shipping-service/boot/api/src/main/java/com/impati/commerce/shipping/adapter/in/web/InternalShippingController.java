@@ -46,4 +46,9 @@ public class InternalShippingController {
     ShipmentResponse cancel(@PathVariable String shipmentId) {
         return ShipmentResponseMapper.from(shippingUseCase.cancel(shipmentId));
     }
+
+    @PostMapping("/{shipmentId}/packing-complete")
+    ShipmentResponse completePacking(@PathVariable String shipmentId) {
+        return ShipmentResponseMapper.from(shippingUseCase.completePacking(shipmentId));
+    }
 }

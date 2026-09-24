@@ -45,6 +45,8 @@ final class ShipmentResponseMapper {
                         address.defaultAddress()
                 ),
                 shipment.status(),
+                shipment.carrierCode(),
+                shipment.carrierName(),
                 shipment.trackingNumber()
         );
     }

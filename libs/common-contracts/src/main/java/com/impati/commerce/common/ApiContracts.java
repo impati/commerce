@@ -262,9 +262,26 @@ public final class ApiContracts {
             String memberId,
             AddressResponse address,
             String status,
+            String carrierCode,
+            String carrierName,
             String trackingNumber
     ) {
+        public ShipmentResponse(String id, String orderId, String memberId, AddressResponse address,
+                String status, String trackingNumber) {
+            this(id, orderId, memberId, address, status, null, null, trackingNumber);
+        }
     }
+
+    /** API Gateway가 택배사 고유 표현을 제거한 뒤 Shipping에 전달하는 사건. */
+    public record CarrierEventRequest(
+            String eventId,
+            String carrierCode,
+            String trackingNumber,
+            String type,
+            OffsetDateTime occurredAt
+    ) { }
+
+    public record CarrierEventResponse(String eventId, String shipmentId, String result, String shipmentStatus) { }
 
     public record OrderLineResponse(
             String skuId,
