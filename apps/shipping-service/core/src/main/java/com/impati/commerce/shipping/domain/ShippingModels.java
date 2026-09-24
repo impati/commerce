@@ -28,8 +28,8 @@ public final class ShippingModels {
     /**
      * 택배사 사건을 현재 배송에 적용한 결과.
      *
-     * <p>{@code APPLIED}만 고객용 상태 사건을 만들고, {@code NO_TRANSITION}은 원본 수신 이력만
-     * 남긴다. {@code IGNORED_STALE}은 이미 반영한 상태 전이보다 과거인 사건이며,
+     * <p>{@code APPLIED}만 고객용 상태 사건을 만들고, {@code NO_TRANSITION}은 상태를 유지한 채
+     * 역순 판정 기준 시각만 갱신한다. {@code IGNORED_STALE}은 이미 수용한 사건보다 과거이며,
      * {@code CONFLICT}는 취소나 종결 상태와 양립할 수 없어 운영 확인이 필요한 사건이다.
      */
     public enum EventDecision {APPLIED, NO_TRANSITION, IGNORED_STALE, CONFLICT}
@@ -284,6 +284,7 @@ public final class ShippingModels {
                 return EventDecision.CONFLICT;
             }
             if (next == status) {
+                lastCarrierEventAt = occurredAt;
                 return EventDecision.NO_TRANSITION;
             }
             status = next;

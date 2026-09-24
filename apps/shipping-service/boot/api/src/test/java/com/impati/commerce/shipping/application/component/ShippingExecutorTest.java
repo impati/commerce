@@ -248,6 +248,20 @@ class ShippingExecutorTest {
         assertThat(shippingUseCase.get(shipment.id()).status()).isEqualTo("DELIVERED");
     }
 
+    @Test
+    void sameStateEventAdvancesOrderingWatermarkWithoutPublishingAnotherCustomerEvent() {
+        var shipment = registered("ord_same_state_watermark");
+        event(shipment, "picked", "PICKED_UP", time(1));
+
+        assertThat(event(shipment, "still-moving", "IN_TRANSIT", time(3)).result())
+                .isEqualTo("NO_TRANSITION");
+        assertThat(event(shipment, "older-delivery", "DELIVERED", time(2)).result())
+                .isEqualTo("IGNORED_STALE");
+        assertThat(shippingUseCase.get(shipment.id()).status()).isEqualTo("IN_TRANSIT");
+        assertThat(jdbc.queryForObject("select count(*) from shipment_events where shipment_id = ? "
+                + "and type = 'SHIPMENT_IN_TRANSIT'", Integer.class, shipment.id())).isEqualTo(0);
+    }
+
     /** [PD-0025-R10] 서로 다른 종결 결과는 자동으로 덮어쓰지 않는다. */
     @Test
     void contradictoryTerminalEventRequiresAttention() {

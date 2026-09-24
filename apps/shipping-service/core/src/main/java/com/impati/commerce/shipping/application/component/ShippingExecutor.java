@@ -160,8 +160,10 @@ public class ShippingExecutor implements ShippingUseCase, CarrierOperationRecove
         }
 
         var decision = shipment.applyCarrierEvent(command.type(), command.occurredAt());
-        if (decision == EventDecision.APPLIED) {
+        if (decision == EventDecision.APPLIED || decision == EventDecision.NO_TRANSITION) {
             shipmentRepository.save(shipment);
+        }
+        if (decision == EventDecision.APPLIED) {
             shipmentEventRepository.save(ShipmentEvent.occurred(
                     "SHIPMENT_" + command.type().name(), shipment, command.occurredAt()));
         }

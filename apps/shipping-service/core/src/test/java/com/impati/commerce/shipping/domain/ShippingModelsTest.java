@@ -63,7 +63,9 @@ class ShippingModelsTest {
 
         assertThat(shipment.applyCarrierEvent(CarrierEventType.IN_TRANSIT, time(2)))
                 .isEqualTo(EventDecision.NO_TRANSITION);
-        assertThat(shipment.lastCarrierEventAt()).isEqualTo(time(1));
+        assertThat(shipment.lastCarrierEventAt()).isEqualTo(time(2));
+        assertThat(shipment.applyCarrierEvent(CarrierEventType.DELIVERED, time(1)))
+                .isEqualTo(EventDecision.IGNORED_STALE);
     }
 
     @Test
