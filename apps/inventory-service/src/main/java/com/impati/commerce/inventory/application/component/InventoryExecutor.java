@@ -5,6 +5,7 @@ import com.impati.commerce.inventory.application.port.in.InventoryUseCase;
 import com.impati.commerce.inventory.application.port.in.ReservationDetails;
 import com.impati.commerce.inventory.application.port.in.StockDetails;
 import com.impati.commerce.inventory.application.port.in.StockLine;
+import com.impati.commerce.inventory.application.port.in.ReturnInventoryDetails;
 import com.impati.commerce.inventory.application.port.out.InventoryRepository;
 import com.impati.commerce.inventory.domain.InventoryModels.InventoryMovement;
 import com.impati.commerce.inventory.domain.InventoryModels.MovementLine;
@@ -13,6 +14,7 @@ import com.impati.commerce.inventory.domain.InventoryModels.Reservation;
 import com.impati.commerce.inventory.domain.InventoryModels.ReservedLine;
 import com.impati.commerce.inventory.domain.InventoryModels.StockItem;
 import com.impati.commerce.inventory.domain.InventoryModels.TransitionOutcome;
+import com.impati.commerce.inventory.domain.InventoryModels.ReturnInventoryAction;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -168,6 +170,56 @@ public class InventoryExecutor implements InventoryUseCase {
         return InventoryMapper.toDetails(reservation);
     }
 
+    @Transactional
+    @Override
+    public ReturnInventoryDetails processReturn(
+            String returnId,
+            String reservationId,
+            String memberId,
+            String disposition,
+            String condition
+    ) {
+        var requested = new ReturnInventoryAction(
+                returnId, reservationId, memberId, disposition, condition);
+        var existing = inventoryRepository.findReturnAction(returnId);
+        if (existing.isPresent()) {
+            return sameReturnAction(existing.get(), requested);
+        }
+        var reservation = inventoryRepository.findReservationForUpdate(reservationId)
+                .orElseThrow(() -> DomainException.notFound("reservation not found"));
+        if (reservation.status() != com.impati.commerce.inventory.domain.InventoryModels.ReservationStatus.COMMITTED) {
+            throw DomainException.conflict("only committed inventory can be processed as a return");
+        }
+        if (!inventoryRepository.insertReturnActionIfAbsent(requested)) {
+            var raced = inventoryRepository.findReturnAction(returnId);
+            if (raced.isPresent()) {
+                return sameReturnAction(raced.get(), requested);
+            }
+            throw DomainException.conflict("inventory for the reservation was already processed by another return");
+        }
+        if (ReturnInventoryAction.SALEABLE.equals(disposition)) {
+            reservation.restore();
+            var locked = lockFor(reservation.lines());
+            var movementLines = new ArrayList<MovementLine>();
+            for (var line : reservation.lines()) {
+                var stock = requireStock(locked, line.skuId());
+                movementLines.add(stock.restore(line.quantity()));
+                inventoryRepository.saveStock(stock);
+            }
+            inventoryRepository.saveReservation(reservation);
+            inventoryRepository.saveMovement(InventoryMovement.forReservation(
+                    MovementReason.RESERVATION_RESTORED, reservation, now(), movementLines));
+        }
+        return toDetails(requested);
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public ReturnInventoryDetails getReturn(String returnId) {
+        return toDetails(inventoryRepository.findReturnAction(returnId)
+                .orElseThrow(() -> DomainException.notFound("return inventory action not found")));
+    }
+
     @Transactional(readOnly = true)
     @Override
     public List<StockDetails> stock() {
@@ -193,6 +245,21 @@ public class InventoryExecutor implements InventoryUseCase {
             throw DomainException.conflict("order already has a different inventory reservation");
         }
         return InventoryMapper.toDetails(existing);
+    }
+
+    private static ReturnInventoryDetails sameReturnAction(
+            ReturnInventoryAction existing,
+            ReturnInventoryAction requested
+    ) {
+        if (!existing.equals(requested)) {
+            throw DomainException.conflict("return already has a different inventory disposition");
+        }
+        return toDetails(existing);
+    }
+
+    private static ReturnInventoryDetails toDetails(ReturnInventoryAction action) {
+        return new ReturnInventoryDetails(action.returnId(), action.reservationId(), action.memberId(),
+                action.disposition(), action.condition());
     }
 
     /**

@@ -17,6 +17,16 @@ public interface InventoryUseCase {
 
     ReservationDetails restore(String reservationId);
 
+    ReturnInventoryDetails processReturn(
+            String returnId,
+            String reservationId,
+            String memberId,
+            String disposition,
+            String condition
+    );
+
+    ReturnInventoryDetails getReturn(String returnId);
+
     ReservationDetails reservationForOrder(String orderId);
 
     List<StockDetails> stock();

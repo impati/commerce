@@ -33,6 +33,21 @@ public interface PaymentGateway {
     /** 이미 청구한 대금을 되돌린다. 사용자 명세서에 흔적이 남는다. */
     void refund(String transactionId);
 
+    RefundResult refund(RefundCommand command);
+
+    RefundResult refundResult(RefundCommand command);
+
+    record RefundCommand(String idempotencyKey, String transactionId, Money amount) { }
+
+    record RefundResult(RefundOutcome outcome, String message) {
+        public static RefundResult confirmed() { return new RefundResult(RefundOutcome.CONFIRMED, null); }
+        public static RefundResult absent() { return new RefundResult(RefundOutcome.ABSENT, null); }
+        public static RefundResult unknown(String message) { return new RefundResult(RefundOutcome.UNKNOWN, message); }
+        public static RefundResult rejected(String message) { return new RefundResult(RefundOutcome.REJECTED, message); }
+    }
+
+    enum RefundOutcome { CONFIRMED, ABSENT, UNKNOWN, REJECTED }
+
     /**
      * 승인 요청의 결과.
      *

@@ -3,6 +3,7 @@ package com.impati.commerce.inventory.application.port.out;
 import com.impati.commerce.inventory.domain.InventoryModels.InventoryMovement;
 import com.impati.commerce.inventory.domain.InventoryModels.Reservation;
 import com.impati.commerce.inventory.domain.InventoryModels.StockItem;
+import com.impati.commerce.inventory.domain.InventoryModels.ReturnInventoryAction;
 
 import java.util.Collection;
 import java.util.List;
@@ -38,4 +39,10 @@ public interface InventoryRepository {
     Optional<Reservation> findReservationForUpdate(String reservationId);
 
     Optional<Reservation> findReservationByOrderId(String orderId);
+
+    boolean insertReturnActionIfAbsent(ReturnInventoryAction action);
+
+    Optional<ReturnInventoryAction> findReturnAction(String returnId);
+
+    Optional<ReturnInventoryAction> findReturnActionByReservation(String reservationId);
 }

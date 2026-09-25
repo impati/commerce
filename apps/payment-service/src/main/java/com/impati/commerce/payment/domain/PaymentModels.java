@@ -18,6 +18,7 @@ public final class PaymentModels {
         public static final String AUTHORIZED = "AUTHORIZED";
         public static final String CAPTURED = "CAPTURED";
         public static final String CANCELLED = "CANCELLED";
+        public static final String PARTIALLY_REFUNDED = "PARTIALLY_REFUNDED";
         public static final String REFUNDED = "REFUNDED";
 
         private final String id;
@@ -27,6 +28,7 @@ public final class PaymentModels {
         private final String method;
         private String status;
         private final String transactionId;
+        private long refundedAmount;
 
         /**
          * 승인된 결제를 만든다.
@@ -35,7 +37,7 @@ public final class PaymentModels {
          * 거래 식별자는 대사의 기준이므로 대행사가 아는 값과 달라서는 안 된다 (ADR-0005).
          */
         public Payment(String orderId, String memberId, Money amount, String transactionId, String method) {
-            this(Ids.newId("pay"), orderId, memberId, amount, method, AUTHORIZED, transactionId);
+            this(Ids.newId("pay"), orderId, memberId, amount, method, AUTHORIZED, transactionId, 0);
         }
 
         private Payment(
@@ -45,7 +47,8 @@ public final class PaymentModels {
                 Money amount,
                 String method,
                 String status,
-                String transactionId
+                String transactionId,
+                long refundedAmount
         ) {
             this.id = id;
             this.orderId = orderId;
@@ -54,6 +57,7 @@ public final class PaymentModels {
             this.method = method;
             this.status = status;
             this.transactionId = transactionId;
+            this.refundedAmount = refundedAmount;
         }
 
         /** 저장된 상태에서 복원한다. 영속화 어댑터만 쓴다. */
@@ -64,9 +68,10 @@ public final class PaymentModels {
                 Money amount,
                 String method,
                 String status,
-                String transactionId
+                String transactionId,
+                long refundedAmount
         ) {
-            return new Payment(id, orderId, memberId, amount, method, status, transactionId);
+            return new Payment(id, orderId, memberId, amount, method, status, transactionId, refundedAmount);
         }
 
         /**
@@ -111,11 +116,37 @@ public final class PaymentModels {
             if (status.equals(REFUNDED)) {
                 return false;
             }
-            if (!status.equals(CAPTURED)) {
+            return applyRefund(new Money(amount.amount() - refundedAmount, amount.currency()));
+        }
+
+        /** 금액 지정 환불을 한 번 반영한다. 대행사 확정 뒤 로컬 트랜잭션에서만 호출한다. */
+        public boolean applyRefund(Money refundAmount) {
+            if (!status.equals(CAPTURED) && !status.equals(PARTIALLY_REFUNDED)) {
                 throw DomainException.conflict("only a captured payment can be refunded");
             }
-            status = REFUNDED;
+            if (refundAmount == null || refundAmount.amount() <= 0
+                    || !amount.currency().equals(refundAmount.currency())) {
+                throw DomainException.validation("refund amount must be positive and use the payment currency");
+            }
+            if (refundedAmount + refundAmount.amount() > amount.amount()) {
+                throw DomainException.conflict("refund amount exceeds the remaining captured amount");
+            }
+            refundedAmount += refundAmount.amount();
+            status = refundedAmount == amount.amount() ? REFUNDED : PARTIALLY_REFUNDED;
             return true;
+        }
+
+        public void validateRefund(Money refundAmount) {
+            if (!status.equals(CAPTURED) && !status.equals(PARTIALLY_REFUNDED)) {
+                throw DomainException.conflict("only a captured payment can be refunded");
+            }
+            if (refundAmount == null || refundAmount.amount() <= 0
+                    || !amount.currency().equals(refundAmount.currency())) {
+                throw DomainException.validation("refund amount must be positive and use the payment currency");
+            }
+            if (refundedAmount + refundAmount.amount() > amount.amount()) {
+                throw DomainException.conflict("refund amount exceeds the remaining captured amount");
+            }
         }
 
         public String id() {
@@ -144,6 +175,30 @@ public final class PaymentModels {
 
         public String transactionId() {
             return transactionId;
+        }
+
+        public long refundedAmount() {
+            return refundedAmount;
+        }
+    }
+
+    public record RefundOperation(
+            String returnId,
+            String paymentId,
+            Money amount,
+            String status,
+            int attempts,
+            String lastError
+    ) {
+        public static final String PENDING = "PENDING";
+        public static final String SUCCEEDED = "SUCCEEDED";
+        public static final String REJECTED = "REJECTED";
+
+        public static RefundOperation pending(String returnId, String paymentId, Money amount) {
+            if (returnId == null || returnId.isBlank()) {
+                throw DomainException.validation("return id is required");
+            }
+            return new RefundOperation(returnId, paymentId, amount, PENDING, 0, null);
         }
     }
 }

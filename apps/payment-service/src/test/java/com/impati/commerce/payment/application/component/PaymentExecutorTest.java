@@ -198,6 +198,43 @@ class PaymentExecutorTest {
         assertThat(second).isEqualTo(first);
     }
 
+    @Test
+    void changeOfMindReturnCanRefundLessThanTheCapturedAmount() {
+        var authorized = payments.authorize("ord_partial_return_refund", "mem_a", AMOUNT, OK_TOKEN);
+        payments.capture(authorized.id());
+
+        var first = payments.refundForReturn(
+                authorized.id(), "ret_partial_refund", Money.krw(55_000));
+        var replay = payments.refundForReturn(
+                authorized.id(), "ret_partial_refund", Money.krw(55_000));
+
+        assertThat(first.status()).isEqualTo("SUCCEEDED");
+        assertThat(replay).isEqualTo(first);
+        assertThat(payments.get(authorized.id()).status()).isEqualTo("PARTIALLY_REFUNDED");
+    }
+
+    @Test
+    void sellerFaultReturnCanRefundTheEntireCapturedAmount() {
+        var authorized = payments.authorize("ord_full_return_refund", "mem_a", AMOUNT, OK_TOKEN);
+        payments.capture(authorized.id());
+
+        payments.refundForReturn(authorized.id(), "ret_full_refund", AMOUNT);
+
+        assertThat(payments.get(authorized.id()).status()).isEqualTo("REFUNDED");
+    }
+
+    @Test
+    void sameReturnIdCannotChangeItsRefundAmount() {
+        var authorized = payments.authorize("ord_changed_return_refund", "mem_a", AMOUNT, OK_TOKEN);
+        payments.capture(authorized.id());
+        payments.refundForReturn(authorized.id(), "ret_changed_refund", Money.krw(55_000));
+
+        assertThatThrownBy(() -> payments.refundForReturn(
+                authorized.id(), "ret_changed_refund", Money.krw(58_000)))
+                .isInstanceOfSatisfying(DomainException.class,
+                        failure -> assertThat(failure.code()).isEqualTo("conflict"));
+    }
+
     /** PD-0011-R3: 환불된 결제는 다시 매입할 수 없다. */
     @Test
     void refundedPaymentCannotBeCaptured() {

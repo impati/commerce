@@ -6,6 +6,7 @@ import com.impati.commerce.inventory.domain.InventoryModels.Reservation;
 import com.impati.commerce.inventory.domain.InventoryModels.ReservationStatus;
 import com.impati.commerce.inventory.domain.InventoryModels.ReservedLine;
 import com.impati.commerce.inventory.domain.InventoryModels.StockItem;
+import com.impati.commerce.inventory.domain.InventoryModels.ReturnInventoryAction;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -14,6 +15,7 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.dao.DuplicateKeyException;
 
 /**
  * 이름 바인딩만 쓴다. 위치 기반 {@code ?}는 타입이 같은 인접 컬럼의 값이 뒤바뀌어도 잡히지 않는다.
@@ -216,11 +218,61 @@ public class JdbcInventoryRepository implements InventoryRepository {
                 .findFirst();
     }
 
+    @Override
+    @Transactional
+    public boolean insertReturnActionIfAbsent(ReturnInventoryAction action) {
+        try {
+            jdbc.update("""
+                    insert into return_inventory_actions (
+                        return_id, reservation_id, member_id, disposition, item_condition
+                    ) values (
+                        :return_id, :reservation_id, :member_id, :disposition, :item_condition
+                    )
+                    """, returnParams(action));
+            return true;
+        } catch (DuplicateKeyException duplicate) {
+            return false;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<ReturnInventoryAction> findReturnAction(String returnId) {
+        return jdbc.query("select return_id, reservation_id, member_id, disposition, item_condition "
+                        + "from return_inventory_actions where return_id = :return_id",
+                new MapSqlParameterSource("return_id", returnId),
+                (rs, rowNum) -> returnAction(rs)).stream().findFirst();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<ReturnInventoryAction> findReturnActionByReservation(String reservationId) {
+        return jdbc.query("select return_id, reservation_id, member_id, disposition, item_condition "
+                        + "from return_inventory_actions where reservation_id = :reservation_id",
+                new MapSqlParameterSource("reservation_id", reservationId),
+                (rs, rowNum) -> returnAction(rs)).stream().findFirst();
+    }
+
     private List<ReservedLine> findLines(String reservationId) {
         return jdbc.query(
                 SELECT_RESERVATION_LINES,
                 new MapSqlParameterSource("reservation_id", reservationId),
                 LINE_MAPPER
         );
+    }
+
+    private static ReturnInventoryAction returnAction(java.sql.ResultSet rs) throws java.sql.SQLException {
+        return new ReturnInventoryAction(
+                rs.getString("return_id"), rs.getString("reservation_id"), rs.getString("member_id"),
+                rs.getString("disposition"), rs.getString("item_condition"));
+    }
+
+    private static MapSqlParameterSource returnParams(ReturnInventoryAction action) {
+        return new MapSqlParameterSource()
+                .addValue("return_id", action.returnId())
+                .addValue("reservation_id", action.reservationId())
+                .addValue("member_id", action.memberId())
+                .addValue("disposition", action.disposition())
+                .addValue("item_condition", action.condition());
     }
 }

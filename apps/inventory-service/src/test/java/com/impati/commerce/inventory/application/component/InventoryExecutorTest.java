@@ -110,6 +110,57 @@ class InventoryExecutorTest {
     }
 
     @Test
+    void saleableReturnRestoresStockExactlyOnce() {
+        var skuId = "sku_saleable_return";
+        inventoryUseCase.addStock(skuId, 10);
+        var reservation = inventoryUseCase.reserve(
+                "ord_saleable_return", List.of(new StockLine(skuId, 3)));
+        inventoryUseCase.commit(reservation.id());
+
+        var first = inventoryUseCase.processReturn(
+                "ret_saleable", reservation.id(), "mem_a", "SALEABLE", "UNOPENED");
+        var replay = inventoryUseCase.processReturn(
+                "ret_saleable", reservation.id(), "mem_a", "SALEABLE", "UNOPENED");
+
+        assertThat(replay).isEqualTo(first);
+        assertThat(stockOf(skuId).onHand()).isEqualTo(10);
+        assertThat(movementCount("RESERVATION_RESTORED", reservation.id())).isOne();
+    }
+
+    @Test
+    void damagedOrUninspectedReturnIsQuarantinedWithoutRestoringStock() {
+        var skuId = "sku_quarantined_return";
+        inventoryUseCase.addStock(skuId, 10);
+        var reservation = inventoryUseCase.reserve(
+                "ord_quarantined_return", List.of(new StockLine(skuId, 3)));
+        inventoryUseCase.commit(reservation.id());
+
+        var result = inventoryUseCase.processReturn(
+                "ret_quarantined", reservation.id(), "mem_damage", "NON_SALEABLE", "CUSTOMER_DAMAGED");
+
+        assertThat(result.memberId()).isEqualTo("mem_damage");
+        assertThat(result.disposition()).isEqualTo("NON_SALEABLE");
+        assertThat(stockOf(skuId).onHand()).isEqualTo(7);
+        assertThat(movementCount("RESERVATION_RESTORED", reservation.id())).isZero();
+    }
+
+    @Test
+    void oneSoldReservationCannotBeProcessedByTwoReturns() {
+        var skuId = "sku_duplicate_return";
+        inventoryUseCase.addStock(skuId, 10);
+        var reservation = inventoryUseCase.reserve(
+                "ord_duplicate_return", List.of(new StockLine(skuId, 1)));
+        inventoryUseCase.commit(reservation.id());
+        inventoryUseCase.processReturn(
+                "ret_inventory_first", reservation.id(), "mem_a", "NON_SALEABLE", "UNINSPECTED_TIMEOUT");
+
+        assertThatThrownBy(() -> inventoryUseCase.processReturn(
+                "ret_inventory_second", reservation.id(), "mem_a", "SALEABLE", "UNOPENED"))
+                .isInstanceOfSatisfying(DomainException.class,
+                        failure -> assertThat(failure.code()).isEqualTo("conflict"));
+    }
+
+    @Test
     void repeatingAReservationWithDifferentLinesIsRejected() {
         var skuId = "sku_changed_reservation";
         inventoryUseCase.addStock(skuId, 10);

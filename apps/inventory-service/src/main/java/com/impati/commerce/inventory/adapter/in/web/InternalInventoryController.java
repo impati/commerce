@@ -4,6 +4,8 @@ import com.impati.commerce.common.ApiContracts.ReservationResponse;
 import com.impati.commerce.common.ApiContracts.ReserveInventoryRequest;
 import com.impati.commerce.common.ApiContracts.StockIncreaseRequest;
 import com.impati.commerce.common.ApiContracts.StockResponse;
+import com.impati.commerce.common.ApiContracts.ProcessReturnInventoryRequest;
+import com.impati.commerce.common.ApiContracts.ReturnInventoryResponse;
 import com.impati.commerce.inventory.application.port.in.InventoryUseCase;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -58,6 +60,24 @@ public class InternalInventoryController {
     @PostMapping("/reservations/{reservationId}/restore")
     ReservationResponse restore(@PathVariable String reservationId) {
         return InventoryResponseMapper.from(inventoryUseCase.restore(reservationId));
+    }
+
+    @PostMapping("/reservations/{reservationId}/returns")
+    ReturnInventoryResponse processReturn(
+            @PathVariable String reservationId,
+            @RequestBody ProcessReturnInventoryRequest request
+    ) {
+        var result = inventoryUseCase.processReturn(request.returnId(), reservationId, request.memberId(),
+                request.disposition(), request.condition());
+        return new ReturnInventoryResponse(result.returnId(), result.reservationId(), result.memberId(),
+                result.disposition(), result.condition());
+    }
+
+    @GetMapping("/returns/{returnId}")
+    ReturnInventoryResponse getReturn(@PathVariable String returnId) {
+        var result = inventoryUseCase.getReturn(returnId);
+        return new ReturnInventoryResponse(result.returnId(), result.reservationId(), result.memberId(),
+                result.disposition(), result.condition());
     }
 
     @GetMapping("/reservations/orders/{orderId}")

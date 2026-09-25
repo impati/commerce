@@ -51,6 +51,12 @@ public interface PaymentUseCase {
      */
     RefundedPayment refund(String paymentId);
 
+    ReturnRefundDetails refundForReturn(String paymentId, String returnId, Money amount);
+
+    ReturnRefundDetails getReturnRefund(String returnId);
+
+    int recoverPendingRefunds(int batchSize);
+
     /**
      * 결제의 현재 상태를 돌려준다 (PD-0011-R9).
      *

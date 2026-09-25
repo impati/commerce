@@ -1,6 +1,9 @@
 package com.impati.commerce.payment.application.port.out;
 
 import com.impati.commerce.payment.domain.PaymentModels.Payment;
+import com.impati.commerce.payment.domain.PaymentModels.RefundOperation;
+
+import java.util.List;
 
 import java.util.Optional;
 
@@ -19,5 +22,17 @@ public interface PaymentRepository {
 
     Optional<Payment> findById(String paymentId);
 
+    Optional<Payment> findByIdForUpdate(String paymentId);
+
     Optional<Payment> findByOrderId(String orderId);
+
+    boolean insertRefundIfAbsent(RefundOperation refund);
+
+    Optional<RefundOperation> findRefund(String returnId);
+
+    Optional<RefundOperation> findRefundForUpdate(String returnId);
+
+    List<RefundOperation> findPendingRefunds(int limit);
+
+    void updateRefund(RefundOperation refund);
 }

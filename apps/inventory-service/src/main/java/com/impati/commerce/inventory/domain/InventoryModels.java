@@ -353,4 +353,27 @@ public final class InventoryModels {
             }
         }
     }
+
+    public record ReturnInventoryAction(
+            String returnId,
+            String reservationId,
+            String memberId,
+            String disposition,
+            String condition
+    ) {
+        public static final String SALEABLE = "SALEABLE";
+        public static final String NON_SALEABLE = "NON_SALEABLE";
+
+        public ReturnInventoryAction {
+            if (returnId == null || returnId.isBlank() || memberId == null || memberId.isBlank()) {
+                throw DomainException.validation("return id and member id are required");
+            }
+            if (!SALEABLE.equals(disposition) && !NON_SALEABLE.equals(disposition)) {
+                throw DomainException.validation("return disposition must be SALEABLE or NON_SALEABLE");
+            }
+            if (condition == null || condition.isBlank()) {
+                throw DomainException.validation("return condition is required");
+            }
+        }
+    }
 }

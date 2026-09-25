@@ -186,6 +186,21 @@ public final class ApiContracts {
     public record ReservationResponse(String id, String orderId, String status, List<ReservationLine> lines) {
     }
 
+    public record ProcessReturnInventoryRequest(
+            String returnId,
+            String memberId,
+            String disposition,
+            String condition
+    ) { }
+
+    public record ReturnInventoryResponse(
+            String returnId,
+            String reservationId,
+            String memberId,
+            String disposition,
+            String condition
+    ) { }
+
     public record CartItemRequest(String skuId, int quantity) {
     }
 
@@ -252,6 +267,16 @@ public final class ApiContracts {
             String status
     ) {
     }
+
+    /** Order가 Payment에 요청하는 금액 확정 반품 환불. returnId가 업무 멱등 키다. */
+    public record RefundPaymentRequest(String returnId, Money amount) { }
+
+    public record RefundPaymentResponse(
+            String returnId,
+            String paymentId,
+            Money amount,
+            String status
+    ) { }
 
     public record CreateShipmentRequest(String orderId, String memberId, AddressResponse address) {
     }

@@ -2,6 +2,8 @@ package com.impati.commerce.payment.adapter.in.web;
 
 import com.impati.commerce.common.ApiContracts.AuthorizePaymentRequest;
 import com.impati.commerce.common.ApiContracts.PaymentResponse;
+import com.impati.commerce.common.ApiContracts.RefundPaymentRequest;
+import com.impati.commerce.common.ApiContracts.RefundPaymentResponse;
 import com.impati.commerce.payment.application.port.in.PaymentUseCase;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -46,6 +48,21 @@ public class InternalPaymentController {
     @PostMapping("/{paymentId}/refund")
     PaymentResponse refund(@PathVariable String paymentId) {
         return PaymentResponseMapper.from(paymentUseCase.refund(paymentId));
+    }
+
+    @PostMapping("/{paymentId}/refunds")
+    RefundPaymentResponse refundForReturn(
+            @PathVariable String paymentId,
+            @RequestBody RefundPaymentRequest request
+    ) {
+        var refund = paymentUseCase.refundForReturn(paymentId, request.returnId(), request.amount());
+        return new RefundPaymentResponse(refund.returnId(), refund.paymentId(), refund.amount(), refund.status());
+    }
+
+    @GetMapping("/refunds/{returnId}")
+    RefundPaymentResponse getReturnRefund(@PathVariable String returnId) {
+        var refund = paymentUseCase.getReturnRefund(returnId);
+        return new RefundPaymentResponse(refund.returnId(), refund.paymentId(), refund.amount(), refund.status());
     }
 
     @GetMapping("/{paymentId}")

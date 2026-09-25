@@ -1,6 +1,7 @@
 package com.impati.commerce.payment.application.component;
 
 import com.impati.commerce.common.ApiContracts.Money;
+import com.impati.commerce.common.DomainException;
 import com.impati.commerce.payment.application.port.out.PaymentGateway;
 import org.junit.jupiter.api.BeforeEach;
 import com.impati.commerce.test.RequiresDatabase;
@@ -10,9 +11,17 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -23,7 +32,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * <p>로컬 대역 대신 호출을 기록하는 대역을 넣는다. 대행사를 거치지 않고 상태만 바꾸는 구현으로
  * 되돌아가면 여기서 깨진다 — 그 상태가 BL-0032의 출발점이었다.
  */
-@SpringBootTest
+@SpringBootTest(properties = "payment.refund-recovery-initial-delay=600000")
 @RequiresDatabase
 class PaymentGatewayInteractionTest {
 
@@ -49,6 +58,10 @@ class PaymentGatewayInteractionTest {
         static final String METHOD = "GATEWAY_METHOD";
 
         final List<String> calls = new ArrayList<>();
+        final Map<String, RefundCommand> refunds = new ConcurrentHashMap<>();
+        final AtomicInteger refundCommands = new AtomicInteger();
+        final AtomicInteger refundQueries = new AtomicInteger();
+        final AtomicBoolean loseNextRefundResponse = new AtomicBoolean();
         boolean approve = true;
 
         @Override
@@ -73,6 +86,23 @@ class PaymentGatewayInteractionTest {
         public void refund(String transactionId) {
             calls.add("refund:" + transactionId);
         }
+
+        @Override
+        public RefundResult refund(RefundCommand command) {
+            refundCommands.incrementAndGet();
+            refunds.putIfAbsent(command.idempotencyKey(), command);
+            if (loseNextRefundResponse.compareAndSet(true, false)) {
+                throw DomainException.outcomeUnknown("refund response was lost");
+            }
+            return RefundResult.confirmed();
+        }
+
+        @Override
+        public RefundResult refundResult(RefundCommand command) {
+            refundQueries.incrementAndGet();
+            return refunds.containsKey(command.idempotencyKey())
+                    ? RefundResult.confirmed() : RefundResult.absent();
+        }
     }
 
     @Autowired
@@ -81,9 +111,16 @@ class PaymentGatewayInteractionTest {
     @Autowired
     private RecordingPaymentGateway recordingPaymentGateway;
 
+    @Autowired
+    private JdbcTemplate jdbc;
+
     @BeforeEach
     void resetGateway() {
         recordingPaymentGateway.calls.clear();
+        recordingPaymentGateway.refunds.clear();
+        recordingPaymentGateway.refundCommands.set(0);
+        recordingPaymentGateway.refundQueries.set(0);
+        recordingPaymentGateway.loseNextRefundResponse.set(false);
         recordingPaymentGateway.approve = true;
     }
 
@@ -164,6 +201,60 @@ class PaymentGatewayInteractionTest {
         payments.authorize("ord_gw_reauth", "mem_a", AMOUNT, "any-token");
 
         assertThat(recordingPaymentGateway.calls).isEmpty();
+    }
+
+    @Test
+    void returnRefundUsesReturnIdAndExactAmountAtTheGateway() {
+        var authorized = payments.authorize("ord_gw_return_refund", "mem_a", AMOUNT, "any-token");
+        payments.capture(authorized.id());
+
+        var refund = payments.refundForReturn(authorized.id(), "ret_gw_refund", Money.krw(55_000));
+        var command = recordingPaymentGateway.refunds.get("ret_gw_refund");
+
+        assertThat(refund.status()).isEqualTo("SUCCEEDED");
+        assertThat(command.transactionId()).isEqualTo(RecordingPaymentGateway.TRANSACTION_ID);
+        assertThat(command.amount()).isEqualTo(Money.krw(55_000));
+    }
+
+    @Test
+    void lostRefundResponseIsRecoveredByQueryWithoutAnotherMutation() {
+        var authorized = payments.authorize("ord_gw_return_loss", "mem_a", AMOUNT, "any-token");
+        payments.capture(authorized.id());
+        recordingPaymentGateway.loseNextRefundResponse.set(true);
+
+        assertThat(payments.refundForReturn(authorized.id(), "ret_gw_loss", Money.krw(55_000)).status())
+                .isEqualTo("PENDING");
+        payments.recoverPendingRefunds(20);
+
+        assertThat(payments.getReturnRefund("ret_gw_loss").status()).isEqualTo("SUCCEEDED");
+        assertThat(recordingPaymentGateway.refundCommands.get()).isEqualTo(1);
+        assertThat(recordingPaymentGateway.refundQueries.get()).isEqualTo(1);
+    }
+
+    @Test
+    void concurrentSameReturnRefundAppliesTheAmountOnce() throws Exception {
+        var authorized = payments.authorize("ord_gw_return_race", "mem_a", AMOUNT, "any-token");
+        payments.capture(authorized.id());
+        var start = new CountDownLatch(1);
+        var executor = Executors.newFixedThreadPool(2);
+        try {
+            var first = executor.submit(() -> {
+                start.await();
+                return payments.refundForReturn(authorized.id(), "ret_gw_race", Money.krw(55_000));
+            });
+            var second = executor.submit(() -> {
+                start.await();
+                return payments.refundForReturn(authorized.id(), "ret_gw_race", Money.krw(55_000));
+            });
+            start.countDown();
+
+            assertThat(first.get(10, TimeUnit.SECONDS).status()).isEqualTo("SUCCEEDED");
+            assertThat(second.get(10, TimeUnit.SECONDS).status()).isEqualTo("SUCCEEDED");
+            assertThat(jdbc.queryForObject("select refunded_amount from payments where id = ?",
+                    Long.class, authorized.id())).isEqualTo(55_000L);
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     /** 대행사가 거절하면 결제가 남지 않는다. 남으면 그 주문은 영영 승인받지 못한다. */

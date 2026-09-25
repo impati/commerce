@@ -34,6 +34,7 @@ public class FakePaymentGateway implements PaymentGateway {
 
     private final Map<String, String> transactions = new ConcurrentHashMap<>();
     private final Map<String, GatewayAuthorization> authorizations = new ConcurrentHashMap<>();
+    private final Map<String, RefundCommand> refunds = new ConcurrentHashMap<>();
 
     @Override
     public synchronized Authorization authorize(String orderId, Money amount, String paymentToken) {
@@ -70,6 +71,23 @@ public class FakePaymentGateway implements PaymentGateway {
     @Override
     public void refund(String transactionId) {
         move(transactionId, "REFUNDED");
+    }
+
+    @Override
+    public RefundResult refund(RefundCommand command) {
+        var existing = refunds.putIfAbsent(command.idempotencyKey(), command);
+        if (existing != null && (!existing.transactionId().equals(command.transactionId())
+                || !existing.amount().equals(command.amount()))) {
+            return RefundResult.rejected("idempotency key already has a different refund");
+        }
+        log.info("gateway refunded transaction={} amount={} key={}", command.transactionId(),
+                command.amount().amount(), command.idempotencyKey());
+        return RefundResult.confirmed();
+    }
+
+    @Override
+    public RefundResult refundResult(RefundCommand command) {
+        return refunds.containsKey(command.idempotencyKey()) ? RefundResult.confirmed() : RefundResult.absent();
     }
 
     /** 같은 상태를 다시 요청해도 같은 결과다. 호출자는 응답만 보고 몇 번째 요청인지 알 수 없다. */
