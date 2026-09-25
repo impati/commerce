@@ -3,6 +3,7 @@ package com.impati.commerce.shipping.domain;
 import com.impati.commerce.common.Ids;
 import java.time.OffsetDateTime;
 import java.util.Map;
+import java.util.HashMap;
 
 /** 배송 상태 변경과 같은 트랜잭션에 저장되는 발행 대기 사건. */
 public final class ShipmentEvent {
@@ -36,13 +37,20 @@ public final class ShipmentEvent {
 
     public static ShipmentEvent occurred(String type, ShippingModels.Shipment shipment,
             OffsetDateTime occurredAt) {
+        var payload = new HashMap<String, String>();
+        payload.put("shipmentStatus", shipment.status().name());
+        payload.put("shipmentKind", shipment.kind().name());
+        put(payload, "returnId", shipment.returnId());
+        put(payload, "carrierCode", shipment.carrierCode());
+        put(payload, "carrierName", shipment.carrierName());
+        put(payload, "trackingNumber", shipment.trackingNumber());
         return new ShipmentEvent(Ids.newId("sev"), type, shipment.id(), shipment.orderId(), shipment.memberId(),
-                occurredAt, Map.of(
-                        "shipmentStatus", shipment.status().name(),
-                        "carrierCode", shipment.carrierCode(),
-                        "carrierName", shipment.carrierName(),
-                        "trackingNumber", shipment.trackingNumber()),
+                occurredAt, payload,
                 PublishStatus.PENDING, 0, null);
+    }
+
+    private static void put(Map<String, String> payload, String key, String value) {
+        if (value != null) payload.put(key, value);
     }
 
     public static ShipmentEvent restore(String id, String type, String shipmentId, String orderId, String memberId,

@@ -2,6 +2,7 @@ package com.impati.commerce.shipping.adapter.in.web;
 
 import com.impati.commerce.common.ApiContracts.AddressResponse;
 import com.impati.commerce.common.ApiContracts.ShipmentResponse;
+import com.impati.commerce.common.ApiContracts.ReturnShipmentResponse;
 import com.impati.commerce.shipping.application.port.in.ShipmentAddress;
 import com.impati.commerce.shipping.application.port.in.ShipmentDetails;
 
@@ -49,5 +50,18 @@ final class ShipmentResponseMapper {
                 shipment.carrierName(),
                 shipment.trackingNumber()
         );
+    }
+
+    static ReturnShipmentResponse returnFrom(ShipmentDetails shipment) {
+        return new ReturnShipmentResponse(
+                shipment.id(), shipment.returnId(), shipment.orderId(), shipment.memberId(),
+                from(shipment.address()), shipment.status(), shipment.carrierCode(), shipment.carrierName(),
+                shipment.trackingNumber());
+    }
+
+    private static com.impati.commerce.common.ApiContracts.AddressResponse from(ShipmentAddress address) {
+        return new com.impati.commerce.common.ApiContracts.AddressResponse(
+                address.id(), address.alias(), address.recipient(), address.phone(), address.line1(), address.city(),
+                address.postalCode(), address.defaultAddress());
     }
 }

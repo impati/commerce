@@ -20,6 +20,8 @@ public interface ShipmentRepository {
 
     Optional<Shipment> findByOrderId(String orderId);
 
+    Optional<Shipment> findByReturnId(String returnId);
+
     Optional<Shipment> findByCarrierAndTrackingForUpdate(String carrierCode, String trackingNumber);
 
     Collection<Shipment> findAll();

@@ -2,6 +2,9 @@ package com.impati.commerce.shipping.adapter.in.web;
 
 import com.impati.commerce.common.ApiContracts.CreateShipmentRequest;
 import com.impati.commerce.common.ApiContracts.ShipmentResponse;
+import com.impati.commerce.common.ApiContracts.CreateReturnShipmentRequest;
+import com.impati.commerce.common.ApiContracts.RescheduleReturnPickupRequest;
+import com.impati.commerce.common.ApiContracts.ReturnShipmentResponse;
 import com.impati.commerce.shipping.application.port.in.ShippingUseCase;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -50,5 +53,31 @@ public class InternalShippingController {
     @PostMapping("/{shipmentId}/packing-complete")
     ShipmentResponse completePacking(@PathVariable String shipmentId) {
         return ShipmentResponseMapper.from(shippingUseCase.completePacking(shipmentId));
+    }
+
+    @PostMapping("/returns")
+    ReturnShipmentResponse createReturn(@RequestBody CreateReturnShipmentRequest request) {
+        return ShipmentResponseMapper.returnFrom(shippingUseCase.createReturnShipment(
+                request.returnId(), request.orderId(), request.memberId(),
+                ShipmentResponseMapper.toAddress(request.pickupAddress())));
+    }
+
+    @GetMapping("/returns/{returnId}")
+    ReturnShipmentResponse getReturn(@PathVariable String returnId) {
+        return ShipmentResponseMapper.returnFrom(shippingUseCase.getForReturn(returnId));
+    }
+
+    @PostMapping("/returns/{returnShipmentId}/withdraw")
+    ReturnShipmentResponse withdrawReturn(@PathVariable String returnShipmentId) {
+        return ShipmentResponseMapper.returnFrom(shippingUseCase.withdrawReturn(returnShipmentId));
+    }
+
+    @PostMapping("/returns/{returnShipmentId}/reschedule")
+    ReturnShipmentResponse rescheduleReturn(
+            @PathVariable String returnShipmentId,
+            @RequestBody RescheduleReturnPickupRequest request
+    ) {
+        return ShipmentResponseMapper.returnFrom(shippingUseCase.rescheduleReturnPickup(
+                returnShipmentId, ShipmentResponseMapper.toAddress(request.pickupAddress())));
     }
 }

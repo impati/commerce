@@ -16,6 +16,14 @@ public interface CarrierGateway {
 
     CarrierCancellation cancellation(CancellationCommand command);
 
+    CarrierRegistration schedulePickup(PickupCommand command);
+
+    CarrierRegistration pickup(PickupCommand command);
+
+    CarrierCancellation cancelPickup(CancellationCommand command);
+
+    CarrierCancellation pickupCancellation(CancellationCommand command);
+
     enum Outcome {
         CONFIRMED,
         ABSENT,
@@ -26,6 +34,16 @@ public interface CarrierGateway {
     record RegistrationCommand(String idempotencyKey, String shipmentId) { }
 
     record CancellationCommand(String idempotencyKey, String shipmentId, String trackingNumber) { }
+
+    record PickupCommand(
+            String idempotencyKey,
+            String shipmentId,
+            String recipient,
+            String phone,
+            String line1,
+            String city,
+            String postalCode
+    ) { }
 
     record CarrierRegistration(
             Outcome outcome,

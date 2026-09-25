@@ -32,6 +32,8 @@ final class ShipmentMapper {
         var address = shipment.address();
         return new ShipmentDetails(
                 shipment.id(),
+                shipment.kind().name(),
+                shipment.returnId(),
                 shipment.orderId(),
                 shipment.memberId(),
                 new ShipmentAddress(

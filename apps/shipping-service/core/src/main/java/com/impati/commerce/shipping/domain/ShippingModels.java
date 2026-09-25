@@ -12,12 +12,15 @@ public final class ShippingModels {
     public enum ShipmentStatus {
         READY,
         AWAITING_PICKUP,
+        PICKUP_FAILED,
         IN_TRANSIT,
         DELIVERED,
         RETURNING,
         RETURNED,
         CANCELLED
     }
+
+    public enum ShipmentKind {OUTBOUND, RETURN}
 
     public enum RegistrationStatus {NOT_REQUESTED, PENDING, CONFIRMED, CANCELLED}
 
@@ -63,7 +66,10 @@ public final class ShippingModels {
         private final String id;
         private final String orderId;
         private final String memberId;
-        private final Address address;
+        private Address address;
+        private final ShipmentKind kind;
+        private final String returnId;
+        private int pickupAttempt;
         private ShipmentStatus status;
         private RegistrationStatus registrationStatus;
         private CancellationStatus cancellationStatus;
@@ -73,8 +79,16 @@ public final class ShippingModels {
         private OffsetDateTime lastCarrierEventAt;
 
         public Shipment(String orderId, String memberId, Address address) {
-            this(Ids.newId("shp"), orderId, memberId, address, ShipmentStatus.READY,
+            this(Ids.newId("shp"), orderId, memberId, address, ShipmentKind.OUTBOUND, null, 0,
+                    ShipmentStatus.READY,
                     RegistrationStatus.NOT_REQUESTED, CancellationStatus.NOT_REQUESTED,
+                    null, null, null, null);
+        }
+
+        public static Shipment returnShipment(String returnId, String orderId, String memberId, Address address) {
+            requireText(returnId, "return id");
+            return new Shipment(Ids.newId("rsh"), orderId, memberId, address, ShipmentKind.RETURN, returnId, 1,
+                    ShipmentStatus.READY, RegistrationStatus.NOT_REQUESTED, CancellationStatus.NOT_REQUESTED,
                     null, null, null, null);
         }
 
@@ -83,6 +97,9 @@ public final class ShippingModels {
                 String orderId,
                 String memberId,
                 Address address,
+                ShipmentKind kind,
+                String returnId,
+                int pickupAttempt,
                 ShipmentStatus status,
                 RegistrationStatus registrationStatus,
                 CancellationStatus cancellationStatus,
@@ -95,6 +112,9 @@ public final class ShippingModels {
             this.orderId = orderId;
             this.memberId = memberId;
             this.address = address;
+            this.kind = kind;
+            this.returnId = returnId;
+            this.pickupAttempt = pickupAttempt;
             this.status = status;
             this.registrationStatus = registrationStatus;
             this.cancellationStatus = cancellationStatus;
@@ -109,6 +129,9 @@ public final class ShippingModels {
                 String orderId,
                 String memberId,
                 Address address,
+                String kind,
+                String returnId,
+                int pickupAttempt,
                 String status,
                 String registrationStatus,
                 String cancellationStatus,
@@ -117,7 +140,8 @@ public final class ShippingModels {
                 String trackingNumber,
                 OffsetDateTime lastCarrierEventAt
         ) {
-            return new Shipment(id, orderId, memberId, address, ShipmentStatus.valueOf(status),
+            return new Shipment(id, orderId, memberId, address, ShipmentKind.valueOf(kind), returnId, pickupAttempt,
+                    ShipmentStatus.valueOf(status),
                     RegistrationStatus.valueOf(registrationStatus), CancellationStatus.valueOf(cancellationStatus),
                     carrierCode, carrierName, trackingNumber, lastCarrierEventAt);
         }
@@ -136,6 +160,18 @@ public final class ShippingModels {
 
         public Address address() {
             return address;
+        }
+
+        public ShipmentKind kind() {
+            return kind;
+        }
+
+        public String returnId() {
+            return returnId;
+        }
+
+        public int pickupAttempt() {
+            return pickupAttempt;
         }
 
         public ShipmentStatus status() {
@@ -181,6 +217,31 @@ public final class ShippingModels {
             return true;
         }
 
+        /** 반품 회수 접수를 시작한다. 회수 실패 뒤 재예약은 새 시도로 구분한다. */
+        public boolean requestPickup(Address pickupAddress) {
+            if (kind != ShipmentKind.RETURN) {
+                throw DomainException.conflict("outbound shipment cannot request return pickup");
+            }
+            if (registrationStatus == RegistrationStatus.PENDING) {
+                return false;
+            }
+            if (status != ShipmentStatus.READY && status != ShipmentStatus.PICKUP_FAILED
+                    && status != ShipmentStatus.CANCELLED) {
+                throw DomainException.conflict("return shipment cannot request pickup from current status");
+            }
+            if (status == ShipmentStatus.PICKUP_FAILED || status == ShipmentStatus.CANCELLED) {
+                pickupAttempt += 1;
+            }
+            address = pickupAddress;
+            carrierCode = null;
+            carrierName = null;
+            trackingNumber = null;
+            registrationStatus = RegistrationStatus.PENDING;
+            cancellationStatus = CancellationStatus.NOT_REQUESTED;
+            status = ShipmentStatus.READY;
+            return true;
+        }
+
         public boolean confirmRegistration(String code, String name, String tracking) {
             requireText(code, "carrier code");
             requireText(name, "carrier name");
@@ -208,7 +269,8 @@ public final class ShippingModels {
                     || cancellationStatus == CancellationStatus.CONFIRMED) {
                 return false;
             }
-            if (status != ShipmentStatus.READY && status != ShipmentStatus.AWAITING_PICKUP) {
+            if (status != ShipmentStatus.READY && status != ShipmentStatus.AWAITING_PICKUP
+                    && !(kind == ShipmentKind.RETURN && status == ShipmentStatus.PICKUP_FAILED)) {
                 throw DomainException.conflict("shipment already left and cannot be cancelled");
             }
             if (cancellationStatus == CancellationStatus.ATTENTION_REQUIRED) {
@@ -223,7 +285,8 @@ public final class ShippingModels {
             if (status == ShipmentStatus.CANCELLED) {
                 return false;
             }
-            if (status != ShipmentStatus.READY && status != ShipmentStatus.AWAITING_PICKUP) {
+            if (status != ShipmentStatus.READY && status != ShipmentStatus.AWAITING_PICKUP
+                    && !(kind == ShipmentKind.RETURN && status == ShipmentStatus.PICKUP_FAILED)) {
                 throw DomainException.conflict("shipment already left and cannot be cancelled");
             }
             status = ShipmentStatus.CANCELLED;
@@ -254,6 +317,9 @@ public final class ShippingModels {
             if (status == ShipmentStatus.CANCELLED) {
                 return EventDecision.CONFLICT;
             }
+            if (kind == ShipmentKind.RETURN) {
+                return applyReturnCarrierEvent(eventType, occurredAt);
+            }
             if (status == ShipmentStatus.DELIVERED) {
                 return eventType == CarrierEventType.DELIVERY_FAILED || eventType == CarrierEventType.RETURNED
                         ? EventDecision.CONFLICT : EventDecision.IGNORED_STALE;
@@ -278,7 +344,41 @@ public final class ShippingModels {
                     case DELIVERED -> null;
                     case PICKED_UP, IN_TRANSIT, DELIVERY_FAILED -> status;
                 };
+                case PICKUP_FAILED -> status;
                 default -> throw new IllegalStateException("unexpected shipment status " + status);
+            };
+            if (next == null) {
+                return EventDecision.CONFLICT;
+            }
+            if (next == status) {
+                lastCarrierEventAt = occurredAt;
+                return EventDecision.NO_TRANSITION;
+            }
+            status = next;
+            lastCarrierEventAt = occurredAt;
+            return EventDecision.APPLIED;
+        }
+
+        private EventDecision applyReturnCarrierEvent(CarrierEventType eventType, OffsetDateTime occurredAt) {
+            if (status == ShipmentStatus.DELIVERED || status == ShipmentStatus.PICKUP_FAILED) {
+                return EventDecision.IGNORED_STALE;
+            }
+            if (status == ShipmentStatus.READY) {
+                return EventDecision.CONFLICT;
+            }
+            var next = switch (status) {
+                case AWAITING_PICKUP -> switch (eventType) {
+                    case PICKED_UP, IN_TRANSIT -> ShipmentStatus.IN_TRANSIT;
+                    case DELIVERY_FAILED -> ShipmentStatus.PICKUP_FAILED;
+                    case DELIVERED -> ShipmentStatus.DELIVERED;
+                    case RETURNED -> null;
+                };
+                case IN_TRANSIT -> switch (eventType) {
+                    case PICKED_UP, IN_TRANSIT -> ShipmentStatus.IN_TRANSIT;
+                    case DELIVERED -> ShipmentStatus.DELIVERED;
+                    case DELIVERY_FAILED, RETURNED -> null;
+                };
+                default -> null;
             };
             if (next == null) {
                 return EventDecision.CONFLICT;

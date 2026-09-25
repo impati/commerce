@@ -13,6 +13,8 @@ public class LocalCarrierGateway implements CarrierGateway {
     private final String trackingPrefix;
     private final ConcurrentHashMap<String, CarrierRegistration> registrations = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, CarrierCancellation> cancellations = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, CarrierRegistration> pickups = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, CarrierCancellation> pickupCancellations = new ConcurrentHashMap<>();
 
     public LocalCarrierGateway(
             @Value("${shipping.carrier.code:PRIMARY}") String carrierCode,
@@ -43,5 +45,28 @@ public class LocalCarrierGateway implements CarrierGateway {
     @Override
     public CarrierCancellation cancellation(CancellationCommand command) {
         return cancellations.getOrDefault(command.idempotencyKey(), CarrierCancellation.absent());
+    }
+
+    @Override
+    public CarrierRegistration schedulePickup(PickupCommand command) {
+        return pickups.computeIfAbsent(command.idempotencyKey(), ignored -> CarrierRegistration.confirmed(
+                carrierCode, carrierName, trackingPrefix + "R-" + command.shipmentId()
+                        + "-" + Math.abs(command.idempotencyKey().hashCode())));
+    }
+
+    @Override
+    public CarrierRegistration pickup(PickupCommand command) {
+        return pickups.getOrDefault(command.idempotencyKey(), CarrierRegistration.absent());
+    }
+
+    @Override
+    public CarrierCancellation cancelPickup(CancellationCommand command) {
+        return pickupCancellations.computeIfAbsent(command.idempotencyKey(),
+                ignored -> CarrierCancellation.confirmed());
+    }
+
+    @Override
+    public CarrierCancellation pickupCancellation(CancellationCommand command) {
+        return pickupCancellations.getOrDefault(command.idempotencyKey(), CarrierCancellation.absent());
     }
 }

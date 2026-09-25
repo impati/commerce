@@ -22,7 +22,8 @@ import java.time.OffsetDateTime;
 @Repository
 public class JdbcShipmentRepository implements ShipmentRepository {
     private static final String COLUMNS = """
-            id, order_id, member_id, status, registration_status, cancellation_status,
+            id, order_id, member_id, shipment_kind, return_id, pickup_attempt,
+            status, registration_status, cancellation_status,
             carrier_code, carrier_name, tracking_number, last_carrier_event_at,
             ship_address_id, ship_alias, ship_recipient, ship_phone,
             ship_line1, ship_city, ship_postal_code, ship_default_address
@@ -30,12 +31,14 @@ public class JdbcShipmentRepository implements ShipmentRepository {
 
     private static final String INSERT = """
             insert into shipments (
-                id, order_id, member_id, status, registration_status, cancellation_status,
+                id, order_id, member_id, shipment_kind, return_id, pickup_attempt,
+                status, registration_status, cancellation_status,
                 carrier_code, carrier_name, tracking_number, last_carrier_event_at,
                 ship_address_id, ship_alias, ship_recipient, ship_phone,
                 ship_line1, ship_city, ship_postal_code, ship_default_address
             ) values (
-                :id, :order_id, :member_id, :status, :registration_status, :cancellation_status,
+                :id, :order_id, :member_id, :shipment_kind, :return_id, :pickup_attempt,
+                :status, :registration_status, :cancellation_status,
                 :carrier_code, :carrier_name, :tracking_number, :last_carrier_event_at,
                 :ship_address_id, :ship_alias, :ship_recipient, :ship_phone,
                 :ship_line1, :ship_city, :ship_postal_code, :ship_default_address
@@ -46,6 +49,9 @@ public class JdbcShipmentRepository implements ShipmentRepository {
             update shipments
                set order_id = :order_id,
                    member_id = :member_id,
+                   shipment_kind = :shipment_kind,
+                   return_id = :return_id,
+                   pickup_attempt = :pickup_attempt,
                    status = :status,
                    registration_status = :registration_status,
                    cancellation_status = :cancellation_status,
@@ -66,7 +72,9 @@ public class JdbcShipmentRepository implements ShipmentRepository {
 
     private static final String SELECT_BY_ID = "select " + COLUMNS + " from shipments where id = :id";
     private static final String SELECT_BY_ID_FOR_UPDATE = SELECT_BY_ID + " for update";
-    private static final String SELECT_BY_ORDER = "select " + COLUMNS + " from shipments where order_id = :order_id";
+    private static final String SELECT_BY_ORDER = "select " + COLUMNS
+            + " from shipments where order_id = :order_id and shipment_kind = 'OUTBOUND'";
+    private static final String SELECT_BY_RETURN = "select " + COLUMNS + " from shipments where return_id = :return_id";
     private static final String SELECT_BY_CARRIER_TRACKING_FOR_UPDATE = "select " + COLUMNS
             + " from shipments where carrier_code = :carrier_code and tracking_number = :tracking_number for update";
     private static final String SELECT_ALL = "select " + COLUMNS + " from shipments";
@@ -100,6 +108,9 @@ public class JdbcShipmentRepository implements ShipmentRepository {
                     rs.getString("ship_postal_code"),
                     rs.getBoolean("ship_default_address")
             ),
+            rs.getString("shipment_kind"),
+            rs.getString("return_id"),
+            rs.getInt("pickup_attempt"),
             rs.getString("status"),
             rs.getString("registration_status"),
             rs.getString("cancellation_status"),
@@ -174,6 +185,13 @@ public class JdbcShipmentRepository implements ShipmentRepository {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public Optional<Shipment> findByReturnId(String returnId) {
+        return jdbc.query(SELECT_BY_RETURN, new MapSqlParameterSource("return_id", returnId), ROW_MAPPER)
+                .stream().findFirst();
+    }
+
+    @Override
     @Transactional
     public Optional<Shipment> findByCarrierAndTrackingForUpdate(String carrierCode, String trackingNumber) {
         var params = new MapSqlParameterSource()
@@ -239,6 +257,9 @@ public class JdbcShipmentRepository implements ShipmentRepository {
                 .addValue("id", shipment.id())
                 .addValue("order_id", shipment.orderId())
                 .addValue("member_id", shipment.memberId())
+                .addValue("shipment_kind", shipment.kind().name())
+                .addValue("return_id", shipment.returnId())
+                .addValue("pickup_attempt", shipment.pickupAttempt())
                 .addValue("status", shipment.status().name())
                 .addValue("registration_status", shipment.registrationStatus().name())
                 .addValue("cancellation_status", shipment.cancellationStatus().name())

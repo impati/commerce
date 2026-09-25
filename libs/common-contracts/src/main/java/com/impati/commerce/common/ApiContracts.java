@@ -272,6 +272,28 @@ public final class ApiContracts {
         }
     }
 
+    /** Order가 Shipping에 요청하는 배송 후 회수. returnId가 택배 업무 멱등 키다. */
+    public record CreateReturnShipmentRequest(
+            String returnId,
+            String orderId,
+            String memberId,
+            AddressResponse pickupAddress
+    ) { }
+
+    public record ReturnShipmentResponse(
+            String id,
+            String returnId,
+            String orderId,
+            String memberId,
+            AddressResponse pickupAddress,
+            String status,
+            String carrierCode,
+            String carrierName,
+            String trackingNumber
+    ) { }
+
+    public record RescheduleReturnPickupRequest(AddressResponse pickupAddress) { }
+
     /** API Gateway가 택배사 고유 표현을 제거한 뒤 Shipping에 전달하는 사건. */
     public record CarrierEventRequest(
             String eventId,

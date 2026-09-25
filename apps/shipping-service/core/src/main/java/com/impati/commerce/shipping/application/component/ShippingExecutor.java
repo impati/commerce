@@ -21,6 +21,7 @@ import com.impati.commerce.shipping.domain.ShippingModels.EventDecision;
 import com.impati.commerce.shipping.domain.ShippingModels.RegistrationStatus;
 import com.impati.commerce.shipping.domain.ShippingModels.Shipment;
 import com.impati.commerce.shipping.domain.ShippingModels.ShipmentStatus;
+import com.impati.commerce.shipping.domain.ShippingModels.ShipmentKind;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -89,6 +90,79 @@ public class ShippingExecutor implements ShippingUseCase, CarrierOperationRecove
     }
 
     @Override
+    public ShipmentDetails createReturnShipment(
+            String returnId,
+            String orderId,
+            String memberId,
+            ShipmentAddress pickupAddress
+    ) {
+        var address = ShipmentMapper.toAddress(pickupAddress);
+        var operationKey = transactions.required(() -> {
+            var existing = shipmentRepository.findByReturnId(returnId);
+            if (existing.isPresent()) {
+                sameReturnShipment(existing.get(), orderId, memberId, address);
+                return existing.get().registrationStatus() == RegistrationStatus.CONFIRMED
+                        ? null : CarrierOperation.pickupKey(existing.get().id(), existing.get().pickupAttempt());
+            }
+            var shipment = Shipment.returnShipment(returnId, orderId, memberId, address);
+            shipment.requestPickup(address);
+            if (!shipmentRepository.insertIfAbsent(shipment)) {
+                var raced = shipmentRepository.findByReturnId(returnId)
+                        .orElseThrow(() -> DomainException.conflict("return shipment creation raced without a result"));
+                sameReturnShipment(raced, orderId, memberId, address);
+                return raced.registrationStatus() == RegistrationStatus.CONFIRMED
+                        ? null : CarrierOperation.pickupKey(raced.id(), raced.pickupAttempt());
+            }
+            var key = CarrierOperation.pickupKey(shipment.id(), shipment.pickupAttempt());
+            operationRepository.insertIfAbsent(CarrierOperation.pending(key, shipment.id(), Type.PICKUP, now()));
+            return key;
+        });
+        execute(operationKey);
+        failIfRejected(operationKey, "carrier pickup was rejected");
+        return ShipmentMapper.toDetails(getReturnShipment(returnId));
+    }
+
+    @Override
+    public ShipmentDetails getForReturn(String returnId) {
+        return ShipmentMapper.toDetails(getReturnShipment(returnId));
+    }
+
+    @Override
+    public ShipmentDetails withdrawReturn(String returnShipmentId) {
+        var shipment = getShipment(returnShipmentId);
+        if (shipment.kind() != ShipmentKind.RETURN) {
+            throw DomainException.conflict("shipment is not a return pickup");
+        }
+        return cancel(returnShipmentId);
+    }
+
+    @Override
+    public ShipmentDetails rescheduleReturnPickup(String returnShipmentId, ShipmentAddress pickupAddress) {
+        var current = getShipment(returnShipmentId);
+        if (current.kind() != ShipmentKind.RETURN) {
+            throw DomainException.conflict("shipment is not a return pickup");
+        }
+        if (current.status() == ShipmentStatus.AWAITING_PICKUP || current.status() == ShipmentStatus.READY) {
+            current = getShipment(cancel(returnShipmentId).id());
+            if (current.status() != ShipmentStatus.CANCELLED) {
+                throw DomainException.unavailable("return pickup cancellation is not settled");
+            }
+        }
+        var address = ShipmentMapper.toAddress(pickupAddress);
+        var operationKey = transactions.required(() -> {
+            var shipment = getShipmentForUpdate(returnShipmentId);
+            shipment.requestPickup(address);
+            shipmentRepository.save(shipment);
+            var key = CarrierOperation.pickupKey(shipment.id(), shipment.pickupAttempt());
+            operationRepository.insertIfAbsent(CarrierOperation.pending(key, shipment.id(), Type.PICKUP, now()));
+            return key;
+        });
+        execute(operationKey);
+        failIfRejected(operationKey, "carrier pickup was rejected");
+        return ShipmentMapper.toDetails(getShipment(returnShipmentId));
+    }
+
+    @Override
     public ShipmentDetails completePacking(String shipmentId) {
         var operationKey = transactions.required(() -> {
             var shipment = getShipmentForUpdate(shipmentId);
@@ -124,8 +198,12 @@ public class ShippingExecutor implements ShippingUseCase, CarrierOperationRecove
             if (shipment.requestCancellation()) {
                 shipmentRepository.save(shipment);
             }
-            var key = CarrierOperation.cancellationKey(shipment.id());
-            operationRepository.insertIfAbsent(CarrierOperation.pending(key, shipment.id(), Type.CANCEL, now()));
+            var returnPickup = shipment.kind() == ShipmentKind.RETURN;
+            var key = returnPickup
+                    ? CarrierOperation.pickupCancellationKey(shipment.id(), shipment.pickupAttempt())
+                    : CarrierOperation.cancellationKey(shipment.id());
+            operationRepository.insertIfAbsent(CarrierOperation.pending(key, shipment.id(),
+                    returnPickup ? Type.CANCEL_PICKUP : Type.CANCEL, now()));
             return key;
         });
         execute(operationKey);
@@ -165,7 +243,7 @@ public class ShippingExecutor implements ShippingUseCase, CarrierOperationRecove
         }
         if (decision == EventDecision.APPLIED) {
             shipmentEventRepository.save(ShipmentEvent.occurred(
-                    "SHIPMENT_" + command.type().name(), shipment, command.occurredAt()));
+                    eventType(shipment, command.type()), shipment, command.occurredAt()));
         }
         shipmentRepository.completeCarrierEvent(command.eventId(), decision.name(), shipment.status().name());
         if (decision == EventDecision.CONFLICT) {
@@ -183,16 +261,34 @@ public class ShippingExecutor implements ShippingUseCase, CarrierOperationRecove
 
     private void executeClaimed(CarrierOperation operation) {
         try {
-            if (operation.type() == Type.REGISTER) {
-                executeRegistration(operation);
-            } else {
-                executeCancellation(operation);
+            switch (operation.type()) {
+                case REGISTER -> executeRegistration(operation);
+                case PICKUP -> executePickup(operation);
+                case CANCEL, CANCEL_PICKUP -> executeCancellation(operation);
             }
         } catch (RuntimeException failure) {
             log.warn("carrier operation will retry key={} attempt={}",
                     operation.idempotencyKey(), operation.attempts(), failure);
             operationRepository.retry(operation.idempotencyKey(), operation.claimGeneration(),
                     failure.getMessage(), now().plus(RETRY_DELAY));
+        }
+    }
+
+    private void executePickup(CarrierOperation operation) {
+        var shipment = getShipment(operation.shipmentId());
+        var address = shipment.address();
+        var command = new CarrierGateway.PickupCommand(operation.idempotencyKey(), operation.shipmentId(),
+                address.recipient(), address.phone(), address.line1(), address.city(), address.postalCode());
+        var result = operation.attempts() > 1 ? carrierGateway.pickup(command) : carrierGateway.schedulePickup(command);
+        if (result.outcome() == CarrierGateway.Outcome.ABSENT) {
+            result = carrierGateway.schedulePickup(command);
+        }
+        switch (result.outcome()) {
+            case CONFIRMED -> confirmRegistration(operation, result);
+            case UNKNOWN -> retry(operation, result.message());
+            case REJECTED -> requireOperationUpdate(operationRepository.reject(
+                    operation.idempotencyKey(), operation.claimGeneration(), result.message(), now()));
+            case ABSENT -> retry(operation, "carrier pickup is absent after command");
         }
     }
 
@@ -222,7 +318,9 @@ public class ShippingExecutor implements ShippingUseCase, CarrierOperationRecove
                     registration.trackingNumber());
             if (transitioned) {
                 shipmentRepository.save(shipment);
-                shipmentEventRepository.save(ShipmentEvent.occurred("SHIPMENT_REGISTERED", shipment, now()));
+                shipmentEventRepository.save(ShipmentEvent.occurred(
+                        shipment.kind() == ShipmentKind.RETURN ? "RETURN_PICKUP_SCHEDULED" : "SHIPMENT_REGISTERED",
+                        shipment, now()));
             }
             requireOperationUpdate(operationRepository.succeed(
                     operation.idempotencyKey(), operation.claimGeneration(), now()));
@@ -236,15 +334,22 @@ public class ShippingExecutor implements ShippingUseCase, CarrierOperationRecove
             finishAlreadyCancelled(operation);
             return;
         }
-        if (shipment.status() != ShipmentStatus.READY && shipment.status() != ShipmentStatus.AWAITING_PICKUP) {
+        if (shipment.status() != ShipmentStatus.READY && shipment.status() != ShipmentStatus.AWAITING_PICKUP
+                && !(shipment.kind() == ShipmentKind.RETURN
+                && shipment.status() == ShipmentStatus.PICKUP_FAILED)) {
             requireCancellationAttention(operation, "shipment left before carrier cancellation completed");
             return;
         }
         if (shipment.registrationStatus() == RegistrationStatus.PENDING) {
-            execute(CarrierOperation.registrationKey(shipment.id()));
+            execute(shipment.kind() == ShipmentKind.RETURN
+                    ? CarrierOperation.pickupKey(shipment.id(), shipment.pickupAttempt())
+                    : CarrierOperation.registrationKey(shipment.id()));
             shipment = getShipment(shipment.id());
             if (shipment.registrationStatus() == RegistrationStatus.PENDING) {
-                var registration = operationRepository.find(CarrierOperation.registrationKey(shipment.id()));
+                var registrationKey = shipment.kind() == ShipmentKind.RETURN
+                        ? CarrierOperation.pickupKey(shipment.id(), shipment.pickupAttempt())
+                        : CarrierOperation.registrationKey(shipment.id());
+                var registration = operationRepository.find(registrationKey);
                 if (registration.isPresent() && registration.get().status() == CarrierOperation.Status.REJECTED) {
                     confirmCancellation(operation);
                     return;
@@ -260,9 +365,14 @@ public class ShippingExecutor implements ShippingUseCase, CarrierOperationRecove
 
         var command = new CarrierGateway.CancellationCommand(
                 operation.idempotencyKey(), shipment.id(), shipment.trackingNumber());
-        var result = operation.attempts() > 1 ? carrierGateway.cancellation(command) : carrierGateway.cancel(command);
+        var returnPickup = operation.type() == Type.CANCEL_PICKUP;
+        var result = returnPickup
+                ? (operation.attempts() > 1
+                        ? carrierGateway.pickupCancellation(command) : carrierGateway.cancelPickup(command))
+                : (operation.attempts() > 1
+                        ? carrierGateway.cancellation(command) : carrierGateway.cancel(command));
         if (result.outcome() == CarrierGateway.Outcome.ABSENT) {
-            result = carrierGateway.cancel(command);
+            result = returnPickup ? carrierGateway.cancelPickup(command) : carrierGateway.cancel(command);
         }
         switch (result.outcome()) {
             case CONFIRMED -> confirmCancellation(operation);
@@ -276,7 +386,9 @@ public class ShippingExecutor implements ShippingUseCase, CarrierOperationRecove
         transactions.required(() -> {
             var shipment = getShipmentForUpdate(operation.shipmentId());
             if (shipment.status() != ShipmentStatus.READY && shipment.status() != ShipmentStatus.AWAITING_PICKUP
-                    && shipment.status() != ShipmentStatus.CANCELLED) {
+                    && shipment.status() != ShipmentStatus.CANCELLED
+                    && !(shipment.kind() == ShipmentKind.RETURN
+                    && shipment.status() == ShipmentStatus.PICKUP_FAILED)) {
                 shipment.requireCancellationAttention();
                 shipmentRepository.save(shipment);
                 requireOperationUpdate(operationRepository.requireAttention(operation.idempotencyKey(),
@@ -337,6 +449,11 @@ public class ShippingExecutor implements ShippingUseCase, CarrierOperationRecove
                 .orElseThrow(() -> DomainException.notFound("shipment not found"));
     }
 
+    private Shipment getReturnShipment(String returnId) {
+        return shipmentRepository.findByReturnId(returnId)
+                .orElseThrow(() -> DomainException.notFound("return shipment not found"));
+    }
+
     private Shipment getShipmentForUpdate(String shipmentId) {
         return shipmentRepository.findByIdForUpdate(shipmentId)
                 .orElseThrow(() -> DomainException.notFound("shipment not found"));
@@ -358,6 +475,28 @@ public class ShippingExecutor implements ShippingUseCase, CarrierOperationRecove
                 && existing.trackingNumber().equals(command.trackingNumber())
                 && existing.eventType().equals(command.type().name())
                 && existing.occurredAt().toInstant().equals(command.occurredAt().toInstant());
+    }
+
+    private static void sameReturnShipment(Shipment shipment, String orderId, String memberId,
+            com.impati.commerce.shipping.domain.ShippingModels.Address address) {
+        if (shipment.kind() != ShipmentKind.RETURN || !shipment.orderId().equals(orderId)
+                || !shipment.memberId().equals(memberId) || !shipment.address().equals(address)) {
+            throw DomainException.conflict("return already has a different pickup shipment");
+        }
+    }
+
+    private static String eventType(Shipment shipment,
+            com.impati.commerce.shipping.domain.ShippingModels.CarrierEventType type) {
+        if (shipment.kind() == ShipmentKind.OUTBOUND) {
+            return "SHIPMENT_" + type.name();
+        }
+        return switch (type) {
+            case PICKED_UP -> "RETURN_PICKED_UP";
+            case IN_TRANSIT -> "RETURN_IN_TRANSIT";
+            case DELIVERED -> "RETURN_RECEIVED";
+            case DELIVERY_FAILED -> "RETURN_PICKUP_FAILED";
+            case RETURNED -> "RETURN_CONFLICT";
+        };
     }
 
     private OffsetDateTime now() {

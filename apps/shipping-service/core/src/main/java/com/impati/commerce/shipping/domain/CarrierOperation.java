@@ -18,7 +18,9 @@ public record CarrierOperation(
 ) {
     public enum Type {
         REGISTER,
-        CANCEL
+        CANCEL,
+        PICKUP,
+        CANCEL_PICKUP
     }
 
     public enum Status {
@@ -34,6 +36,14 @@ public record CarrierOperation(
 
     public static String cancellationKey(String shipmentId) {
         return "carrier-cancellation:" + shipmentId;
+    }
+
+    public static String pickupKey(String shipmentId, int attempt) {
+        return "carrier-return-pickup:" + shipmentId + ":" + attempt;
+    }
+
+    public static String pickupCancellationKey(String shipmentId, int attempt) {
+        return "carrier-return-pickup-cancellation:" + shipmentId + ":" + attempt;
     }
 
     public static CarrierOperation pending(String key, String shipmentId, Type type, OffsetDateTime now) {

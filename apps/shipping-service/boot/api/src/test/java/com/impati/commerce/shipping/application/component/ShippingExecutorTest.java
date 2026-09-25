@@ -314,6 +314,85 @@ class ShippingExecutorTest {
         }
     }
 
+    @Test
+    void returnPickupIsSeparateFromOutboundAndIdempotentByReturnId() {
+        var outbound = create("ord_customer_return");
+        var returnId = "ret_customer-" + runId;
+        var address = new ShipmentAddress(
+                "adr_return", "home", "반품인", "010-1111-2222", "서울 반품로 1", "서울", "01234", true);
+
+        var first = shippingUseCase.createReturnShipment(
+                returnId, outbound.orderId(), outbound.memberId(), address);
+        var second = shippingUseCase.createReturnShipment(
+                returnId, outbound.orderId(), outbound.memberId(), address);
+
+        assertThat(first).isEqualTo(second);
+        assertThat(first.id()).isNotEqualTo(outbound.id());
+        assertThat(first.kind()).isEqualTo("RETURN");
+        assertThat(first.returnId()).isEqualTo(returnId);
+        assertThat(first.status()).isEqualTo("AWAITING_PICKUP");
+        assertThat(carrier.pickupCalls.get()).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select count(*) from shipments where order_id = ?", Integer.class,
+                outbound.orderId())).isEqualTo(2);
+    }
+
+    @Test
+    void pickedUpReturnIsDeliveredToSellerAndCannotBeWithdrawn() {
+        var shipment = returnShipment("ret_picked");
+
+        assertThat(event(shipment, "picked", "PICKED_UP", time(1)).shipmentStatus())
+                .isEqualTo("IN_TRANSIT");
+        assertThatThrownBy(() -> shippingUseCase.withdrawReturn(shipment.id()))
+                .isInstanceOf(DomainException.class)
+                .hasMessageContaining("already left");
+        assertThat(event(shipment, "received", "DELIVERED", time(2)).shipmentStatus())
+                .isEqualTo("DELIVERED");
+    }
+
+    @Test
+    void failedReturnPickupCanBeRescheduledWithAnotherAddress() {
+        var shipment = returnShipment("ret_reschedule");
+        assertThat(event(shipment, "failed", "DELIVERY_FAILED", time(1)).shipmentStatus())
+                .isEqualTo("PICKUP_FAILED");
+        var changed = new ShipmentAddress(
+                "adr_changed", "office", "반품인", "010-3333-4444", "서울 새주소 2", "서울", "04321", false);
+
+        var rescheduled = shippingUseCase.rescheduleReturnPickup(shipment.id(), changed);
+
+        assertThat(rescheduled.status()).isEqualTo("AWAITING_PICKUP");
+        assertThat(rescheduled.address()).isEqualTo(changed);
+        assertThat(carrier.pickupCalls.get()).isEqualTo(2);
+        assertThat(rescheduled.trackingNumber()).isNotEqualTo(shipment.trackingNumber());
+    }
+
+    @Test
+    void returnPickupCanBeWithdrawnBeforeCarrierPickup() {
+        var shipment = returnShipment("ret_withdraw");
+
+        var withdrawn = shippingUseCase.withdrawReturn(shipment.id());
+
+        assertThat(withdrawn.status()).isEqualTo("CANCELLED");
+        assertThat(carrier.pickupCancellationCalls.get()).isEqualTo(1);
+    }
+
+    @Test
+    void withdrawnReturnDoesNotBlockANewReturnForTheSameOrder() {
+        var orderId = "ord_reopened_return-" + runId;
+        var address = new ShipmentAddress(
+                "adr_return", "home", "반품인", "010-1111-2222", "서울 반품로 1", "서울", "01234", true);
+        var first = shippingUseCase.createReturnShipment(
+                "ret_first-" + runId, orderId, "mem_demo", address);
+        shippingUseCase.withdrawReturn(first.id());
+
+        var second = shippingUseCase.createReturnShipment(
+                "ret_second-" + runId, orderId, "mem_demo", address);
+
+        assertThat(second.id()).isNotEqualTo(first.id());
+        assertThat(second.status()).isEqualTo("AWAITING_PICKUP");
+        assertThat(jdbc.queryForObject("select count(*) from shipments where order_id = ?", Integer.class, orderId))
+                .isEqualTo(2);
+    }
+
     private ShipmentDetails create(String orderId) {
         return shippingUseCase.create(orderId + "-" + runId, "mem_demo", new ShipmentAddress(
                 "adr_1", "home", "받는이", "010-0000-0000", "서울 어딘가 1", "서울", "01234", true));
@@ -321,6 +400,15 @@ class ShippingExecutorTest {
 
     private ShipmentDetails registered(String orderId) {
         return shippingUseCase.completePacking(create(orderId).id());
+    }
+
+    private ShipmentDetails returnShipment(String returnId) {
+        return shippingUseCase.createReturnShipment(
+                returnId + "-" + runId,
+                "ord_for_" + returnId + "-" + runId,
+                "mem_demo",
+                new ShipmentAddress("adr_return", "home", "반품인", "010-0000-0000",
+                        "서울 반품로 1", "서울", "01234", true));
     }
 
     private com.impati.commerce.shipping.application.port.in.CarrierEventResult event(
@@ -370,10 +458,16 @@ class ShippingExecutorTest {
     static final class RecordingCarrierGateway implements CarrierGateway {
         private final ConcurrentHashMap<String, CarrierRegistration> registrations = new ConcurrentHashMap<>();
         private final ConcurrentHashMap<String, CarrierCancellation> cancellations = new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<String, CarrierRegistration> pickups = new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<String, CarrierCancellation> pickupCancellations = new ConcurrentHashMap<>();
         private final AtomicInteger registrationCalls = new AtomicInteger();
         private final AtomicInteger registrationQueries = new AtomicInteger();
         private final AtomicInteger cancellationCalls = new AtomicInteger();
         private final AtomicInteger cancellationQueries = new AtomicInteger();
+        private final AtomicInteger pickupCalls = new AtomicInteger();
+        private final AtomicInteger pickupQueries = new AtomicInteger();
+        private final AtomicInteger pickupCancellationCalls = new AtomicInteger();
+        private final AtomicInteger pickupCancellationQueries = new AtomicInteger();
         private final AtomicBoolean loseNextRegistrationResponse = new AtomicBoolean();
         private final AtomicBoolean loseNextCancellationResponse = new AtomicBoolean();
 
@@ -410,13 +504,45 @@ class ShippingExecutorTest {
             return cancellations.getOrDefault(command.idempotencyKey(), CarrierCancellation.absent());
         }
 
+        @Override
+        public CarrierRegistration schedulePickup(PickupCommand command) {
+            pickupCalls.incrementAndGet();
+            return pickups.computeIfAbsent(command.idempotencyKey(), ignored -> CarrierRegistration.confirmed(
+                    "PRIMARY", "기본 택배사", "RTN-" + command.idempotencyKey()));
+        }
+
+        @Override
+        public CarrierRegistration pickup(PickupCommand command) {
+            pickupQueries.incrementAndGet();
+            return pickups.getOrDefault(command.idempotencyKey(), CarrierRegistration.absent());
+        }
+
+        @Override
+        public CarrierCancellation cancelPickup(CancellationCommand command) {
+            pickupCancellationCalls.incrementAndGet();
+            return pickupCancellations.computeIfAbsent(
+                    command.idempotencyKey(), ignored -> CarrierCancellation.confirmed());
+        }
+
+        @Override
+        public CarrierCancellation pickupCancellation(CancellationCommand command) {
+            pickupCancellationQueries.incrementAndGet();
+            return pickupCancellations.getOrDefault(command.idempotencyKey(), CarrierCancellation.absent());
+        }
+
         void reset() {
             registrations.clear();
             cancellations.clear();
+            pickups.clear();
+            pickupCancellations.clear();
             registrationCalls.set(0);
             registrationQueries.set(0);
             cancellationCalls.set(0);
             cancellationQueries.set(0);
+            pickupCalls.set(0);
+            pickupQueries.set(0);
+            pickupCancellationCalls.set(0);
+            pickupCancellationQueries.set(0);
             loseNextRegistrationResponse.set(false);
             loseNextCancellationResponse.set(false);
         }

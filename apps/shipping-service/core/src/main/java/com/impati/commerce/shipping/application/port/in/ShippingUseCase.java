@@ -13,6 +13,19 @@ public interface ShippingUseCase {
 
     ShipmentDetails completePacking(String shipmentId);
 
+    ShipmentDetails createReturnShipment(
+            String returnId,
+            String orderId,
+            String memberId,
+            ShipmentAddress pickupAddress
+    );
+
+    ShipmentDetails getForReturn(String returnId);
+
+    ShipmentDetails withdrawReturn(String returnShipmentId);
+
+    ShipmentDetails rescheduleReturnPickup(String returnShipmentId, ShipmentAddress pickupAddress);
+
     /**
      * 택배사 집하 전 배송을 없앤다 (PD-0025-R5). 체크아웃 보상이 부른다 (PD-0017-R7).
      */
