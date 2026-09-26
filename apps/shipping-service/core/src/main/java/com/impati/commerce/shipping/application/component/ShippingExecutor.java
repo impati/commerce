@@ -142,13 +142,16 @@ public class ShippingExecutor implements ShippingUseCase, CarrierOperationRecove
         if (current.kind() != ShipmentKind.RETURN) {
             throw DomainException.conflict("shipment is not a return pickup");
         }
+        var address = ShipmentMapper.toAddress(pickupAddress);
+        if (current.status() == ShipmentStatus.AWAITING_PICKUP && current.address().equals(address)) {
+            return ShipmentMapper.toDetails(current);
+        }
         if (current.status() == ShipmentStatus.AWAITING_PICKUP || current.status() == ShipmentStatus.READY) {
             current = getShipment(cancel(returnShipmentId).id());
             if (current.status() != ShipmentStatus.CANCELLED) {
                 throw DomainException.unavailable("return pickup cancellation is not settled");
             }
         }
-        var address = ShipmentMapper.toAddress(pickupAddress);
         var operationKey = transactions.required(() -> {
             var shipment = getShipmentForUpdate(returnShipmentId);
             shipment.requestPickup(address);
@@ -244,6 +247,11 @@ public class ShippingExecutor implements ShippingUseCase, CarrierOperationRecove
         if (decision == EventDecision.APPLIED) {
             shipmentEventRepository.save(ShipmentEvent.occurred(
                     eventType(shipment, command.type()), shipment, command.occurredAt()));
+        } else if (decision == EventDecision.CONFLICT && shipment.kind() == ShipmentKind.RETURN) {
+            // 취소 확정 뒤 집하처럼 자동으로 어느 사실을 택할 수 없는 경우를 Order의
+            // 내구 사가와 운영 알림까지 전달한다. 동일 carrier event는 위에서 중복 제거된다.
+            shipmentEventRepository.save(ShipmentEvent.occurred(
+                    "RETURN_CONFLICT", shipment, command.occurredAt()));
         }
         shipmentRepository.completeCarrierEvent(command.eventId(), decision.name(), shipment.status().name());
         if (decision == EventDecision.CONFLICT) {

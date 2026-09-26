@@ -83,6 +83,18 @@ public class OrderEventConsumer {
                 case "ORDER_CANCELLED" -> Optional.of(new Wording("OrderCancelled",
                         "Order cancellation completed",
                         "Order " + message.orderId() + " was cancelled and refunded."));
+                case "RETURN_ACCEPTED" -> Optional.of(new Wording("ReturnAccepted",
+                        "Return accepted",
+                        "Return for order " + message.orderId() + " was accepted."));
+                case "RETURN_REFUND_STARTED" -> Optional.of(new Wording("ReturnRefundStarted",
+                        "Return picked up and refund started",
+                        "Refund for order " + message.orderId() + " has started."));
+                case "RETURN_COMPLETED" -> Optional.of(new Wording("ReturnCompleted",
+                        "Return completed",
+                        "Return for order " + message.orderId() + " was completed."));
+                case "RETURN_ATTENTION_REQUIRED" -> Optional.of(new Wording("ReturnAttentionRequired",
+                        "Return needs confirmation",
+                        "Return for order " + message.orderId() + " needs operational confirmation."));
                 // 주문 접수는 아직 알리지 않는다.
                 //
                 // 모르는 종류도 여기로 온다. 발행자가 새 사건을 추가하는 것이 소비자를 깨뜨리면

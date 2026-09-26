@@ -12,6 +12,8 @@ import com.impati.commerce.order.domain.OrderModels.OrderStatus;
 import com.impati.commerce.order.domain.PriceBreakdown;
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -144,6 +146,18 @@ public class JdbcOrderRepository implements OrderRepository, OrderWriter {
             params.addValue("cursor_created_at", cursor.createdAt()).addValue("cursor_id", cursor.orderId());
         }
         return restore(jdbc.query(sql + PAGE_ORDER, params, ORDER_ROW_MAPPER));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<OffsetDateTime> deliveredAt(String orderId) {
+        return jdbc.query("""
+                select occurred_at from order_events
+                 where order_id = :order_id and type = 'ORDER_DELIVERED'
+                 order by seq desc limit 1
+                """, new MapSqlParameterSource("order_id", orderId),
+                (rs, rowNum) -> rs.getObject("occurred_at", LocalDateTime.class).atOffset(ZoneOffset.UTC))
+                .stream().findFirst();
     }
 
     /** 목록에서도 주문당 추가 SELECT를 하지 않고 라인을 한 번에 읽는다. 빈 IN 절은 만들지 않는다. */

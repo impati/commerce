@@ -358,8 +358,10 @@ class ShippingExecutorTest {
                 "adr_changed", "office", "반품인", "010-3333-4444", "서울 새주소 2", "서울", "04321", false);
 
         var rescheduled = shippingUseCase.rescheduleReturnPickup(shipment.id(), changed);
+        var replay = shippingUseCase.rescheduleReturnPickup(shipment.id(), changed);
 
         assertThat(rescheduled.status()).isEqualTo("AWAITING_PICKUP");
+        assertThat(replay).isEqualTo(rescheduled);
         assertThat(rescheduled.address()).isEqualTo(changed);
         assertThat(carrier.pickupCalls.get()).isEqualTo(2);
         assertThat(rescheduled.trackingNumber()).isNotEqualTo(shipment.trackingNumber());
@@ -373,6 +375,17 @@ class ShippingExecutorTest {
 
         assertThat(withdrawn.status()).isEqualTo("CANCELLED");
         assertThat(carrier.pickupCancellationCalls.get()).isEqualTo(1);
+    }
+
+    @Test
+    void pickupAfterConfirmedWithdrawalPublishesOperationalConflict() {
+        var shipment = returnShipment("ret_w_conflict");
+        shippingUseCase.withdrawReturn(shipment.id());
+
+        assertThat(event(shipment, "late-pickup", "PICKED_UP", time(1)).result())
+                .isEqualTo("CONFLICT");
+        assertThat(jdbc.queryForObject("select count(*) from shipment_events where shipment_id = ? "
+                + "and type = 'RETURN_CONFLICT'", Integer.class, shipment.id())).isEqualTo(1);
     }
 
     @Test

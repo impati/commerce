@@ -2,6 +2,8 @@ package com.impati.commerce.order.application.port.out;
 
 import com.impati.commerce.common.ApiContracts.CreateShipmentRequest;
 import com.impati.commerce.common.ApiContracts.ShipmentResponse;
+import com.impati.commerce.common.ApiContracts.ReturnShipmentResponse;
+import com.impati.commerce.common.ApiContracts.AddressResponse;
 import java.util.Optional;
 
 /** shipping-service 호출 포트. 구현은 {@code adapter/out/client}에 둔다. */
@@ -12,4 +14,13 @@ public interface ShippingClient {
     ShipmentResponse cancelShipment(String shipmentId);
 
     Optional<ShipmentResponse> shipmentForOrder(String orderId);
+
+    ReturnShipmentResponse createReturnShipment(
+            String returnId, String orderId, String memberId, AddressResponse pickupAddress);
+
+    Optional<ReturnShipmentResponse> returnShipment(String returnId);
+
+    ReturnShipmentResponse withdrawReturn(String returnShipmentId);
+
+    ReturnShipmentResponse rescheduleReturn(String returnShipmentId, AddressResponse pickupAddress);
 }

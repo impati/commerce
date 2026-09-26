@@ -2,6 +2,9 @@ package com.impati.commerce.order.adapter.out.client;
 
 import com.impati.commerce.common.ApiContracts.AuthorizePaymentRequest;
 import com.impati.commerce.common.ApiContracts.PaymentResponse;
+import com.impati.commerce.common.ApiContracts.RefundPaymentRequest;
+import com.impati.commerce.common.ApiContracts.RefundPaymentResponse;
+import com.impati.commerce.common.ApiContracts.Money;
 import com.impati.commerce.common.DomainException;
 import com.impati.commerce.http.ServiceCallExecutor;
 import com.impati.commerce.order.application.port.out.PaymentClient;
@@ -55,6 +58,21 @@ public class HttpPaymentClient implements PaymentClient {
     @Override
     public PaymentResponse refundPayment(String paymentId) {
         return post(paymentId, "refund");
+    }
+
+    @Override
+    public RefundPaymentResponse refundReturn(String paymentId, String returnId, Money amount) {
+        return calls.command("return refund", () -> restClient.post()
+                .uri("/internal/payments/{paymentId}/refunds", paymentId)
+                .body(new RefundPaymentRequest(returnId, amount)).retrieve()
+                .body(RefundPaymentResponse.class));
+    }
+
+    @Override
+    public Optional<RefundPaymentResponse> returnRefund(String returnId) {
+        return calls.optionalQuery("return refund lookup", () -> restClient.get()
+                .uri("/internal/payments/refunds/{returnId}", returnId).retrieve()
+                .body(RefundPaymentResponse.class));
     }
 
     /**

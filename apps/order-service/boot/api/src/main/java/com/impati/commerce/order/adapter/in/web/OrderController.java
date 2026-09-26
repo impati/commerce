@@ -6,10 +6,14 @@ import com.impati.commerce.common.ApiContracts.OrderDetailResponse;
 import com.impati.commerce.common.ApiContracts.OrderPageResponse;
 import com.impati.commerce.common.ApiContracts.OrderResponse;
 import com.impati.commerce.common.ApiContracts.OrderCancellationResponse;
+import com.impati.commerce.common.ApiContracts.RequestOrderReturn;
+import com.impati.commerce.common.ApiContracts.RescheduleReturnPickupRequest;
+import com.impati.commerce.common.ApiContracts.OrderReturnResponse;
 import com.impati.commerce.order.application.port.in.OrderCancellationUseCase;
 import com.impati.commerce.order.application.model.OrderQueryKey;
 import com.impati.commerce.order.application.port.in.OrderHistoryUseCase;
 import com.impati.commerce.order.application.port.in.OrderUseCase;
+import com.impati.commerce.order.application.port.in.OrderReturnUseCase;
 import com.impati.commerce.order.domain.IdempotencyKey;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -34,12 +38,40 @@ public class OrderController {
     private final OrderUseCase orderUseCase;
     private final OrderHistoryUseCase orderHistoryUseCase;
     private final OrderCancellationUseCase orderCancellationUseCase;
+    private final OrderReturnUseCase orderReturnUseCase;
 
     public OrderController(OrderUseCase orderUseCase, OrderHistoryUseCase orderHistoryUseCase,
-            OrderCancellationUseCase orderCancellationUseCase) {
+            OrderCancellationUseCase orderCancellationUseCase, OrderReturnUseCase orderReturnUseCase) {
         this.orderUseCase = orderUseCase;
         this.orderHistoryUseCase = orderHistoryUseCase;
         this.orderCancellationUseCase = orderCancellationUseCase;
+        this.orderReturnUseCase = orderReturnUseCase;
+    }
+
+    @PostMapping("/orders/{orderId}/returns")
+    ResponseEntity<OrderReturnResponse> requestReturn(@RequestHeader("X-Member-Id") String memberId,
+            @PathVariable String orderId, @RequestBody RequestOrderReturn request) {
+        var result = orderReturnUseCase.request(memberId, orderId, request.reason(), request.description(),
+                request.awareDate(), OrderReturnResponseMapper.toAddress(request.pickupAddress()));
+        return ResponseEntity.accepted().body(OrderReturnResponseMapper.from(result));
+    }
+
+    @GetMapping("/orders/{orderId}/return")
+    OrderReturnResponse getReturn(@RequestHeader("X-Member-Id") String memberId, @PathVariable String orderId) {
+        return OrderReturnResponseMapper.from(orderReturnUseCase.getOwned(memberId, orderId));
+    }
+
+    @PostMapping("/orders/{orderId}/return/withdrawal")
+    ResponseEntity<OrderReturnResponse> withdrawReturn(@RequestHeader("X-Member-Id") String memberId,
+            @PathVariable String orderId) {
+        return ResponseEntity.accepted().body(OrderReturnResponseMapper.from(orderReturnUseCase.withdraw(memberId, orderId)));
+    }
+
+    @PostMapping("/orders/{orderId}/return/reschedule")
+    ResponseEntity<OrderReturnResponse> rescheduleReturn(@RequestHeader("X-Member-Id") String memberId,
+            @PathVariable String orderId, @RequestBody RescheduleReturnPickupRequest request) {
+        return ResponseEntity.accepted().body(OrderReturnResponseMapper.from(orderReturnUseCase.reschedule(
+                memberId, orderId, OrderReturnResponseMapper.toAddress(request.pickupAddress()))));
     }
 
     @PostMapping("/checkouts/confirmed")

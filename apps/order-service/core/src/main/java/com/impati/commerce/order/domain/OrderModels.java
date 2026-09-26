@@ -23,6 +23,7 @@ public final class OrderModels {
         PAID,
         FULFILLING,
         DELIVERED,
+        RETURNED,
         CANCELLED
     }
 
@@ -48,6 +49,10 @@ public final class OrderModels {
         SHIPMENT_RETURNED,
         ORDER_DELIVERED,
         ORDER_CANCELLATION_REQUESTED,
+        RETURN_ACCEPTED,
+        RETURN_REFUND_STARTED,
+        RETURN_COMPLETED,
+        RETURN_ATTENTION_REQUIRED,
         CHECKOUT_FAILED,
         ORDER_CANCELLED
     }
@@ -581,6 +586,27 @@ public final class OrderModels {
             ensureCustomerCancellationMayStart();
             status = OrderStatus.CANCELLED;
             record(OrderEventType.ORDER_CANCELLED, Map.of("reason", "CUSTOMER_REQUESTED"));
+        }
+
+        public void recordReturnAccepted(String returnId, String reason) {
+            record(OrderEventType.RETURN_ACCEPTED, Map.of("returnId", returnId, "reason", reason));
+        }
+
+        public void recordReturnRefundStarted(String returnId) {
+            record(OrderEventType.RETURN_REFUND_STARTED, Map.of("returnId", returnId));
+        }
+
+        public void completeReturn(String returnId) {
+            if (status == OrderStatus.RETURNED) return;
+            if (status != OrderStatus.DELIVERED && status != OrderStatus.FULFILLING) {
+                throw DomainException.conflict("order cannot complete a return from current status");
+            }
+            status = OrderStatus.RETURNED;
+            record(OrderEventType.RETURN_COMPLETED, Map.of("returnId", returnId));
+        }
+
+        public void recordReturnAttention(String returnId) {
+            record(OrderEventType.RETURN_ATTENTION_REQUIRED, Map.of("returnId", returnId));
         }
 
         private void record(OrderEventType type, Map<String, String> payload) {

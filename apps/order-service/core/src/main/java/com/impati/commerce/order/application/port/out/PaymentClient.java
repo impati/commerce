@@ -2,6 +2,8 @@ package com.impati.commerce.order.application.port.out;
 
 import com.impati.commerce.common.ApiContracts.AuthorizePaymentRequest;
 import com.impati.commerce.common.ApiContracts.PaymentResponse;
+import com.impati.commerce.common.ApiContracts.RefundPaymentResponse;
+import com.impati.commerce.common.ApiContracts.Money;
 import java.util.Optional;
 
 /**
@@ -28,6 +30,10 @@ public interface PaymentClient {
      * 확인하지 못한 채 되돌린 주문을 정리할 때만 쓴다 (PD-0017-R6).
      */
     PaymentResponse refundPayment(String paymentId);
+
+    RefundPaymentResponse refundReturn(String paymentId, String returnId, Money amount);
+
+    Optional<RefundPaymentResponse> returnRefund(String returnId);
 
     /**
      * 결제의 현재 상태를 묻는다 (PD-0011-R9).

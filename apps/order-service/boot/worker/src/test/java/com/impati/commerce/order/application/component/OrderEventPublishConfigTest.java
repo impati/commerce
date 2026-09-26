@@ -17,8 +17,8 @@ import static org.mockito.Mockito.mock;
  * 두 번 나간다. 오타 하나로 그렇게 되느니 기동에 실패하는 편이 낫다.
  */
 class OrderEventPublishConfigTest {
-    /** 출하되는 값. 주문 3 × 사건 12 × (max-block 5초 + send 17초) = 792초를 덮는다. */
-    private static final Duration VALID_DELAY = Duration.ofSeconds(800);
+    /** 출하되는 값. 주문 3 × 사건 16 × (max-block 5초 + send 17초) = 1,056초를 덮는다. */
+    private static final Duration VALID_DELAY = Duration.ofSeconds(1100);
 
     /** 발행 타임아웃의 출하 기본값. */
     private static final Duration SEND_TIMEOUT = Duration.ofSeconds(17);
@@ -63,7 +63,7 @@ class OrderEventPublishConfigTest {
                 .hasMessageContaining("cover the whole batch");
     }
 
-    /** 기본값은 이 관계를 만족한다. 주문 3 × 사건 12 × 22초 = 792초 ≤ 800초. */
+    /** 기본값은 이 관계를 만족한다. 주문 3 × 사건 16 × 22초 = 1,056초 ≤ 1,100초. */
     @Test
     void acceptsTheShippedDefaults() {
         assertThatCode(() -> executor(3, VALID_DELAY, 5)).doesNotThrowAnyException();

@@ -2,6 +2,10 @@ package com.impati.commerce.order.adapter.out.client;
 
 import com.impati.commerce.common.ApiContracts.CreateShipmentRequest;
 import com.impati.commerce.common.ApiContracts.ShipmentResponse;
+import com.impati.commerce.common.ApiContracts.ReturnShipmentResponse;
+import com.impati.commerce.common.ApiContracts.CreateReturnShipmentRequest;
+import com.impati.commerce.common.ApiContracts.RescheduleReturnPickupRequest;
+import com.impati.commerce.common.ApiContracts.AddressResponse;
 import com.impati.commerce.common.DomainException;
 import com.impati.commerce.http.DownstreamError;
 import com.impati.commerce.http.ServiceCallExecutor;
@@ -43,6 +47,36 @@ public class HttpShippingClient implements ShippingClient {
                 .uri("/internal/shipments/orders/{orderId}", orderId)
                 .retrieve()
                 .body(ShipmentResponse.class));
+    }
+
+    @Override
+    public ReturnShipmentResponse createReturnShipment(
+            String returnId, String orderId, String memberId, AddressResponse pickupAddress) {
+        return calls.command("return pickup creation", () -> restClient.post().uri("/internal/shipments/returns")
+                .body(new CreateReturnShipmentRequest(returnId, orderId, memberId, pickupAddress))
+                .retrieve().body(ReturnShipmentResponse.class), HttpShippingClient::translateConflict);
+    }
+
+    @Override
+    public Optional<ReturnShipmentResponse> returnShipment(String returnId) {
+        return calls.optionalQuery("return pickup lookup", () -> restClient.get()
+                .uri("/internal/shipments/returns/{returnId}", returnId).retrieve()
+                .body(ReturnShipmentResponse.class));
+    }
+
+    @Override
+    public ReturnShipmentResponse withdrawReturn(String returnShipmentId) {
+        return calls.command("return pickup withdrawal", () -> restClient.post()
+                .uri("/internal/shipments/returns/{id}/withdraw", returnShipmentId).retrieve()
+                .body(ReturnShipmentResponse.class), HttpShippingClient::translateConflict);
+    }
+
+    @Override
+    public ReturnShipmentResponse rescheduleReturn(String returnShipmentId, AddressResponse pickupAddress) {
+        return calls.command("return pickup reschedule", () -> restClient.post()
+                .uri("/internal/shipments/returns/{id}/reschedule", returnShipmentId)
+                .body(new RescheduleReturnPickupRequest(pickupAddress)).retrieve()
+                .body(ReturnShipmentResponse.class), HttpShippingClient::translateConflict);
     }
 
     private static void translateConflict(DownstreamError error) {

@@ -141,6 +141,21 @@ class OrderEventConsumerTest {
                 assertThat(notificationsOf("mem_failed")).containsExactly("Purchase failed"));
     }
 
+    /** [PD-0027-R12] 접수·환불 시작·완료·운영 확인은 각각 독립된 고객 알림이다. */
+    @Test
+    void notifiesEachObservableReturnStage() {
+        var memberId = "mem_return_notifications";
+        send(new OrderEventMessage("evt_return_accepted", "RETURN_ACCEPTED", "ord_return", memberId, Map.of()));
+        send(new OrderEventMessage("evt_return_refund", "RETURN_REFUND_STARTED", "ord_return", memberId, Map.of()));
+        send(new OrderEventMessage("evt_return_attention", "RETURN_ATTENTION_REQUIRED", "ord_return", memberId, Map.of()));
+        send(new OrderEventMessage("evt_return_completed", "RETURN_COMPLETED", "ord_return", memberId, Map.of()));
+
+        await().atMost(Duration.ofSeconds(20)).untilAsserted(() ->
+                assertThat(notificationsOf(memberId)).containsExactlyInAnyOrder(
+                        "Return accepted", "Return picked up and refund started",
+                        "Return needs confirmation", "Return completed"));
+    }
+
     /**
      * 처리에 실패하면 오프셋이 올라가지 않고 같은 레코드가 다시 온다.
      *

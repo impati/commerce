@@ -14,17 +14,24 @@ public class ShipmentEventConsumer {
     private final OrderRepository orders;
     private final OrderChanges orderChanges;
     private final ShipmentEventInbox inbox;
+    private final ReturnShipmentEventHandler returnEvents;
 
-    public ShipmentEventConsumer(OrderRepository orders, OrderChanges orderChanges, ShipmentEventInbox inbox) {
+    public ShipmentEventConsumer(OrderRepository orders, OrderChanges orderChanges, ShipmentEventInbox inbox,
+            ReturnShipmentEventHandler returnEvents) {
         this.orders = orders;
         this.orderChanges = orderChanges;
         this.inbox = inbox;
+        this.returnEvents = returnEvents;
     }
 
     @KafkaListener(topics = "${commerce.kafka.shipment-events-topic}")
     @Transactional
     public void consume(ShipmentEventMessage message) {
         if (!inbox.recordIfAbsent(message.eventId())) return;
+        if ("RETURN".equals(message.payload().get("shipmentKind"))) {
+            returnEvents.handle(message);
+            return;
+        }
         var order = orders.findById(message.orderId())
                 .orElseThrow(() -> DomainException.notFound("order not found for shipment event"));
         if (!order.memberId().equals(message.memberId())) {
@@ -32,5 +39,8 @@ public class ShipmentEventConsumer {
         }
         order.applyShipmentEvent(message.type(), message.shipmentId(), message.payload(), message.occurredAt());
         orderChanges.commit(order);
+        if ("SHIPMENT_RETURNED".equals(message.type())) {
+            returnEvents.handleFailedDelivery(message);
+        }
     }
 }

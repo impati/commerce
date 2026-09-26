@@ -5,6 +5,8 @@ import com.impati.commerce.common.ApiContracts.ShipmentEventMessage;
 import com.impati.commerce.order.application.component.OrderChanges;
 import com.impati.commerce.order.application.port.out.OrderEventRepository;
 import com.impati.commerce.order.application.port.out.OrderRepository;
+import com.impati.commerce.order.application.port.out.ReturnProgressRepository;
+import com.impati.commerce.order.domain.ReturnProgress;
 import com.impati.commerce.order.domain.OrderModels.Address;
 import com.impati.commerce.order.domain.OrderModels.Order;
 import com.impati.commerce.order.domain.OrderModels.OrderEventType;
@@ -28,6 +30,7 @@ class ShipmentEventConsumerTest {
     @Autowired OrderChanges orderChanges;
     @Autowired OrderRepository orders;
     @Autowired OrderEventRepository events;
+    @Autowired ReturnProgressRepository returns;
 
     @Test
     void appliesEachShipmentEventExactlyOnce() {
@@ -49,5 +52,55 @@ class ShipmentEventConsumerTest {
         assertThat(orders.findById(order.id()).orElseThrow().status()).isEqualTo(OrderStatus.DELIVERED);
         assertThat(events.findByOrderIdAndMemberId(order.id(), order.memberId()).stream()
                 .filter(event -> event.type() == OrderEventType.ORDER_DELIVERED)).hasSize(1);
+    }
+
+    @Test
+    void returnPickupStartsRefundExactlyOnce() {
+        var id = UUID.randomUUID().toString().replace("-", "");
+        var address = new Address("addr", "home", "고객", "010", "서울", "서울", "12345", true);
+        var order = new Order("mem_" + id,
+                List.of(new OrderLine("sku", "prd", "상품", "옵션", 1, Money.krw(10_000))), address);
+        order.attachReservation("rsv_" + id);
+        order.attachPayment("pay_" + id);
+        order.markPaid();
+        order.attachShipment("shp_" + id, null);
+        order.markDelivered();
+        orderChanges.commit(order);
+        var progress = new ReturnProgress(order.id(), order.memberId(), "CHANGE_OF_MIND", null, null,
+                Money.krw(10_000), address, OffsetDateTime.parse("2026-09-24T00:00:00Z"));
+        progress.pickupScheduled("rsh_" + id);
+        assertThat(returns.insertIfAbsent(progress)).isTrue();
+        var message = new ShipmentEventMessage("sev_ret_" + id, "RETURN_PICKED_UP", "rsh_" + id,
+                order.id(), order.memberId(), OffsetDateTime.parse("2026-09-24T03:00:00Z"),
+                Map.of("shipmentKind", "RETURN", "returnId", progress.id(), "shipmentStatus", "IN_TRANSIT"));
+
+        consumer.consume(message);
+        consumer.consume(message);
+
+        assertThat(returns.findById(progress.id()).orElseThrow().refundStatus())
+                .isEqualTo(ReturnProgress.WorkStatus.PENDING);
+        assertThat(events.findByOrderIdAndMemberId(order.id(), order.memberId()).stream()
+                .filter(event -> event.type() == OrderEventType.RETURN_REFUND_STARTED)).hasSize(1);
+    }
+
+    @Test
+    void failedDeliveryReturnAtSellerStartsAutomaticFullRefund() {
+        var id = UUID.randomUUID().toString().replace("-", "");
+        var address = new Address("addr", "home", "고객", "010", "서울", "서울", "12345", true);
+        var order = new Order("mem_" + id,
+                List.of(new OrderLine("sku", "prd", "상품", "옵션", 1, Money.krw(10_000))), address);
+        order.attachReservation("rsv_" + id); order.attachPayment("pay_" + id); order.markPaid();
+        order.attachShipment("shp_" + id, null); orderChanges.commit(order);
+        var message = new ShipmentEventMessage("sev_auto_" + id, "SHIPMENT_RETURNED", "shp_" + id,
+                order.id(), order.memberId(), OffsetDateTime.parse("2026-09-24T03:00:00Z"),
+                Map.of("shipmentKind", "OUTBOUND", "shipmentStatus", "RETURNED"));
+
+        consumer.consume(message);
+
+        var progress = returns.findByOrderId(order.id()).orElseThrow();
+        assertThat(progress.reason()).isEqualTo("FAILED_DELIVERY");
+        assertThat(progress.status()).isEqualTo(ReturnProgress.Status.RECEIVED);
+        assertThat(progress.refundAmount()).isEqualTo(order.total());
+        assertThat(progress.refundStatus()).isEqualTo(ReturnProgress.WorkStatus.PENDING);
     }
 }

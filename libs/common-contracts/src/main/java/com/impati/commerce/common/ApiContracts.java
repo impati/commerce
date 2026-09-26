@@ -7,6 +7,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.time.OffsetDateTime;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -318,6 +319,31 @@ public final class ApiContracts {
     ) { }
 
     public record RescheduleReturnPickupRequest(AddressResponse pickupAddress) { }
+
+    public record RequestOrderReturn(
+            String reason,
+            String description,
+            LocalDate awareDate,
+            AddressResponse pickupAddress
+    ) { }
+
+    public record InspectOrderReturn(String disposition, String condition) { }
+
+    public record OrderReturnResponse(
+            String id,
+            String orderId,
+            String reason,
+            String description,
+            Money refundAmount,
+            String status,
+            String refundStatus,
+            String inventoryStatus,
+            String returnShipmentId,
+            AddressResponse pickupAddress,
+            OffsetDateTime createdAt,
+            OffsetDateTime receivedAt,
+            OffsetDateTime inspectionDueAt
+    ) { }
 
     /** API Gateway가 택배사 고유 표현을 제거한 뒤 Shipping에 전달하는 사건. */
     public record CarrierEventRequest(

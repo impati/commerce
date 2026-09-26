@@ -2,6 +2,8 @@ package com.impati.commerce.order.adapter.out.client;
 
 import com.impati.commerce.common.ApiContracts.ReservationResponse;
 import com.impati.commerce.common.ApiContracts.ReserveInventoryRequest;
+import com.impati.commerce.common.ApiContracts.ProcessReturnInventoryRequest;
+import com.impati.commerce.common.ApiContracts.ReturnInventoryResponse;
 import com.impati.commerce.common.DomainException;
 import com.impati.commerce.http.ServiceCallExecutor;
 import com.impati.commerce.order.application.port.out.InventoryClient;
@@ -53,6 +55,22 @@ public class HttpInventoryClient implements InventoryClient {
                 .uri("/internal/reservations/orders/{orderId}", orderId)
                 .retrieve()
                 .body(ReservationResponse.class));
+    }
+
+    @Override
+    public ReturnInventoryResponse processReturn(String reservationId, String returnId, String memberId,
+            String disposition, String condition) {
+        return calls.command("return inventory processing", () -> restClient.post()
+                .uri("/internal/reservations/{reservationId}/returns", reservationId)
+                .body(new ProcessReturnInventoryRequest(returnId, memberId, disposition, condition))
+                .retrieve().body(ReturnInventoryResponse.class));
+    }
+
+    @Override
+    public Optional<ReturnInventoryResponse> returnInventory(String returnId) {
+        return calls.optionalQuery("return inventory lookup", () -> restClient.get()
+                .uri("/internal/returns/{returnId}", returnId).retrieve()
+                .body(ReturnInventoryResponse.class));
     }
 
     private void mutate(String reservationId, String action) {

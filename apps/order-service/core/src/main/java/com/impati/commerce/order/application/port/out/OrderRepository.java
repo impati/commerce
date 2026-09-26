@@ -4,6 +4,7 @@ import com.impati.commerce.order.domain.OrderModels.Order;
 import com.impati.commerce.order.application.model.OrderCursor;
 import java.util.List;
 import java.util.Optional;
+import java.time.OffsetDateTime;
 
 /**
  * 주문 조회 포트. 구현은 {@code adapter/out/persistence}에 둔다.
@@ -22,4 +23,6 @@ public interface OrderRepository {
     Optional<Order> findByIdAndMemberId(String orderId, String memberId);
 
     List<Order> findBy(String memberId, OrderCursor cursor, int size);
+
+    Optional<OffsetDateTime> deliveredAt(String orderId);
 }
