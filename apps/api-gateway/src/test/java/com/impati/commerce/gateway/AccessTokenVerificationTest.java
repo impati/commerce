@@ -133,6 +133,37 @@ class AccessTokenVerificationTest {
                 .andExpect(status().isUnauthorized());
         mockMvc.perform(post("/orders/ord_known/cancellation").header("X-Member-Id", "mem_forged"))
                 .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/orders/ord_known/return").header("X-Member-Id", "mem_forged"))
+                .andExpect(status().isUnauthorized());
+        restClientCustomizer.getServer().verify();
+    }
+
+    /** [PD-0027-R1][PD-0027-R11] 반품 요청도 토큰 소유자의 신원과 정책 입력만 주문 서비스에 전달한다. */
+    @Test
+    void forwardsOrderReturnWithAuthenticatedMemberOnly() throws Exception {
+        var request = """
+                {"reason":"CHANGE_OF_MIND","description":null,"awareDate":null,
+                 "pickupAddress":{"recipient":"Owner","phone":"010","line1":"Road","city":"Seoul","postalCode":"12345"}}
+                """;
+        restClientCustomizer.getServer()
+                .expect(requestTo("http://localhost:8108/orders/ord_owned/returns"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Member-Id", "mem_local"))
+                .andExpect(content().json(request))
+                .andRespond(withStatus(HttpStatus.ACCEPTED).contentType(MediaType.APPLICATION_JSON).body("""
+                        {"id":"ret_owned","orderId":"ord_owned","reason":"CHANGE_OF_MIND",
+                         "refundAmount":{"amount":10000,"currency":"KRW"},"status":"REQUESTED",
+                         "refundStatus":"NOT_READY","inventoryStatus":"NOT_READY",
+                         "pickupAddress":{"recipient":"Owner","phone":"010","line1":"Road","city":"Seoul","postalCode":"12345"},
+                         "createdAt":"2026-09-26T00:00:00Z"}
+                        """));
+
+        mockMvc.perform(post("/orders/ord_owned/returns")
+                        .header("Authorization", bearer(token("mem_local", Duration.ofMinutes(5))))
+                        .header("X-Member-Id", "mem_forged")
+                        .contentType(MediaType.APPLICATION_JSON).content(request))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.id").value("ret_owned"));
         restClientCustomizer.getServer().verify();
     }
 

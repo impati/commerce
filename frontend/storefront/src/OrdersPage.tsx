@@ -5,7 +5,7 @@ import { session } from './session';
 import { formatMoney } from './format';
 import { orderDate, orderStatusText, timelineText } from './orderPresentation';
 import { PriceBreakdownView } from './PriceBreakdownView';
-import type { Member, OrderCustomerState, OrderDetail, OrderSummary } from './types';
+import type { Member, OrderCustomerState, OrderDetail, OrderReturn, OrderSummary, ReturnPickupAddress, ReturnReason } from './types';
 
 export function OrdersPage() {
   const { orderId } = useParams();
@@ -246,10 +246,159 @@ function DetailView({ detail, onCancel, cancellationBusy }: {
       <dt>택배사</dt><dd>{detail.carrierName ?? '아직 접수되지 않았습니다'}</dd>
       <dt>운송장</dt><dd>{detail.trackingNumber ?? '아직 발급되지 않았습니다'}</dd>
     </dl></section>
+    {(detail.orderStatus === 'DELIVERED' || detail.orderStatus === 'RETURNED'
+      || detail.shipmentStatus === 'RETURNED') && <ReturnPanel detail={detail} />}
     <section className="panel"><h2>진행 이력</h2>{detail.timeline.length === 0 ? <p>아직 기록된 진행 이력이 없습니다.</p> :
       <ol className="order-event-list">{detail.timeline.map((event, index) => <li key={`${event.type}-${index}`}>
         <strong>{timelineText(event.type)}</strong><time dateTime={event.occurredAt}>{orderDate(event.occurredAt)}</time>
       </li>)}</ol>}</section>
+  </div>;
+}
+
+const returnReasonText: Record<string, string> = {
+  CHANGE_OF_MIND: '단순 변심', DEFECT_DAMAGE: '상품 하자·파손', WRONG_ITEM: '오배송·계약 내용 불일치',
+  FAILED_DELIVERY: '배송 실패 후 판매자 반송'
+};
+
+const returnStatusText: Record<OrderReturn['status'], string> = {
+  REQUESTED: '회수 접수 중', PICKUP_SCHEDULED: '회수 예정', PICKUP_FAILED: '회수 실패',
+  RESCHEDULE_PENDING: '회수 재접수 중', WITHDRAWAL_PENDING: '철회 처리 중', IN_TRANSIT: '반품 운송 중',
+  RECEIVED: '판매자 입고·검수 중', COMPLETED: '반품·환불 완료', WITHDRAWN: '반품 철회',
+  ATTENTION_REQUIRED: '담당자 확인 중'
+};
+
+function ReturnPanel({ detail }: { detail: OrderDetail }) {
+  const [current, setCurrent] = useState<OrderReturn | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [reason, setReason] = useState<ReturnReason>('CHANGE_OF_MIND');
+  const [description, setDescription] = useState('');
+  const [awareDate, setAwareDate] = useState('');
+  const [pickup, setPickup] = useState<ReturnPickupAddress>({ ...detail.shippingAddress });
+
+  useEffect(() => {
+    let stopped = false;
+    async function load() {
+      try {
+        const result = await api.orderReturn(detail.id);
+        if (!stopped) { setCurrent(result); setPickup(result.pickupAddress); setError(''); }
+      } catch (problem) {
+        if (!stopped && problem instanceof ApiError && problem.status === 404) setCurrent(null);
+        else if (!stopped) setError('반품 상태를 불러오지 못했습니다.');
+      } finally { if (!stopped) setLoading(false); }
+    }
+    load();
+    return () => { stopped = true; };
+  }, [detail.id]);
+
+  useEffect(() => {
+    if (!current || ['COMPLETED', 'WITHDRAWN'].includes(current.status)) return;
+    let stopped = false;
+    let timer: number;
+    async function update() {
+      try {
+        const result = await api.orderReturn(detail.id);
+        if (!stopped) { setCurrent(result); setPickup(result.pickupAddress); setError(''); }
+        if (!stopped && !['COMPLETED', 'WITHDRAWN'].includes(result.status)) {
+          timer = window.setTimeout(update, 10_000);
+        }
+      } catch {
+        if (!stopped) {
+          setError('최신 반품 상태를 확인하지 못했습니다.');
+          timer = window.setTimeout(update, 10_000);
+        }
+      }
+    }
+    timer = window.setTimeout(update, 10_000);
+    return () => { stopped = true; window.clearTimeout(timer); };
+  }, [detail.id, current?.status]);
+
+  function changePickup(field: keyof ReturnPickupAddress, value: string) {
+    setPickup(previous => ({ ...previous, [field]: value }));
+  }
+
+  async function requestReturn(event: FormEvent) {
+    event.preventDefault();
+    if (busy) return;
+    setBusy(true); setError('');
+    try {
+      setCurrent(await api.requestReturn(detail.id, reason, description,
+        reason === 'CHANGE_OF_MIND' ? null : awareDate, pickup));
+    } catch (problem) {
+      if (problem instanceof ApiError && problem.status === 409) setError('반품 신청 기간 또는 현재 주문 상태를 확인해주세요.');
+      else setError('반품을 접수하지 못했습니다. 다시 시도해주세요.');
+    } finally { setBusy(false); }
+  }
+
+  async function withdraw() {
+    if (busy || !window.confirm('회수 전 반품 신청을 철회할까요?')) return;
+    setBusy(true); setError('');
+    try { setCurrent(await api.withdrawReturn(detail.id)); }
+    catch { setError('반품 철회를 접수하지 못했습니다.'); }
+    finally { setBusy(false); }
+  }
+
+  async function reschedule(event: FormEvent) {
+    event.preventDefault();
+    if (busy) return;
+    setBusy(true); setError('');
+    try { setCurrent(await api.rescheduleReturn(detail.id, pickup)); }
+    catch { setError('회수 재접수를 완료하지 못했습니다.'); }
+    finally { setBusy(false); }
+  }
+
+  const canRequest = !current || current.status === 'WITHDRAWN';
+  const canWithdraw = current && ['REQUESTED', 'PICKUP_SCHEDULED', 'PICKUP_FAILED'].includes(current.status);
+  if (loading) return <section className="panel"><h2>반품</h2><p role="status">반품 가능 상태를 확인하고 있습니다.</p></section>;
+
+  return <section className="panel return-panel"><h2>반품</h2>
+    {current && <div className="return-summary">
+      <p><strong>{returnStatusText[current.status]}</strong></p>
+      <dl className="order-address">
+        <dt>사유</dt><dd>{returnReasonText[current.reason] ?? '반품'}</dd>
+        <dt>환불 예정액</dt><dd>{formatMoney(current.refundAmount)}</dd>
+        <dt>회수 주소</dt><dd>{current.pickupAddress.line1}, {current.pickupAddress.city} ({current.pickupAddress.postalCode})</dd>
+      </dl>
+      {current.reason === 'CHANGE_OF_MIND' && detail.priceBreakdown.shippingFee.amount > 0 &&
+        <p className="order-guidance">유료 배송 주문은 최초 배송비 3,000원을 제외한 금액이 환불됩니다.</p>}
+      {canWithdraw && <button type="button" className="secondary-button" onClick={withdraw} disabled={busy}>반품 신청 철회</button>}
+    </div>}
+    {current?.status === 'PICKUP_FAILED' && <form className="auth-form return-form" onSubmit={reschedule}>
+      <h3>회수 다시 신청</h3><PickupFields value={pickup} onChange={changePickup} />
+      <button className="secondary-button" disabled={busy}>{busy ? '접수 중…' : '이 주소로 회수 재접수'}</button>
+    </form>}
+    {canRequest && detail.orderStatus === 'DELIVERED' && <form className="auth-form return-form" onSubmit={requestReturn}>
+      {current?.status === 'WITHDRAWN' && <p className="order-guidance">철회한 신청과 별개로 신청 기간 안에는 다시 접수할 수 있습니다.</p>}
+      <label>반품 사유<select value={reason} onChange={event => setReason(event.target.value as ReturnReason)}>
+        <option value="CHANGE_OF_MIND">단순 변심</option><option value="DEFECT_DAMAGE">상품 하자·파손</option>
+        <option value="WRONG_ITEM">오배송·계약 내용 불일치</option>
+      </select></label>
+      {reason !== 'CHANGE_OF_MIND' && <label>하자·오배송을 안 날짜<input type="date" required value={awareDate} onChange={event => setAwareDate(event.target.value)} /></label>}
+      <label>상세 설명 (선택)<textarea maxLength={500} value={description} onChange={event => setDescription(event.target.value)} /></label>
+      <fieldset><legend>회수 주소</legend><p>기존 배송지가 기본값이며, 회수 전 다른 주소로 바꿀 수 있습니다.</p>
+        <PickupFields value={pickup} onChange={changePickup} />
+      </fieldset>
+      {reason === 'CHANGE_OF_MIND' && detail.priceBreakdown.shippingFee.amount > 0 &&
+        <p className="order-guidance">유료 배송 주문은 최초 배송비 3,000원을 제외한 금액이 환불됩니다.</p>}
+      {reason === 'CHANGE_OF_MIND' && detail.priceBreakdown.shippingFee.amount === 0 &&
+        <p className="order-guidance">무료 배송 주문은 배송비나 회수비를 차감하지 않고 전액 환불됩니다.</p>}
+      <p className="order-guidance">단순 변심은 배송일로부터 7일 이내 신청할 수 있습니다. 상품 하자·오배송은 배송 후 3개월 이내이면서 안 날부터 30일 이내 신청할 수 있습니다.</p>
+      <button className="secondary-button" disabled={busy}>{busy ? '접수 중…' : '전체 주문 반품 신청'}</button>
+    </form>}
+    {error && <p role="alert" className="order-error">{error}</p>}
+  </section>;
+}
+
+function PickupFields({ value, onChange }: {
+  value: ReturnPickupAddress; onChange: (field: keyof ReturnPickupAddress, value: string) => void;
+}) {
+  return <div className="return-address-fields">
+    <label>수령인<input required value={value.recipient} onChange={event => onChange('recipient', event.target.value)} /></label>
+    <label>연락처<input required value={value.phone} onChange={event => onChange('phone', event.target.value)} /></label>
+    <label>주소<input required value={value.line1} onChange={event => onChange('line1', event.target.value)} /></label>
+    <label>도시<input required value={value.city} onChange={event => onChange('city', event.target.value)} /></label>
+    <label>우편번호<input required value={value.postalCode} onChange={event => onChange('postalCode', event.target.value)} /></label>
   </div>;
 }
 

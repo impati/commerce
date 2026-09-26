@@ -188,6 +188,28 @@ export type OrderCancellation = {
   status: OrderCancellationState;
 };
 
+export type ReturnReason = 'CHANGE_OF_MIND' | 'DEFECT_DAMAGE' | 'WRONG_ITEM';
+
+export type ReturnPickupAddress = Pick<Address, 'recipient' | 'phone' | 'line1' | 'city' | 'postalCode'> &
+  Partial<Pick<Address, 'id' | 'alias' | 'defaultAddress'>>;
+
+export type OrderReturn = {
+  id: string;
+  orderId: string;
+  reason: ReturnReason | 'FAILED_DELIVERY';
+  description: string | null;
+  refundAmount: Money;
+  status: 'REQUESTED' | 'PICKUP_SCHEDULED' | 'PICKUP_FAILED' | 'RESCHEDULE_PENDING' |
+    'WITHDRAWAL_PENDING' | 'IN_TRANSIT' | 'RECEIVED' | 'COMPLETED' | 'WITHDRAWN' | 'ATTENTION_REQUIRED';
+  refundStatus: 'NOT_READY' | 'PENDING' | 'SUCCEEDED';
+  inventoryStatus: 'NOT_READY' | 'PENDING' | 'SUCCEEDED';
+  returnShipmentId: string | null;
+  pickupAddress: ReturnPickupAddress;
+  createdAt: string;
+  receivedAt: string | null;
+  inspectionDueAt: string | null;
+};
+
 export type OrderSummary = {
   id: string;
   orderedAt: string;

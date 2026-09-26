@@ -7,7 +7,7 @@ import { ApiError, UnauthorizedError, api } from './api';
 import { CommerceRoutes } from './CommerceRoutes';
 import { formatMoney } from './format';
 import { orderStatusText, timelineText } from './orderPresentation';
-import type { Member, OrderDetail, OrderSummary } from './types';
+import type { Member, OrderDetail, OrderReturn, OrderSummary } from './types';
 
 const member: Member = { id: 'mem_owner', email: 'owner@example.test', name: 'Owner', status: 'ACTIVE', addressBookVersion: 0, addresses: [] };
 const summary: OrderSummary = { id: 'ord_a', orderedAt: '2026-09-16T03:00:00Z', representativeProductName: 'Snapshot product',
@@ -24,12 +24,20 @@ const detail: OrderDetail = { id: 'ord_a', orderedAt: summary.orderedAt, checkou
   shipmentStatus: 'AWAITING_PICKUP', carrierCode: 'PRIMARY', carrierName: '기본 택배사',
   trackingNumber: 'TRK-visible', timeline: [{ type: 'ORDER_CREATED', occurredAt: summary.orderedAt },
     { type: 'ORDER_PAID', occurredAt: '2026-09-16T03:05:00Z' }] };
+const orderReturn: OrderReturn = { id: 'ret_a', orderId: detail.id, reason: 'CHANGE_OF_MIND', description: null,
+  refundAmount: { amount: 22000, currency: 'KRW' }, status: 'PICKUP_SCHEDULED', refundStatus: 'NOT_READY',
+  inventoryStatus: 'NOT_READY', returnShipmentId: 'shp_return', pickupAddress: detail.shippingAddress,
+  createdAt: '2026-09-18T03:00:00Z', receivedAt: null, inspectionDueAt: null };
 
 beforeEach(() => {
   vi.spyOn(api, 'me').mockResolvedValue(member);
   vi.spyOn(api, 'orders').mockResolvedValue({ items: [summary], nextCursor: null });
   vi.spyOn(api, 'order').mockResolvedValue(detail);
   vi.spyOn(api, 'cancelOrder').mockResolvedValue({ orderId: detail.id, status: 'COMPLETED' });
+  vi.spyOn(api, 'orderReturn').mockRejectedValue(new ApiError(404, 'return not found'));
+  vi.spyOn(api, 'requestReturn').mockResolvedValue(orderReturn);
+  vi.spyOn(api, 'withdrawReturn').mockResolvedValue({ ...orderReturn, status: 'WITHDRAWN' });
+  vi.spyOn(api, 'rescheduleReturn').mockResolvedValue(orderReturn);
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); });
 
@@ -112,6 +120,61 @@ test('does not expose cancellation action on the order list', async () => {
   open();
   expect(await screen.findByText('Snapshot product 외 1개 상품')).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: '주문 취소' })).not.toBeInTheDocument();
+});
+
+// [PD-0027-R1, R3, R5, R6] 배송 완료된 전체 주문을 기존 배송지 회수로 접수하고 유료 배송 환불액을 안내한다.
+test('requests a whole-order return with the delivery address as pickup default', async () => {
+  vi.mocked(api.order).mockResolvedValue({ ...detail, orderStatus: 'DELIVERED', cancellable: false });
+  open('/orders/ord_a');
+
+  expect(await screen.findByDisplayValue('Snapshot Recipient')).toBeInTheDocument();
+  expect(screen.getByText('유료 배송 주문은 최초 배송비 3,000원을 제외한 금액이 환불됩니다.')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: '전체 주문 반품 신청' }));
+
+  await waitFor(() => expect(api.requestReturn).toHaveBeenCalledWith('ord_a', 'CHANGE_OF_MIND', '', null,
+    detail.shippingAddress));
+  expect(await screen.findByText('회수 예정')).toBeInTheDocument();
+  expect(screen.getByText('환불 예정액').nextElementSibling).toHaveTextContent(formatMoney(orderReturn.refundAmount));
+});
+
+// [PD-0027-R4] 회수 실패 건은 같은 반품 건에서 주소를 바꾸어 다시 접수한다.
+test('reschedules a failed pickup without creating another return', async () => {
+  vi.mocked(api.order).mockResolvedValue({ ...detail, orderStatus: 'DELIVERED', cancellable: false });
+  vi.mocked(api.orderReturn).mockResolvedValue({ ...orderReturn, status: 'PICKUP_FAILED' });
+  open('/orders/ord_a');
+
+  expect(await screen.findByText('회수 실패')).toBeInTheDocument();
+  const address = screen.getAllByLabelText('주소')[0];
+  fireEvent.change(address, { target: { value: 'Changed road' } });
+  fireEvent.click(screen.getByRole('button', { name: '이 주소로 회수 재접수' }));
+
+  await waitFor(() => expect(api.rescheduleReturn).toHaveBeenCalledWith('ord_a',
+    expect.objectContaining({ line1: 'Changed road' })));
+});
+
+test('withdraws a return before pickup', async () => {
+  vi.spyOn(window, 'confirm').mockReturnValue(true);
+  vi.mocked(api.order).mockResolvedValue({ ...detail, orderStatus: 'DELIVERED', cancellable: false });
+  vi.mocked(api.orderReturn).mockResolvedValue(orderReturn);
+  open('/orders/ord_a');
+
+  fireEvent.click(await screen.findByRole('button', { name: '반품 신청 철회' }));
+  await waitFor(() => expect(api.withdrawReturn).toHaveBeenCalledWith('ord_a'));
+  expect(await screen.findByText('반품 철회')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: '전체 주문 반품 신청' })).toBeInTheDocument();
+});
+
+test('shows an automatic return after the original delivery was returned to seller', async () => {
+  vi.mocked(api.order).mockResolvedValue({ ...detail, shipmentStatus: 'RETURNED', cancellable: false });
+  vi.mocked(api.orderReturn).mockResolvedValue({
+    ...orderReturn, reason: 'FAILED_DELIVERY', refundAmount: detail.total, status: 'RECEIVED',
+    refundStatus: 'PENDING', receivedAt: '2026-09-18T03:00:00Z', inspectionDueAt: '2026-09-21T03:00:00Z'
+  });
+  open('/orders/ord_a');
+
+  expect(await screen.findByText('판매자 입고·검수 중')).toBeInTheDocument();
+  expect(screen.getByText('배송 실패 후 판매자 반송')).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: '전체 주문 반품 신청' })).not.toBeInTheDocument();
 });
 
 test('supports list-to-detail navigation and browser back', async () => {

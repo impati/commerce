@@ -15,8 +15,11 @@ import com.impati.commerce.common.ApiContracts.NotificationResponse;
 import com.impati.commerce.common.ApiContracts.OrderDetailResponse;
 import com.impati.commerce.common.ApiContracts.OrderCancellationResponse;
 import com.impati.commerce.common.ApiContracts.OrderPageResponse;
+import com.impati.commerce.common.ApiContracts.OrderReturnResponse;
 import com.impati.commerce.common.ApiContracts.ProductResponse;
 import com.impati.commerce.common.ApiContracts.RegisterMemberRequest;
+import com.impati.commerce.common.ApiContracts.RequestOrderReturn;
+import com.impati.commerce.common.ApiContracts.RescheduleReturnPickupRequest;
 import com.impati.commerce.common.ApiContracts.SetDefaultAddressRequest;
 import com.impati.commerce.common.ApiContracts.StockResponse;
 import com.impati.commerce.common.ApiContracts.StorefrontCartResponse;
@@ -240,6 +243,40 @@ public class GatewayController {
             @PathVariable String orderId
     ) {
         return clients.cancelOrder(identity.require(authorization), orderId);
+    }
+
+    @PostMapping("/orders/{orderId}/returns")
+    ResponseEntity<OrderReturnResponse> requestReturn(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @PathVariable String orderId,
+            @RequestBody RequestOrderReturn request
+    ) {
+        return clients.requestReturn(identity.require(authorization), orderId, request);
+    }
+
+    @GetMapping("/orders/{orderId}/return")
+    OrderReturnResponse orderReturn(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @PathVariable String orderId
+    ) {
+        return clients.orderReturn(identity.require(authorization), orderId);
+    }
+
+    @PostMapping("/orders/{orderId}/return/withdrawal")
+    ResponseEntity<OrderReturnResponse> withdrawReturn(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @PathVariable String orderId
+    ) {
+        return clients.withdrawReturn(identity.require(authorization), orderId);
+    }
+
+    @PostMapping("/orders/{orderId}/return/reschedule")
+    ResponseEntity<OrderReturnResponse> rescheduleReturn(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @PathVariable String orderId,
+            @RequestBody RescheduleReturnPickupRequest request
+    ) {
+        return clients.rescheduleReturn(identity.require(authorization), orderId, request);
     }
 
     @GetMapping("/orders")

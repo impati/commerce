@@ -38,11 +38,22 @@
 .order-event-list time { color: #66736a; font-size: 14px; }
 .order-more { display: block; margin: 24px auto; }
 .order-error { margin-top: 20px; color: #a23b2a; }
+.return-panel { display: grid; gap: 18px; }
+.return-summary > p:first-child { margin-top: 0; }
+.orders-layout .return-form { display: grid; gap: 14px; padding-top: 18px; border-top: 1px solid #d8d6cf; }
+.return-form fieldset { display: grid; gap: 12px; margin: 0; padding: 16px; border: 1px solid #d8d6cf; border-radius: 8px; }
+.return-form fieldset p { margin: 0; color: #66736a; }
+.return-form select, .return-form textarea, .return-form input { width: 100%; padding: 12px; border: 1px solid #d8d6cf; border-radius: 8px; background: #fff; }
+.return-form textarea { min-height: 88px; resize: vertical; }
+.return-address-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.return-address-fields label:nth-child(3) { grid-column: 1 / -1; }
 @media (max-width: 640px) {
   .orders-layout { padding: 20px 14px; }
   .topbar:has(+ .orders-layout) { padding: 16px 14px; align-items: start; }
   .topbar:has(+ .orders-layout) .topbar-actions { flex-wrap: wrap; justify-content: flex-end; }
   .order-lines li { flex-direction: column; gap: 12px; }
+  .return-address-fields { grid-template-columns: 1fr; }
+  .return-address-fields label:nth-child(3) { grid-column: auto; }
 }
 
 * {

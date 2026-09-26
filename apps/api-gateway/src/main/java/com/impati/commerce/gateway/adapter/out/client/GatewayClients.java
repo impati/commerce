@@ -20,8 +20,11 @@ import com.impati.commerce.common.ApiContracts.NotificationResponse;
 import com.impati.commerce.common.ApiContracts.OrderDetailResponse;
 import com.impati.commerce.common.ApiContracts.OrderCancellationResponse;
 import com.impati.commerce.common.ApiContracts.OrderPageResponse;
+import com.impati.commerce.common.ApiContracts.OrderReturnResponse;
 import com.impati.commerce.common.ApiContracts.ProductResponse;
 import com.impati.commerce.common.ApiContracts.RegisterMemberRequest;
+import com.impati.commerce.common.ApiContracts.RequestOrderReturn;
+import com.impati.commerce.common.ApiContracts.RescheduleReturnPickupRequest;
 import com.impati.commerce.common.ApiContracts.SessionTokenRequest;
 import com.impati.commerce.common.ApiContracts.StockResponse;
 import com.impati.commerce.common.ApiContracts.StorefrontCartResponse;
@@ -276,6 +279,44 @@ public class GatewayClients {
                 .header(MEMBER_ID_HEADER, memberId)
                 .retrieve()
                 .toEntity(OrderCancellationResponse.class);
+    }
+
+    public ResponseEntity<OrderReturnResponse> requestReturn(
+            String memberId, String orderId, RequestOrderReturn request
+    ) {
+        return orders.post()
+                .uri("/orders/{orderId}/returns", orderId)
+                .header(MEMBER_ID_HEADER, memberId)
+                .body(request)
+                .retrieve()
+                .toEntity(OrderReturnResponse.class);
+    }
+
+    public OrderReturnResponse orderReturn(String memberId, String orderId) {
+        return orders.get()
+                .uri("/orders/{orderId}/return", orderId)
+                .header(MEMBER_ID_HEADER, memberId)
+                .retrieve()
+                .body(OrderReturnResponse.class);
+    }
+
+    public ResponseEntity<OrderReturnResponse> withdrawReturn(String memberId, String orderId) {
+        return orders.post()
+                .uri("/orders/{orderId}/return/withdrawal", orderId)
+                .header(MEMBER_ID_HEADER, memberId)
+                .retrieve()
+                .toEntity(OrderReturnResponse.class);
+    }
+
+    public ResponseEntity<OrderReturnResponse> rescheduleReturn(
+            String memberId, String orderId, RescheduleReturnPickupRequest request
+    ) {
+        return orders.post()
+                .uri("/orders/{orderId}/return/reschedule", orderId)
+                .header(MEMBER_ID_HEADER, memberId)
+                .body(request)
+                .retrieve()
+                .toEntity(OrderReturnResponse.class);
     }
 
     public OrderPageResponse orders(String memberId, String cursor, int size) {

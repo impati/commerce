@@ -19,7 +19,7 @@ import type {
   Product,
   Stock
 } from './types';
-import type { OrderCancellation, OrderDetail, OrderPage } from './types';
+import type { OrderCancellation, OrderDetail, OrderPage, OrderReturn, ReturnPickupAddress, ReturnReason } from './types';
 
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? '/api';
 const cartRequestTimeoutMs = Number(import.meta.env.VITE_CART_REQUEST_TIMEOUT_MS ?? 10000);
@@ -274,6 +274,29 @@ export const api = {
   cancelOrder(orderId: string): Promise<OrderCancellation> {
     return request<OrderCancellation>(`/orders/${encodeURIComponent(orderId)}/cancellation`, {
       method: 'POST', body: '{}'
+    });
+  },
+
+  requestReturn(orderId: string, reason: ReturnReason, description: string,
+    awareDate: string | null, pickupAddress?: ReturnPickupAddress): Promise<OrderReturn> {
+    return request<OrderReturn>(`/orders/${encodeURIComponent(orderId)}/returns`, {
+      method: 'POST', body: JSON.stringify({ reason, description: description || null, awareDate, pickupAddress })
+    });
+  },
+
+  orderReturn(orderId: string): Promise<OrderReturn> {
+    return request<OrderReturn>(`/orders/${encodeURIComponent(orderId)}/return`);
+  },
+
+  withdrawReturn(orderId: string): Promise<OrderReturn> {
+    return request<OrderReturn>(`/orders/${encodeURIComponent(orderId)}/return/withdrawal`, {
+      method: 'POST', body: '{}'
+    });
+  },
+
+  rescheduleReturn(orderId: string, pickupAddress: ReturnPickupAddress): Promise<OrderReturn> {
+    return request<OrderReturn>(`/orders/${encodeURIComponent(orderId)}/return/reschedule`, {
+      method: 'POST', body: JSON.stringify({ pickupAddress })
     });
   },
 
